@@ -1,0 +1,113 @@
+defn stack (max_size) :
+    object :
+        var contents = array(max_size, 0)
+        var pointer = -1
+        var max = max_size
+
+        method full? () :
+            this.pointer >= this.max - 1
+
+        method empty? () :
+            this.pointer < 0
+
+        method push (value) :
+            if this.pointer >= this.max - 1:
+                printf("Error: attempt to push to full stack\n")
+                null
+            else :
+                this.pointer = this.pointer + 1
+                this.contents[this.pointer] = value
+                1
+
+        method length () :
+            this.pointer + 1
+        
+        method pop () :
+            if this.pointer <0 :
+                printf("Error: attempt to pop form empty stack\n")
+                null
+            else :
+                var result = this.contents[this.pointer]
+                this.pointer = this.pointer - 1
+                result
+
+        method print () :            
+            printf("[")
+            var i = 0
+            while i < this.max :
+                if i > 0 :
+                    printf(", ")
+                if i == this.pointer :
+                    printf("|")
+                printf("~", this.contents[i])
+                if i == this.pointer :
+                    printf("|")
+                i = i + 1
+            printf("]\n")
+            
+defn move (n, source, target, auxiliary) :
+    printf("move ~\n", n)
+    source.print()
+    target.print()
+    auxiliary.print()
+    printf("\n")
+
+    if n > 0 :
+        move(n - 1, source, auxiliary, target)
+        var ring = source.pop()
+        printf("ring ~\n", ring)
+        if ring :
+            var result = target.push(ring)
+            printf("result ~\n", result)
+            if result :
+                printf("Operation: ~\n", n)
+                move(n - 1, auxiliary, target, source)
+                                 
+            else : 
+                printf("Error: cannot push to target\n")
+        else :
+            printf("Error: cannot pop from source\n")
+            null
+
+defn hanoi (n) : 
+    var source = stack(n)
+    var target = stack(n)
+    var auxiliary = stack(n)
+
+    var i = n
+    while i > 0 :
+        source.push(i)
+        i = i - 1
+    move(n, source, target, auxiliary)
+
+    printf("DONE!\n")
+    source.print()
+    target.print()
+    auxiliary.print()
+    
+
+defn test_stack () :
+    var s = stack(10)
+    var i = 11
+    while i > 0 :
+        var value = 10 - i + 1
+        s.push(value)
+        printf("push ~ len=~ ", value, s.length())
+        s.print()
+        if s.full?() :
+            printf("stack is full\n")
+        if s.empty?() :
+            printf("stack is empty\n")
+        i = i - 1
+    i = 11
+    while i > 0 :
+        printf("pop ~ len=~ ", s.pop(), s.length())
+        s.print()
+        if s.full?() :
+            printf("stack is full\n")
+        if s.empty?() :
+            printf("stack is empty\n")
+        i = i - 1
+   
+test_stack()
+hanoi(3)
