@@ -1,4 +1,4 @@
-defn stack (max_size) :
+defn stack (max_size) :                                          ;I don't know how to include this
     object :
         var contents = array(max_size, 0)
         var pointer = -1
@@ -47,24 +47,35 @@ defn stack (max_size) :
             
 defn move (n, source, target, auxiliary) :
     printf("move ~\n", n)
+    printf("  source: ")
     source.print()
+    printf("  target: ")
     target.print()
+    printf("  auxiliary: ")
     auxiliary.print()
     printf("\n")
 
     if n > 0 :
+        printf("perform move ~ from within  move ~\n", n - 1, n)
+        printf("  (swap auxiliary and target)\n\n")
         move(n - 1, source, auxiliary, target)
+
         var ring = source.pop()
-        printf("ring ~\n", ring)
+        printf("move ~: pop from source ~ giving ", n, ring)
+        source.print()
+
         if ring :
             var result = target.push(ring)
-            printf("result ~\n", result)
+            printf("move ~: push to target ~ giving ", n, result)
+            target.print()
+
             if result :
-                printf("Operation: ~\n", n)
+                printf("perform move ~ from within  move ~\n", n - 1, n)
+                printf("  (swap auxiliary and source)\n\n")
                 move(n - 1, auxiliary, target, source)
-                                 
             else : 
                 printf("Error: cannot push to target\n")
+                null
         else :
             printf("Error: cannot pop from source\n")
             null
@@ -81,33 +92,155 @@ defn hanoi (n) :
     move(n, source, target, auxiliary)
 
     printf("DONE!\n")
+    printf("  source: ")
     source.print()
+    printf("  target: ")
     target.print()
+    printf("  auxiliary: ")
     auxiliary.print()
-    
+    printf("\n")
 
-defn test_stack () :
-    var s = stack(10)
-    var i = 11
-    while i > 0 :
-        var value = 10 - i + 1
-        s.push(value)
-        printf("push ~ len=~ ", value, s.length())
-        s.print()
-        if s.full?() :
-            printf("stack is full\n")
-        if s.empty?() :
-            printf("stack is empty\n")
-        i = i - 1
-    i = 11
-    while i > 0 :
-        printf("pop ~ len=~ ", s.pop(), s.length())
-        s.print()
-        if s.full?() :
-            printf("stack is full\n")
-        if s.empty?() :
-            printf("stack is empty\n")
-        i = i - 1
-   
-test_stack()
+
 hanoi(3)
+
+;============================================================
+;====================== Output ==============================
+;============================================================
+;
+;move 3
+;  source: [3, 2, |1|]
+;  target: [0, 0, 0]
+;  auxiliary: [0, 0, 0]
+;
+;perform move 2 from within  move 3
+;  (swap auxiliary and target)
+;
+;move 2
+;  source: [3, 2, |1|]
+;  target: [0, 0, 0]
+;  auxiliary: [0, 0, 0]
+;
+;perform move 1 from within  move 2
+;  (swap auxiliary and target)
+;
+;move 1
+;  source: [3, 2, |1|]
+;  target: [0, 0, 0]
+;  auxiliary: [0, 0, 0]
+;
+;perform move 0 from within  move 1
+;  (swap auxiliary and target)
+;
+;move 0
+;  source: [3, 2, |1|]
+;  target: [0, 0, 0]
+;  auxiliary: [0, 0, 0]
+;
+;move 1: pop from source 1 giving [3, |2|, 1]
+;move 1: push to target 1 giving [|1|, 0, 0]
+;perform move 0 from within  move 1
+;  (swap auxiliary and source)
+;
+;move 0
+;  source: [0, 0, 0]
+;  target: [|1|, 0, 0]
+;  auxiliary: [3, |2|, 1]
+;
+;move 2: pop from source 2 giving [|3|, 2, 1]
+;move 2: push to target 1 giving [|2|, 0, 0]
+;perform move 1 from within  move 2
+;  (swap auxiliary and source)
+;
+;move 1
+;  source: [|1|, 0, 0]
+;  target: [|2|, 0, 0]
+;  auxiliary: [|3|, 2, 1]
+;
+;perform move 0 from within  move 1
+;  (swap auxiliary and target)
+;
+;move 0
+;  source: [|1|, 0, 0]
+;  target: [|3|, 2, 1]
+;  auxiliary: [|2|, 0, 0]
+;
+;move 1: pop from source 1 giving [1, 0, 0]
+;move 1: push to target 1 giving [2, |1|, 0]
+;perform move 0 from within  move 1
+;  (swap auxiliary and source)
+;
+;move 0
+;  source: [|3|, 2, 1]
+;  target: [2, |1|, 0]
+;  auxiliary: [1, 0, 0]
+;
+;move 3: pop from source 3 giving [3, 2, 1]
+;move 3: push to target 1 giving [|3|, 0, 0]
+;perform move 2 from within  move 3
+;  (swap auxiliary and source)
+;
+;move 2
+;  source: [2, |1|, 0]
+;  target: [|3|, 0, 0]
+;  auxiliary: [3, 2, 1]
+;
+;perform move 1 from within  move 2
+;  (swap auxiliary and target)
+;
+;move 1
+;  source: [2, |1|, 0]
+;  target: [3, 2, 1]
+;  auxiliary: [|3|, 0, 0]
+;
+;perform move 0 from within  move 1
+;  (swap auxiliary and target)
+;
+;move 0
+;  source: [2, |1|, 0]
+;  target: [|3|, 0, 0]
+;  auxiliary: [3, 2, 1]
+;
+;move 1: pop from source 1 giving [|2|, 1, 0]
+;move 1: push to target 1 giving [|1|, 2, 1]
+;perform move 0 from within  move 1
+;  (swap auxiliary and source)
+;
+;move 0
+;  source: [|3|, 0, 0]
+;  target: [|1|, 2, 1]
+;  auxiliary: [|2|, 1, 0]
+;
+;move 2: pop from source 2 giving [2, 1, 0]
+;move 2: push to target 1 giving [3, |2|, 0]
+;perform move 1 from within  move 2
+;  (swap auxiliary and source)
+;
+;move 1
+;  source: [|1|, 2, 1]
+;  target: [3, |2|, 0]
+;  auxiliary: [2, 1, 0]
+;
+;perform move 0 from within  move 1
+;  (swap auxiliary and target)
+;
+;move 0
+;  source: [|1|, 2, 1]
+;  target: [2, 1, 0]
+;  auxiliary: [3, |2|, 0]
+;
+;move 1: pop from source 1 giving [1, 2, 1]
+;move 1: push to target 1 giving [3, 2, |1|]
+;perform move 0 from within  move 1
+;  (swap auxiliary and source)
+;
+;move 0
+;  source: [2, 1, 0]
+;  target: [3, 2, |1|]
+;  auxiliary: [1, 2, 1]
+;
+;DONE!
+;  source: [1, 2, 1]
+;  target: [3, 2, |1|]
+;  auxiliary: [2, 1, 0]
+;
+
