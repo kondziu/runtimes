@@ -1,0 +1,11 @@
+# Clean output folder
+rm output/*.out
+
+# Run output
+function test {
+   ./feeny -e tests/$1.feeny > output/$1.out
+}
+test hanoi
+test stack
+test morehanoi
+
