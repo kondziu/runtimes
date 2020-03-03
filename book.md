@@ -102,7 +102,7 @@ And also:
   - Popek and Goldberg 1974 (isomorphism)
   - Glenford Myers 1982 (computer architecture)
 
-### Chapter 2: Emulation (pt. 1)
+### Chapter 2: Emulation 
 
 `source ====[ emulator ]====> target`
 
@@ -112,13 +112,24 @@ eg. `source instruction set =[ emulator ] => target instruction set` (aka `virtu
 
 Emulaiton can be implemented anywhere on the spectrum from **interpretation** to **binary translation**.
 
-Interpretation: get a source instruction, do the thing, repeat
+Interpretation: get a source instruction, multiplex, do the thing, repeat. bigger execution cost. *decode-and-dipatch* interpreter
 
-Transation: translate a block, cache the translation, do the things
+Transation: translate a block, cache the translation, do the things. bigger translation cost.
 
+Threaded interpretation: get a source instruction, multiplex, do the thing. except multiplexing takes place at the end of the routine that does the thing, so there's less back-and-forth. somewhere in between. used in FORTH and other 70s fossils.
 
+Predecoding into intermediate form: parse all source into an easy-to-interpret form that contains more information, consolidates things, etc. Eg. SOOT framework for Java is single-assign. The example in the book is PowerPC and/or/add/subtract which are two opcodes, but can be parsed into one operation.
 
+Direct threaded interpretation: replace the dispatch table with direct addresses. 
 
+*This chapter is honestly not relevant to what I want to happen in the course.*
+
+## Binary translation
+
+####  Papers
+
+- Debaere and Van Campenhout 1990 (threaded code)
+- Klint 1981 (threaded interpretation)
 
 
 
