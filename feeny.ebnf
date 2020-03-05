@@ -1,0 +1,60 @@
+(*var while if else array object null printf
+colon
+indent*)
+
+program ::= [statement<n> (* any n*)] [{NEWLINE} program] | NEWLINE;
+statement<n> ::= variable_def | loop<n> | conditional<n> | assignment | printf | comment | object_def<n> | expression;
+variable_def ::= VAR whitespace identifier [whitespace] ASSIGN
+expression ::= expression [whitespace] OPERATOR [whitespace] expression 
+             | number
+             | identifier LBRACKET [whitespace] expression [whitespace] RBRACKET
+             | application
+             | NULL;
+conditional<n> ::= IF whitespace test whitespace COLON [whitespace] indented_block<n+m+1>  (* any m *) [whitespace] NEWLINE [ELSE indented_block] ; 
+test ::= expression COMPARATOR expression;
+indented_block<n> ::= INDENT<n> expression [indented_block];
+
+
+identifier ::= WORD;
+printf ::= PRINTF LPAREN string [whitespace arguments] RPAREN;
+arguments ::= expression [whitespace arguments] | expression;
+
+number ::= [NEGATIVE_NUMBER_PREFIX] positive_number;
+positive_number ::= ZERO | DIGIT [positive_number];
+
+comment ::= COMMENT {ANY} NEWLINE;
+
+string ::= STRING_BOUNDARY [string_contents] STRING_BOUNDARY;
+string_contents ::= STRING_CHARACTER [string_contents] 
+                  | STRING_PLACEHOLDER [string_contents]
+                  | ESCAPE STRING_BOUNDARY [string_contents];
+
+whitespace ::= {WHITESPACE};
+ELSE ::= `else`
+INDENT<n> ::= ? ^[ \t]* ? (*such that length(INDENT) == n*)
+COMPARATOR ::= `<` | `<=` | `>` | `>=` | `!=` | `==`;
+IF ::= `if`
+COLON ::= `:`
+ESCAPE ::= `\`
+STRING_BOUNDARY ::= `"`
+STRING_CHARACTER ::= ? [^"~] ?
+STRING_PLACEHOLDER ::= `~`
+NULL ::= `null`
+PRINTF ::= `printf`
+LPAREN ::= `(`
+RPARENT ::= `)`
+LBRACKET ::= `[`
+RBRACKET ::= `]`
+ASSIGN ::= `=`;
+COMMENT ::= `;` 
+VAR ::= `var`;
+NEGATIVE_NUMBER_PREFIX = `-`;
+WHITESPACE ::= `,` | ` ` | `\t`;
+NEWLINE ::= `\n` | `r` | NEWLINE NEWLINE;
+OPERATOR ::= `+` | `-` | `*` | `/`;
+ZERO ::= `0`;
+DIGIT ::= `1` | `2` | `3` | `4` | `5` | `6` | `7` | `8` | `9`;
+WORD ::= ? [^ \t\n\r\(\)\[\]\;,]+ ?
+ANY ::= ? [^\n\r]+ ?
+
+
