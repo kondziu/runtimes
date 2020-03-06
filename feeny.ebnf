@@ -1,60 +1,122 @@
-(*var while if else array object null printf
-colon
-indent*)
+(* A reverse-engineered Feeny grammar 
+ * 
+ * This is in EBNF, except:
+ *
+ * I'm annotating some terms with <n>. This is an aid to show that indentation
+ * is increased in certain definition. In this annotation <n> stands for an
+ * indentation of the depth of any natural number. <n+m+1> stands for
+ * indentation that is greater than n by at least 1, but possibly (actually
+ * typically) by an arbitrary natural number (usually m=3). 
+ *)
+program                ::= [indent<n> statement<n>] [whitespace] [NEWLINE [program]];
 
-program ::= [statement<n> (* any n*)] [{NEWLINE} program] | NEWLINE;
-statement<n> ::= variable_def | loop<n> | conditional<n> | assignment | printf | comment | object_def<n> | expression;
-variable_def ::= VAR whitespace identifier [whitespace] ASSIGN
-expression ::= expression [whitespace] OPERATOR [whitespace] expression 
-             | number
-             | identifier LBRACKET [whitespace] expression [whitespace] RBRACKET
-             | application
-             | NULL;
-conditional<n> ::= IF whitespace test whitespace COLON [whitespace] indented_block<n+m+1>  (* any m *) [whitespace] NEWLINE [ELSE indented_block] ; 
-test ::= expression COMPARATOR expression;
-indented_block<n> ::= INDENT<n> expression [indented_block];
+statement<n>           ::= variable_def 
+                         | loop<n> 
+                         | conditional<n> 
+                         | assignment 
+                         | array_assignment
+                         | printf
+                         | comment 
+                         | function_def<n>
+                         | object_def<n> 
+                         | expression;
+    
+expression             ::= operation
+                         | number
+                         | array_access
+                         | application
+                         | array
+                         | method_call
+                         | member_access
+                         | NULL;
 
+operation              ::= expression whitespace operator whitespace expression;                       
+member_access          ::= identifier ACCESSOR identifier;
+function_call          ::= identifier LPAREN argument_list RPAREN;                       
+method_call            ::= member_access LPAREN argument_list RPAREN;
+argument_list          ::= expression [whitespace argument_list];
 
-identifier ::= WORD;
-printf ::= PRINTF LPAREN string [whitespace arguments] RPAREN;
-arguments ::= expression [whitespace arguments] | expression;
+array_access           ::= identifier LBRACKET [whitespace] expression [whitespace] RBRACKET;
+array_assignment       ::= identifier LBRACKET expression ASSIGN expression;
 
-number ::= [NEGATIVE_NUMBER_PREFIX] positive_number;
-positive_number ::= ZERO | DIGIT [positive_number];
+assignment             ::= identifier ASSIGN expression;
+object_def<n>          ::= OBJECT whitespace COLON [whitespace] NEWLINE 
+                           object_members<n+m+1>;
 
-comment ::= COMMENT {ANY} NEWLINE;
+object_members<n>      ::= INDENT<n> object_member [NEWLINE [object_members<n>]];
+object_member<n>       ::= variable_def 
+                         | method_def<n>;
 
-string ::= STRING_BOUNDARY [string_contents] STRING_BOUNDARY;
-string_contents ::= STRING_CHARACTER [string_contents] 
-                  | STRING_PLACEHOLDER [string_contents]
-                  | ESCAPE STRING_BOUNDARY [string_contents];
+variable_def           ::= VAR whitespace identifier [whitespace] ASSIGN expression;
 
-whitespace ::= {WHITESPACE};
-ELSE ::= `else`
-INDENT<n> ::= ? ^[ \t]* ? (*such that length(INDENT) == n*)
-COMPARATOR ::= `<` | `<=` | `>` | `>=` | `!=` | `==`;
-IF ::= `if`
-COLON ::= `:`
-ESCAPE ::= `\`
-STRING_BOUNDARY ::= `"`
-STRING_CHARACTER ::= ? [^"~] ?
-STRING_PLACEHOLDER ::= `~`
-NULL ::= `null`
-PRINTF ::= `printf`
-LPAREN ::= `(`
-RPARENT ::= `)`
-LBRACKET ::= `[`
-RBRACKET ::= `]`
-ASSIGN ::= `=`;
-COMMENT ::= `;` 
-VAR ::= `var`;
-NEGATIVE_NUMBER_PREFIX = `-`;
-WHITESPACE ::= `,` | ` ` | `\t`;
-NEWLINE ::= `\n` | `r` | NEWLINE NEWLINE;
-OPERATOR ::= `+` | `-` | `*` | `/`;
-ZERO ::= `0`;
-DIGIT ::= `1` | `2` | `3` | `4` | `5` | `6` | `7` | `8` | `9`;
-WORD ::= ? [^ \t\n\r\(\)\[\]\;,]+ ?
-ANY ::= ? [^\n\r]+ ?
+function_def<n>        ::= FUNCTION function_signature whitespace COLON [whitespace] NEWLINE 
+                           indented_block<n+m+1>;
+function_signature     ::= identifier LPAREN parameter_list RPAREN;
 
+method_def             ::= METHOD function_signature whitespace COLON [whitespace] NEWLINE 
+                           indented_block<n+m+1>;
+                           (* Method bodies techincally differ from function
+                            * bodies in that they have access to `this` but I'm
+                            * too lazy to rewritre all those definitions to
+                            * catch a misuse of `this` at compile time.
+                            *)
+
+conditional<n>         ::= IF whitespace test whitespace COLON [whitespace] NEWLINE 
+                           indented_block<n+m+1> [whitespace] NEWLINE 
+                           [ELSE indented_block];
+
+loop<n>                ::= WHILE whitespace test whitespace COLON [whitespace] NEWLINE 
+                           indented_block<n+m+1>;
+test                   ::= expression | expression COMPARATOR expression;
+indented_block<n>      ::= INDENT<n> statement [NEWLINE [indented_block<n>]];
+operator               ::= OPERATOR | COMPARATOR;
+
+identifier             ::= WORD;
+printf                 ::= PRINTF LPAREN string [whitespace argument_list] RPAREN;
+
+number                 ::= [NEGATIVE_NUMBER_PREFIX] positive_number;
+positive_number        ::= ZERO | DIGIT [positive_number];
+
+comment                ::= COMMENT {ANY} NEWLINE;
+
+string                 ::= STRING_BOUNDARY [string_contents] STRING_BOUNDARY;
+string_contents        ::= STRING_CHARACTER [string_contents] 
+                         | STRING_PLACEHOLDER [string_contents]
+                         | ESCAPE STRING_BOUNDARY [string_contents];
+
+whitespace             ::= {WHITESPACE};
+
+(*Lexer/terminals*)
+FUNCTION               ::= `defn`
+METHOD                 ::= `method`
+OBJECT                 ::= `object`
+WHILE                  ::= `while`;
+ELSE                   ::= `else`;
+ACCESSOR               ::= `.`;
+INDENT<n>              ::= ? ^[ \t]* ?; (*such that length(INDENT) == n*)
+COMPARATOR             ::= `<` | `<=` | `>` | `>=` | `!=` | `==`;
+IF                     ::= `if`;
+COLON                  ::= `:`;
+ESCAPE                 ::= `\`;
+STRING_BOUNDARY        ::= `"`;
+STRING_CHARACTER       ::= ? [^"~] ?;
+STRING_PLACEHOLDER     ::= `~`;
+NULL                   ::= `null`;
+PRINTF                 ::= `printf`;
+LPAREN                 ::= `(`;
+RPARENT                ::= `)`;
+LBRACKET               ::= `[`;
+RBRACKET               ::= `]`;
+ASSIGN                 ::= `=`;
+COMMENT                ::= `;`;
+VAR                    ::= `var`;
+NEGATIVE_NUMBER_PREFIX ::= `-`;
+WHITESPACE             ::= `,` | ` ` | `\t`;
+NEWLINE                ::= `\n` | `r` | NEWLINE NEWLINE;
+OPERATOR               ::= `+` | `-` | `*` | `/`;
+ZERO                   ::= `0`;
+DIGIT                  ::= `1` | `2` | `3` | `4` | `5` | `6` | `7` | `8` | `9`;
+WORD                   ::= ? [^ \t\n\r\(\)\[\]\;,]+ ?;
+ANY                    ::= ? [^\n\r]+ ?;
+THIS                   ::= `this` (*unused in the grammar*)
 
