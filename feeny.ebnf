@@ -87,36 +87,36 @@ string_contents        ::= STRING_CHARACTER [string_contents]
 whitespace             ::= {WHITESPACE};
 
 (*Lexer/terminals*)
-FUNCTION               ::= `defn`
-METHOD                 ::= `method`
-OBJECT                 ::= `object`
-WHILE                  ::= `while`;
-ELSE                   ::= `else`;
-ACCESSOR               ::= `.`;
+FUNCTION               ::= "defn"
+METHOD                 ::= "method"
+OBJECT                 ::= "object"
+WHILE                  ::= "while";
+ELSE                   ::= "else";
+ACCESSOR               ::= ".";
 INDENT<n>              ::= ? ^[ \t]* ?; (*such that length(INDENT) == n*)
-COMPARATOR             ::= `<` | `<=` | `>` | `>=` | `!=` | `==`;
-IF                     ::= `if`;
-COLON                  ::= `:`;
-ESCAPE                 ::= `\`;
-STRING_BOUNDARY        ::= `"`;
+COMPARATOR             ::= "<" | "<=" | ">" | ">=" | "!=" | "==";
+IF                     ::= "if";
+COLON                  ::= ":";
+ESCAPE                 ::= "\";
+STRING_BOUNDARY        ::= '"';
 STRING_CHARACTER       ::= ? [^"~] ?;
-STRING_PLACEHOLDER     ::= `~`;
-NULL                   ::= `null`;
-PRINTF                 ::= `printf`;
-LPAREN                 ::= `(`;
-RPARENT                ::= `)`;
-LBRACKET               ::= `[`;
-RBRACKET               ::= `]`;
-ASSIGN                 ::= `=`;
-COMMENT                ::= `;`;
-VAR                    ::= `var`;
-NEGATIVE_NUMBER_PREFIX ::= `-`;
-WHITESPACE             ::= `,` | ` ` | `\t`;
-NEWLINE                ::= `\n` | `r` | NEWLINE NEWLINE;
-OPERATOR               ::= `+` | `-` | `*` | `/`;
-ZERO                   ::= `0`;
-DIGIT                  ::= `1` | `2` | `3` | `4` | `5` | `6` | `7` | `8` | `9`;
+STRING_PLACEHOLDER     ::= "~";
+NULL                   ::= "null";
+PRINTF                 ::= "printf";
+LPAREN                 ::= "(";
+RPARENT                ::= ")";
+LBRACKET               ::= "[";
+RBRACKET               ::= "]";
+ASSIGN                 ::= "=";
+COMMENT                ::= ";";
+VAR                    ::= "var";
+NEGATIVE_NUMBER_PREFIX ::= "-";
+WHITESPACE             ::= "," | " " | "\t";
+NEWLINE                ::= "\n" | "r" | NEWLINE NEWLINE;
+OPERATOR               ::= "+" | "-" | "*" | "/";
+ZERO                   ::= "0";
+DIGIT                  ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
 WORD                   ::= ? [^ \t\n\r\(\)\[\]\;,]+ ?;
 ANY                    ::= ? [^\n\r]+ ?;
-THIS                   ::= `this` (*unused in the grammar*)
+THIS                   ::= "this" (*unused in the grammar*)
 
