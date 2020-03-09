@@ -1,16 +1,21 @@
 #[macro_use] extern crate lalrpop_util;
 
-lalrpop_mod!(pub calculator1); // syntesized by LALRPOP
+pub mod ast;
+
+lalrpop_mod!(pub fml); // syntesized by LALRPOP
 
 #[test]
-fn calculator1() {
-    assert!(calculator1::TermParser::new().parse("22").is_ok());
-    assert!(calculator1::TermParser::new().parse("(22)").is_ok());
-    assert!(calculator1::TermParser::new().parse("((((22))))").is_ok());
-    assert!(calculator1::TermParser::new().parse("((22)").is_err());
+fn numbers() {
+    assert!(fml::ExpressionParser::new().parse("0").is_ok());
+    assert!(fml::ExpressionParser::new().parse("-0").is_ok());
+    assert!(fml::ExpressionParser::new().parse("2").is_ok());
+    assert!(fml::ExpressionParser::new().parse("-2").is_ok());
+    assert!(fml::ExpressionParser::new().parse("42").is_ok());
+    assert!(fml::ExpressionParser::new().parse("0100").is_ok());
+    assert!(fml::ExpressionParser::new().parse("0000").is_ok());
 }
 
 #[cfg(not(test))]
 fn main() {
-    println!("Hello, world!");
+    println!("cargo test");
 }

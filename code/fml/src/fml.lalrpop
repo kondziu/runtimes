@@ -1,0 +1,20 @@
+use std::str::FromStr;
+use ast::{AST};
+
+grammar<'g>(input: &'in str);
+
+pub Expression: Box<AST<'g>> = {
+   Number => <>,
+   Identifier => <>,
+}
+
+
+// Lexer
+Identifier: Box<AST<'g>> = {
+    r"[_A-Za-z][_A-Za-z0-9]*" => Box::new(AST::Indentifier(<&'g str>)),
+    "this"                    => Box::new(AST::Indentifier("this")),
+}
+
+Number: Box<AST> = {
+    r"[-]?[0-9]+"             => Box::new(i32::from_str(<>).unwrap()),        
+}
