@@ -11,6 +11,7 @@ use crate::fml::ExpressionParser;
 use crate::fml_ast::AST::Number;
 use crate::fml_ast::AST::Identifier;
 use crate::fml_ast::AST::StringLiteral;
+use crate::fml_ast::AST::BooleanLiteral;
 
 #[test]
 fn numbers() {
@@ -52,14 +53,21 @@ fn identifiers() {
 
 #[test]
 fn string_literals() {
-    assert_eq!(ExpressionParser::new().parse("'hello world'"),
-               Ok(StringLiteral("hello world")));
-    assert_eq!(ExpressionParser::new().parse("''"),
-               Ok(StringLiteral("")));
-    assert_eq!(ExpressionParser::new().parse("'\\n'"),
-               Ok(StringLiteral("\\n")));
-    assert_eq!(ExpressionParser::new().parse("'\\\\'"),
-               Ok(StringLiteral("\\\\")));
+    assert_eq!(ExpressionParser::new().parse("'hello world'"), Ok(StringLiteral("hello world")));
+    assert_eq!(ExpressionParser::new().parse("''"), Ok(StringLiteral("")));
+    assert_eq!(ExpressionParser::new().parse("'\\n'"), Ok(StringLiteral("\\n")));
+    assert_eq!(ExpressionParser::new().parse("'\\t'"), Ok(StringLiteral("\\t")));
+    assert_eq!(ExpressionParser::new().parse("'\\b'"), Ok(StringLiteral("\\b")));
+    assert_eq!(ExpressionParser::new().parse("'\\r'"), Ok(StringLiteral("\\r")));
+    assert_eq!(ExpressionParser::new().parse("'\\\\'"), Ok(StringLiteral("\\\\")));
+    assert!(ExpressionParser::new().parse("'\\'").is_err());
+    assert!(ExpressionParser::new().parse("'\\a'").is_err());
+}
+
+#[test]
+fn boolean_literals() {
+    assert_eq!(ExpressionParser::new().parse("true"), Ok(BooleanLiteral(true)));
+    assert_eq!(ExpressionParser::new().parse("false"), Ok(BooleanLiteral(false)));
 }
 
 #[cfg(not(test))]

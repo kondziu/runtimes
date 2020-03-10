@@ -10,18 +10,24 @@ pub Expression: AST<'input> = {
 Literal: AST<'input> = {
     Number                               => <>,
     Identifier                           => <>,
-    String                       => <>,
+    String                               => <>,
+    Boolean                              => <>,
 }
 
 Identifier: AST<'input> = {
-     r"[_A-Za-z][_A-Za-z0-9]*"          => AST::Identifier(<>),
-     "this"                             => AST::Identifier(<>),
+     r"[_A-Za-z][_A-Za-z0-9]*"           => AST::Identifier(<>),
+     "this"                              => AST::Identifier(<>),
 }
 
 Number: AST<'input> = {
-    r"[-]?[0-9]+"                       => AST::Number(i32::from_str(<>).unwrap()),
+    r"[-]?[0-9]+"                        => AST::Number(i32::from_str(<>).unwrap()),
 }
 
 String: AST<'input> = {
     <contents:r"'([^\\]|\\[ntbr\\])*'">  => AST::StringLiteral(&contents[1..contents.len()-1]),
+}
+
+Boolean: AST<'input> = {
+    "true"                               => AST::BooleanLiteral(true),
+    "false"                              => AST::BooleanLiteral(false),
 }

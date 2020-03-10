@@ -6,6 +6,7 @@ pub enum AST<'ast> {
     Number(i32),
     Identifier(&'ast str),
     StringLiteral(&'ast str),
+    BooleanLiteral(bool),
 }
 
 impl Debug for AST<'_> {
@@ -15,6 +16,7 @@ impl Debug for AST<'_> {
             Number(n) => write!(fmt, "Number({:?})", n),
             Identifier(id) => write!(fmt, "Identifier({})", id),
             StringLiteral(s) => write!(fmt, "StringLiteral({:?})", s),
+            BooleanLiteral(b) => write!(fmt, "Boolean({})", b),
             //Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
             //Error => write!(fmt, "error"),
         }
