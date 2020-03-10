@@ -7,6 +7,7 @@ lalrpop_mod!(pub fml); // syntesized by LALRPOP
 use crate::fml::ExpressionParser;
 use crate::fml_ast::AST::Number;
 use crate::fml_ast::AST::Identifier;
+use crate::fml_ast::AST::StringLiteral;
 
 #[test]
 fn numbers() {
@@ -44,6 +45,18 @@ fn identifiers() {
                Ok(Identifier("spaceship")));
     assert_eq!(ExpressionParser::new().parse("___"),
                Ok(Identifier("___")));
+}
+
+#[test]
+fn string_literals() {
+    assert_eq!(ExpressionParser::new().parse("'hello world'"),
+               Ok(StringLiteral("'hello world'")));
+    assert_eq!(ExpressionParser::new().parse("''"),
+               Ok(StringLiteral("''")));
+    assert_eq!(ExpressionParser::new().parse("'\\n'"),
+               Ok(StringLiteral("'\\n'")));
+    assert_eq!(ExpressionParser::new().parse("'\\''"),
+               Ok(StringLiteral("'\\''")));
 }
 
 #[cfg(not(test))]

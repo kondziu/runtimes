@@ -5,6 +5,7 @@ use std::cmp::PartialEq;
 pub enum AST<'ast> {
     Number(i32),
     Identifier(&'ast str),
+    StringLiteral(&'ast str),
 }
 
 impl Debug for AST<'_> {
@@ -13,6 +14,7 @@ impl Debug for AST<'_> {
         match *self {
             Number(n) => write!(fmt, "Number({:?})", n),
             Identifier(id) => write!(fmt, "Identifier({})", id),
+            StringLiteral(s) => write!(fmt, "StringLiteral({:?})", s),
             //Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
             //Error => write!(fmt, "error"),
         }
