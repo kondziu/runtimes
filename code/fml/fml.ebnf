@@ -1,23 +1,23 @@
-(* FML syntax
+/* FML syntax
  * 
  * A more ML-like syntax for the Feeny toy language.
  * Based loosely on the EBNF from https://caml.inria.fr/pub/docs/manual-ocaml/
  *
- *)
+ */
 
-(* The following characters are considered as blanks. Blanks are ignored, but
+/* The following characters are considered as blanks. Blanks are ignored, but
  * they separate adjacent identifiers, literals and keywords that would 
  * otherwise be confused as one single identifier, literal or keyword. 
- *)
+ */
 blanks ::= ' ' | '\t' | '\n' | '\r';
 
-comment ::= ? \(\*.*\)\* ? (* ML-style comments*)
+comment ::= 'regexp:\(\*.*\)\*' /* ML-style comments*/
 
-(* various simple tokens *)
-letter ::= 'A' .. 'Z' ∣  'a' .. 'z';
-digit  ::= '0' .. '9';
+/* various simple tokens */
+letter ::= 'regexp:[A-Za-z]';
+digit  ::= 'regexp:[0-9]';
 underscore ::= '_';
-regular_character ::= ? [^/] ?;
+regular_character ::= 'regexp:[^/]';
 escape_sequence ::= '\' ('"' | "'" | 'n' | 't' | 'b' | 'r' | ' ');
 double_quote ::= '"';
 lparen ::= "(";
@@ -29,7 +29,7 @@ dot ::= ".";
 larrow ::= "<-"
 rarrow ::= "->"
 
-(* operators *)
+/* operators */
 plus ::= "+";
 multiply ::= "*";
 divide ::= "/";
@@ -43,7 +43,7 @@ minus  ::= '-';
 equal ::= "=";
 unequal ::= "!=";
 
-(* keywords *)
+/* keywords */
 while ::= "while";
 object ::= "object";
 if ::= "if";
@@ -58,53 +58,53 @@ begin ::= "begin";
 end ::= "end";
 this ::= "this";
 
-(* identifiers *)
+/* identifiers */
 identifier ::= (letter | underscore) {letter | digit | underscore} | this;
 operator ::= multiply | plus | minus | divide | unequal | equal | lesser | greater | lesser_or_equal | greater_or_equal | or | and;
 method_identifier ::= identifier | operator;
 
-(* operator precedense *)
-(* plus and minus < multiply and divide < equal and unequal and lesser etc. *)
-(* or < and *)
+/* operator precedense */
+/* plus and minus < multiply and divide < equal and unequal and lesser etc. */
+/* or < and */
 
-(* literals *)
-literal ::= number | string | boolean | unit | begin end;                   (* begin end == unit *)
+/* literals */
+literal ::= number | string | boolean | unit | begin end;                   /* begin end == unit */
 number ::= [minus] {digit};
 string ::= double_quote {string_element} double_quote;
 string_element ::= regular_character | escape_sequence;
-boolean ::= true | false;                                                   (* still thinking about it *)
+boolean ::= true | false;                                                   /* still thinking about it */
 
-(* the big expression machine *)
-expression ::= lparen expression rparen                                     (* expression in parentheses *)
-             | begin expression {semicolon expression} end                  (* expression block *)
+/* the big expression machine */
+expression ::= lparen expression rparen                                     /* expression in parentheses */
+             | begin expression {semicolon expression} end                  /* expression block */
 
-             | function identifier parameter_list rarrow expression         (* Feeny-style function definition, returns unit? *)
-             | expression argument_list                                     (* function application *)
+             | function identifier parameter_list rarrow expression         /* Feeny-style function definition, returns unit? */
+             | expression argument_list                                     /* function application */
 
-             | object parameter_list begin object_body end                  (* prototype object definition *)
-             | expression dot identifier                                    (* field access *)
-             | expression dot identifier larrow expression                  (* field mutation *) 
-             | expression dot method_identifier argument_list               (* method call *)
+             | object parameter_list begin object_body end                  /* prototype object definition */
+             | expression dot identifier                                    /* field access */
+             | expression dot identifier larrow expression                  /* field mutation */
+             | expression dot method_identifier argument_list               /* method call */
 
-             | array lparen expression comma expression rparen              (* array definition (argument is array size) *)
-             | expression lbracket expression rbracket                      (* array access *)
-             | expression lbracket expression rbracket larrow expression    (* array mutation *)
+             | array lparen expression comma expression rparen              /* array definition (argument is array size) */
+             | expression lbracket expression rbracket                      /* array access */
+             | expression lbracket expression rbracket larrow expression    /* array mutation */
 
-             | if expression then expression [else expression]              (* conditional expression *)
-             | while expression begin expression end                        (* loop expression *)
+             | if expression then expression [else expression]              /* conditional expression */
+             | while expression begin expression end                        /* loop expression */
 
-             | let identifier equal expression                              (* Feeny-style variable definition *)        
-             | identifier                                                   (* variable access *)
-             | identifier larrow expression                                 (* variable mutation *)
+             | let identifier equal expression                              /* Feeny-style variable definition */        
+             | identifier                                                   /* variable access */
+             | identifier larrow expression                                 /* variable mutation */
 
-             | print argument_list                                          (* call to the print built-in *)                                        
-             | expression operator expression                               (* infix operators, syntactic sugar for method calls *)
+             | print argument_list                                          /* call to the print built-in */                                        
+             | expression operator expression                               /* infix operators, syntactic sugar for method calls */
              | literal;
 
-parameter_list ::= lparen [identifier {comma identifier} {comma}] rparen;   (* ommit commas, or have extra trailing commas *)
+parameter_list ::= lparen [identifier {comma identifier} {comma}] rparen;   /* omit commas, or have extra trailing commas */
 argument_list ::= lparen [expression {comma expression} {comma}] rparen;
 
-(* A note on function definition. 
+/* A note on function definition. 
  * 
  * In ML a function is anonymous, and a `function x -> x+1` statement returns a
  * function object. This object can be returns out of a scope.
@@ -115,8 +115,8 @@ argument_list ::= lparen [expression {comma expression} {comma}] rparen;
  *
  * I think we could probably do ML-style function, if we keep the scoping rules
  * for Feeny, but I did Feeny style functions for now.
- *)
+ */
 
-object_body ::= let identifier equal expression                              (* field definition (same as variables) *)
-              | function identifier parameter_list rarrow expression;        (* method definition (same as functions) *)
+object_body ::= let identifier equal expression                              /* field definition (same as variables) */
+              | function identifier parameter_list rarrow expression;        /* method definition (same as functions) */
 
