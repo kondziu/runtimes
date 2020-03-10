@@ -7,10 +7,11 @@
 
 (* The following characters are considered as blanks. Blanks are ignored, but
  * they separate adjacent identifiers, literals and keywords that would 
- * otherwise be confused as one single identifier, literal or keyword.
+ * otherwise be confused as one single identifier, literal or keyword. 
+ *)
 blanks ::= ' ' | '\t' | '\n' | '\r';
 
-commen ::= ? \(\*.*\)\* ? (* ML-style comments*)
+comment ::= ? \(\*.*\)\* ? (* ML-style comments*)
 
 (* various simple tokens *)
 letter ::= 'A' .. 'Z' ∣  'a' .. 'z';
@@ -32,21 +33,22 @@ rarrow ::= "->"
 plus ::= "+";
 multiply ::= "*";
 divide ::= "/";
-lesser ::= "<"
-lesser_or_equal ::= "<="
-greater ::= ">"
-greater_or_equal ::= ">="
-or ::= "|"
-and ::= "&"
+lesser ::= "<";
+lesser_or_equal ::= "<=";
+greater ::= ">";
+greater_or_equal ::= ">=";
+or ::= "|";
+and ::= "&";
 minus  ::= '-';
-equal ::= "="
+equal ::= "=";
+unequal ::= "!=";
 
 (* keywords *)
-while ::= "while"
-object ::= "object"
-if ::= "if"
-else  ::= "else"
-then ::= "then"
+while ::= "while";
+object ::= "object";
+if ::= "if";
+else  ::= "else";
+then ::= "then";
 true ::= "true";
 false ::= "false";
 array ::= "array";
@@ -58,44 +60,48 @@ this ::= "this";
 
 (* identifiers *)
 identifier ::= (letter | underscore) {letter | digit | underscore} | this;
-operator ::= multiply | plus | minus | "!=" | equal | lesser | greater | lesser_or_equal | greater_or_equal | or | and;
+operator ::= multiply | plus | minus | divide | unequal | equal | lesser | greater | lesser_or_equal | greater_or_equal | or | and;
 method_identifier ::= identifier | operator;
 
+(* operator precedense *)
+(* plus and minus < multiply and divide < equal and unequal and lesser etc. *)
+(* or < and *)
+
 (* literals *)
-literal ::= number | string | boolean | unit | begin end;                                   (* begin end == unit *)
+literal ::= number | string | boolean | unit | begin end;                   (* begin end == unit *)
 number ::= [minus] {digit};
 string ::= double_quote {string_element} double_quote;
 string_element ::= regular_character | escape_sequence;
-boolean ::= true | false;                                                                   (* still thinking about it *)
+boolean ::= true | false;                                                   (* still thinking about it *)
 
 (* the big expression machine *)
-expression ::= lparen expression rparen                                                     (* expression in parentheses *)
-             | begin expression {semicolon expression} end                                  (* expression block *)
+expression ::= lparen expression rparen                                     (* expression in parentheses *)
+             | begin expression {semicolon expression} end                  (* expression block *)
 
-             | function identifier parameter_list rarrow expression                         (* Feeny-style function definition, returns unit? *)
-             | expression argument_list                                                     (* function application *)
+             | function identifier parameter_list rarrow expression         (* Feeny-style function definition, returns unit? *)
+             | expression argument_list                                     (* function application *)
 
-             | object parameter_list begin object_body end                                  (* prototype object definition *)
-             | expression dot identifier                                                    (* field access *)
-             | expression dot identifier larrow expression                                  (* field mutation *) 
-             | expression dot method_identifier argument_list                               (* method call *)
+             | object parameter_list begin object_body end                  (* prototype object definition *)
+             | expression dot identifier                                    (* field access *)
+             | expression dot identifier larrow expression                  (* field mutation *) 
+             | expression dot method_identifier argument_list               (* method call *)
 
-             | array lbracket expression rbracket                                           (* array definition (argument is array size) *)
-             | expression lbracket expression rbracket                                      (* array access *)
-             | expression lbracket expression rbracket larrow expression                    (* array mutation *)
+             | array lparen expression comma expression rparen              (* array definition (argument is array size) *)
+             | expression lbracket expression rbracket                      (* array access *)
+             | expression lbracket expression rbracket larrow expression    (* array mutation *)
 
-             | if expression then expression [else expression]                              (* conditional expression *)
-             | while expression begin expression end                                        (* loop expression *)
+             | if expression then expression [else expression]              (* conditional expression *)
+             | while expression begin expression end                        (* loop expression *)
 
-             | let identifier equal expression                                              (* Feeny-style variable definition *)        
-             | identifier                                                                   (* variable access *)
-             | identifier larrow expression                                                 (* variable mutation *)
+             | let identifier equal expression                              (* Feeny-style variable definition *)        
+             | identifier                                                   (* variable access *)
+             | identifier larrow expression                                 (* variable mutation *)
 
-             | print argument_list                                                          (* call to the print built-in *)                                        
-             | expression operator expression                                               (* infix operators, syntactic sugar for method calls *)
+             | print argument_list                                          (* call to the print built-in *)                                        
+             | expression operator expression                               (* infix operators, syntactic sugar for method calls *)
              | literal;
 
-parameter_list ::= lparen [identifier {comma identifier} {comma}] rparen;                   (* ommit commas, or have extra trailing commas *)
+parameter_list ::= lparen [identifier {comma identifier} {comma}] rparen;   (* ommit commas, or have extra trailing commas *)
 argument_list ::= lparen [expression {comma expression} {comma}] rparen;
 
 (* A note on function definition. 
@@ -111,6 +117,6 @@ argument_list ::= lparen [expression {comma expression} {comma}] rparen;
  * for Feeny, but I did Feeny style functions for now.
  *)
 
-body ::= let identifier equal expression                                                    (* field definition (same as variables) *)
-       | function identifier parameter_list rarrow expression;                              (* method definition (same as functions) *)
+object_body ::= let identifier equal expression                              (* field definition (same as variables) *)
+              | function identifier parameter_list rarrow expression;        (* method definition (same as functions) *)
 
