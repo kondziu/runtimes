@@ -1,23 +1,18 @@
 use std::str::FromStr;
 use crate::fml_ast::AST;
-use crate::fml_ast::AST::Number;
 
 grammar;
 
-// grammar<'g>(input: &'in str);
-
-pub Expression: Box<AST> = {
-   Number => Box::new(Number(<>)),
-   Identifier => Box::new(Number(<>)),
+pub Expression: AST<'input> = {
+   Number                               => <>,
+   Identifier                           => <>,
 }
 
-// // Lexer
-Identifier: i32 = { //Box<AST<'g>> = {
-     r"[_A-Za-z][_A-Za-z0-9]*" => 0,//Box::new(AST::Indentifier(<&'g str>)),
-     "this"                    => 0,//Box::new(AST::Indentifier("this")),
+Identifier: AST<'input> = {
+     r"[_A-Za-z][_A-Za-z0-9]*"          => AST::Identifier(<>),
+     "this"                             => AST::Identifier(<>),
 }
 
-Number: i32 = { //Box<AST> = {
-    r"[-]?[0-9]+"             => //Box::new(
-                                  i32::from_str(<>).unwrap(), //),
+Number: AST<'input> = {
+    r"[-]?[0-9]+"                       => AST::Number(i32::from_str(<>).unwrap()),
 }

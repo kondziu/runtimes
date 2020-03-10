@@ -23,7 +23,7 @@ defn stack (max_size) :
             this.pointer + 1
         
         method pop () :
-            if this.pointer <0 :
+            if this.pointer < 0 :
                 printf("Error: attempt to pop form empty stack\n")
                 null
             else :
