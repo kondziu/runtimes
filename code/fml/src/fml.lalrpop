@@ -23,5 +23,5 @@ Number: AST<'input> = {
 }
 
 String: AST<'input> = {
-    <contents:r"'([^\\]|\\[ntbr'])*'">  => AST::StringLiteral(contents)
+    <contents:r"'([^\\]|\\[ntbr\\])*'">  => AST::StringLiteral(&contents[1..contents.len()-1]),
 }

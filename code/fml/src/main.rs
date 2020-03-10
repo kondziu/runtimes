@@ -1,7 +1,10 @@
 #[macro_use]
 extern crate lalrpop_util;
+extern crate unescape;
 
 pub mod fml_ast;
+//pub mod tools;
+
 lalrpop_mod!(pub fml); // syntesized by LALRPOP
 
 use crate::fml::ExpressionParser;
@@ -50,13 +53,13 @@ fn identifiers() {
 #[test]
 fn string_literals() {
     assert_eq!(ExpressionParser::new().parse("'hello world'"),
-               Ok(StringLiteral("'hello world'")));
+               Ok(StringLiteral("hello world")));
     assert_eq!(ExpressionParser::new().parse("''"),
-               Ok(StringLiteral("''")));
+               Ok(StringLiteral("")));
     assert_eq!(ExpressionParser::new().parse("'\\n'"),
-               Ok(StringLiteral("'\\n'")));
-    assert_eq!(ExpressionParser::new().parse("'\\''"),
-               Ok(StringLiteral("'\\''")));
+               Ok(StringLiteral("\\n")));
+    assert_eq!(ExpressionParser::new().parse("'\\\\'"),
+               Ok(StringLiteral("\\\\")));
 }
 
 #[cfg(not(test))]
