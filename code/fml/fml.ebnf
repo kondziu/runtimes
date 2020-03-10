@@ -26,8 +26,9 @@ lbracket ::= "[";
 rbracket ::= "]";
 semicolon ::= ";"
 dot ::= ".";
-larrow ::= "<-"
-rarrow ::= "->"
+comma ::= ",";
+larrow ::= "<-";
+rarrow ::= "->";
 
 /* operators */
 plus ::= "+";
@@ -57,6 +58,8 @@ let ::= "let";
 begin ::= "begin";
 end ::= "end";
 this ::= "this";
+print ::= "print";
+function ::= "function";
 
 /* identifiers */
 identifier ::= (letter | underscore) {letter | digit | underscore} | this;
