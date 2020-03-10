@@ -37,7 +37,7 @@ method_call            ::= member_access LPAREN argument_list RPAREN;
 argument_list          ::= expression [whitespace argument_list];
 
 array_access           ::= identifier LBRACKET [whitespace] expression [whitespace] RBRACKET;
-array_assignment       ::= identifier LBRACKET expression ASSIGN expression;
+array_assignment       ::= expression LBRACKET argument_list RBRACKET ASSIGN expression;
 
 assignment             ::= identifier ASSIGN expression;
 object_def<n>          ::= OBJECT whitespace COLON [whitespace] NEWLINE 
