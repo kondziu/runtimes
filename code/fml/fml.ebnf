@@ -104,8 +104,8 @@ expression ::= lparen expression rparen                                     /* e
              | expression operator expression                               /* infix operators, syntactic sugar for method calls */
              | literal;
 
-parameter_list ::= [identifier {comma identifier} {comma}];                 /* omit commas, or have extra trailing commas */
-argument_list ::= [expression {comma expression} {comma}];
+parameter_list ::= [identifier {comma identifier} [comma]];                 /* you can have an extra trailing comma */
+argument_list ::= [expression {comma expression} [comma]];
 
 /* A note on function definition. 
  * 
