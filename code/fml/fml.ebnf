@@ -71,7 +71,7 @@ method_identifier ::= identifier | operator;
 /* or < and */
 
 /* literals */
-literal ::= number | string | boolean | unit | begin end;                   /* begin end == unit */
+literal ::= number | boolean | unit | begin end;                            /* begin end == unit */
 number ::= [minus] {digit};
 string ::= double_quote {string_element} double_quote;
 string_element ::= regular_character | escape_sequence;
@@ -81,8 +81,9 @@ boolean ::= true | false;                                                   /* s
 expression ::= lparen expression rparen                                     /* expression in parentheses */
              | begin expression {semicolon expression} end                  /* expression block */
 
-             | function identifier parameter_list rarrow expression         /* Feeny-style function definition, returns unit? */
-             | expression argument_list                                     /* function application */
+             | function identifier lparen parameter_list rparen
+               rarrow expression                                            /* Feeny-style function definition, returns unit? */
+             | identifier lparen argument_list rparen                       /* function application */
 
              | object parameter_list begin object_body end                  /* prototype object definition */
              | expression dot identifier                                    /* field access */
@@ -100,12 +101,12 @@ expression ::= lparen expression rparen                                     /* e
              | identifier                                                   /* variable access */
              | identifier larrow expression                                 /* variable mutation */
 
-             | print argument_list                                          /* call to the print built-in */                                        
+             | print lparen string [comma argument_list] rparen             /* call to the print built-in */
              | expression operator expression                               /* infix operators, syntactic sugar for method calls */
              | literal;
 
-parameter_list ::= lparen [identifier {comma identifier} {comma}] rparen;   /* omit commas, or have extra trailing commas */
-argument_list ::= lparen [expression {comma expression} {comma}] rparen;
+parameter_list ::= [identifier {comma identifier} {comma}];                 /* omit commas, or have extra trailing commas */
+argument_list ::= [expression {comma expression} {comma}];
 
 /* A note on function definition. 
  * 
