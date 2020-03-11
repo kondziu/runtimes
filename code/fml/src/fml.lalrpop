@@ -49,11 +49,13 @@ Arguments: Vec<AST<'input>> = {
 }
 
 Assignment: AST<'input> = {
-    "let" <id: Identifier> "=" <v: Expression> => AST::Assignment{identifier: Box::new(id), value: Box::new(v)},
+    "let" <id: Identifier> "=" <v: Expression> =>
+        AST::Assignment{identifier: Box::new(id), value: Box::new(v)},
 }
 
 Mutation: AST<'input> = {
-    <id: Identifier> "<-" <v: Expression> => AST::Mutation{identifier: Box::new(id), value: Box::new(v)},
+    <id: Identifier> "<-" <v: Expression> =>
+        AST::Mutation{identifier: Box::new(id), value: Box::new(v)},
 }
 
 Literal: AST<'input> = {

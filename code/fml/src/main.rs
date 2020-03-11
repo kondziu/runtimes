@@ -115,6 +115,15 @@ fn parse_err(input: &str) {
                                                          arguments: vec!(Box::new(Number(0)),
                                                                          Box::new(Number(-1)))}); }
 
+#[test] fn test_application_extra_comma() { parse_ok("f(0,-1,)",
+                                                     FunctionApplication {
+                                                         identifier: Box::new(Identifier("f")),
+                                                         arguments: vec!(Box::new(Number(0)),
+                                                                         Box::new(Number(-1)))}); }
+
+#[test] fn test_application_just_a_comma() { parse_err("f(,)");}
+#[test] fn test_application_many_extra_commas() { parse_err("f(x,,)");}
+
 #[cfg(not(test))]
 fn main() {
     println!("cargo test");
