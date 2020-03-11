@@ -17,6 +17,13 @@ pub enum AST<'ast> {
     Operation {operator: Operator, left: Box<AST<'ast>>, right: Box<AST<'ast>>},
     Loop {condition: Box<AST<'ast>>, body: Box<AST<'ast>>},
     Conditional {condition: Box<AST<'ast>>, consequent: Box<AST<'ast>>, alternative: Box<AST<'ast>>},
+    ArrayDefinition {size: Box<AST<'ast>>, value: Box<AST<'ast>>},
+    ArrayAccess {identifier: Box<AST<'ast>>, index: Box<AST<'ast>>},
+    ArrayMutation {identifier: Box<AST<'ast>>, index: Box<AST<'ast>>, value: Box<AST<'ast>>},
+    ObjectDefinition {parameters: Vec<Box<AST<'ast>>>, members: Vec<Box<AST<'ast>>>},
+    FieldAccess {object: Box<AST<'ast>>, identifier: Box<AST<'ast>>},
+    FieldMutation {object: Box<AST<'ast>>, identifier: Box<AST<'ast>>, value: Box<AST<'ast>>},
+    MethodCall {object: Box<AST<'ast>>, identifier: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>>},
 }
 
 #[derive(PartialEq,Debug)]
@@ -60,6 +67,20 @@ impl Debug for AST<'_> {
                 write!(fmt, "Loop(condition={:?}, body={:?})", condition, body),
             Conditional {condition, consequent, alternative} =>
                 write!(fmt, "Conditional(condition={:?}, consequent={:?}, alternative={:?})", condition, consequent, alternative),
+            ArrayDefinition {size, value} =>
+                write!(fmt, "ArrayDefinition(size={:?}, value={:?})", size, value),
+            ArrayAccess {identifier, index} =>
+                write!(fmt, "ArrayAccess(identifier={:?}, index={:?})", identifier, index),
+            ArrayMutation {identifier, index, value} =>
+                write!(fmt, "ArrayMutation(identifier={:?}, index={:?}, value={:?})", identifier, index, value),
+            ObjectDefinition {parameters, members} =>
+                write!(fmt, "ObjectDefinition(parameters={:?}, members={:?})", parameters, members),
+            FieldAccess {object, identifier} =>
+                write!(fmt, "FieldAccess(object={:?}, identifier={:?})", object, identifier),
+            FieldMutation {object, identifier, value} =>
+                write!(fmt, "FieldMutation(object={:?}, identifier={:?}, value={:?})", object, identifier, value),
+            MethodCall {object, identifier, arguments} =>
+                write!(fmt, "MethodCall(object={:?}, identifier={:?}, arguments={:?})", object, identifier, arguments),
             //ArgumentList (elements) => write!(fmt, "[{:?}]", elements),
             //Error => write!(fmt, "error"),
         }

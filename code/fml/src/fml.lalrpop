@@ -14,14 +14,14 @@ Expression_<allow>: AST<'input> = {
     FunctionDefinition                    => <>, // Feeny-style function definition, returns unit?
     FunctionApplication                   => <>, // function application
 
-                                                 // prototype object definition
-                                                 // field access
-                                                 // field mutation
-                                                 // method call
+    ObjectDefinition                      => <>, // prototype object definition
+    //FieldAccess                           => <>, // field access FIXME
+    //FieldMutation                         => <>, // field mutation FIXME
+    //MethodCall                            => <>,   // method call FIXME
 
-                                                 // array definition (argument is array size and initial value
-                                                 // array access
-                                                 // array mutation
+    ArrayDefinition                       => <>, // array definition (argument is array size and initial value
+    //ArrayAccess                         => <>, // array access FIXME
+    //ArrayMutation                         => <>, // array mutation  FIXME
 
     Conditional<allow>                    => <>, // conditional expression
     Loop                                  => <>, // loop expression
@@ -45,6 +45,62 @@ Conditional<allow>: AST<'input> = {
 //        AST::Conditional{condition: Box::new(condition),
 //                         consequent: Box::new(consequent),
 //                         alternative: Box::new(AST::Unit)},
+}
+
+ObjectDefinition: AST<'input> = {
+    "object" <parameters: Parameters> <members: Members> => {
+        let boxed_parameters: Vec<Box<AST<'input>>> =
+            parameters.into_iter().map(|e| Box::new(e)).collect();
+        let boxed_members: Vec<Box<AST<'input>>> =
+            members.into_iter().map(|e| Box::new(e)).collect();
+        AST::ObjectDefinition {parameters: boxed_parameters, members: boxed_members}
+    }
+}
+
+Members: Vec<AST<'input>> = {
+    "begin" <elements: (<Member> ";")*> <element: Member?> "end" => match element {
+        None => elements,
+        Some(e) => { let mut elements = elements; elements.push(e); elements }
+    }
+}
+
+Member: AST<'input> = {
+    Assignment         => <>,
+    FunctionDefinition => <>,
+}
+
+FieldAccess: AST<'input> = {
+    <object: Expression> "." <field: Identifier> =>
+        AST::FieldAccess {object: Box::new(object), identifier: Box::new(field)}
+}
+
+FieldMutation: AST<'input> = {
+    <object: Expression> "." <field: Identifier> "<-" <value: Expression> =>
+        AST::FieldMutation {object: Box::new(object), identifier: Box::new(field), value: Box::new(value)}
+}
+
+MethodCall: AST<'input> = {
+    <object: Expression> "." <method: Identifier> <arguments: Arguments> => {
+        let boxed_arguments: Vec<Box<AST<'input>>> =
+            arguments.into_iter().map(|e| Box::new(e)).collect();
+        AST::MethodCall{object: Box::new(object), identifier: Box::new(method), arguments: boxed_arguments}
+    }
+}
+
+
+ArrayDefinition: AST<'input> = {
+    "array" "(" <size: Expression> "," <value: Expression> ")" =>
+        AST::ArrayDefinition {size: Box::new(size), value: Box::new(value)}
+}
+
+ArrayAccess: AST<'input> = {
+    <array: Expression> "[" <index: Expression> "]" =>
+        AST::ArrayAccess {identifier: Box::new(array), index: Box::new(index)}
+}
+
+ArrayMutation: AST<'input> = {
+    <array: Expression> "[" <index: Expression> "]" "<-" <value: Expression> =>
+        AST::ArrayMutation {identifier: Box::new(array), index: Box::new(index), value: Box::new(value)}
 }
 
 Loop: AST<'input> = {
