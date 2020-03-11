@@ -8,52 +8,50 @@ pub mod fml_ast;
 lalrpop_mod!(pub fml); // syntesized by LALRPOP
 
 use crate::fml::ExpressionParser;
+use crate::fml_ast::AST;
 use crate::fml_ast::AST::Number;
 use crate::fml_ast::AST::Identifier;
 use crate::fml_ast::AST::StringLiteral;
 use crate::fml_ast::AST::BooleanLiteral;
 
-#[test]
-fn numbers() {
-    assert_eq!(ExpressionParser::new().parse("0"), Ok(Number(0)));
-    assert_eq!(ExpressionParser::new().parse("-0"), Ok(Number(0)));
-    assert_eq!(ExpressionParser::new().parse("2"), Ok(Number(2)));
-    assert_eq!(ExpressionParser::new().parse("-2"), Ok(Number(-2)));
-    assert_eq!(ExpressionParser::new().parse("42"), Ok(Number(42)));
-    assert_eq!(ExpressionParser::new().parse("042"), Ok(Number(42)));
-    assert_eq!(ExpressionParser::new().parse("00"), Ok(Number(0)));
-    assert_eq!(ExpressionParser::new().parse("-042"), Ok(Number(-42)));
-    assert_eq!(ExpressionParser::new().parse("-00"), Ok(Number(0)));
+fn parse_ok(input: &str, correct: AST) {
+    assert_eq!(ExpressionParser::new().parse(input), Ok(correct));
 }
 
-#[test]
-fn identifiers() {
-    assert_eq!(ExpressionParser::new().parse("_"), Ok(Identifier("_")));
-    assert_eq!(ExpressionParser::new().parse("_x"), Ok(Identifier("_x")));
-    assert_eq!(ExpressionParser::new().parse("x"), Ok(Identifier("x")));
-    assert_eq!(ExpressionParser::new().parse("x1"), Ok(Identifier("x1")));
-    assert_eq!(ExpressionParser::new().parse("spaceship"), Ok(Identifier("spaceship")));
-    assert_eq!(ExpressionParser::new().parse("___"), Ok(Identifier("___")));
+fn parse_err(input: &str) {
+    assert!(ExpressionParser::new().parse(input).is_err());
 }
 
-#[test]
-fn string_literals() {
-    assert_eq!(ExpressionParser::new().parse("'hello world'"), Ok(StringLiteral("hello world")));
-    assert_eq!(ExpressionParser::new().parse("''"), Ok(StringLiteral("")));
-    assert_eq!(ExpressionParser::new().parse("'\\n'"), Ok(StringLiteral("\\n")));
-    assert_eq!(ExpressionParser::new().parse("'\\t'"), Ok(StringLiteral("\\t")));
-    assert_eq!(ExpressionParser::new().parse("'\\b'"), Ok(StringLiteral("\\b")));
-    assert_eq!(ExpressionParser::new().parse("'\\r'"), Ok(StringLiteral("\\r")));
-    assert_eq!(ExpressionParser::new().parse("'\\\\'"), Ok(StringLiteral("\\\\")));
-    assert!(ExpressionParser::new().parse("'\\'").is_err());
-    assert!(ExpressionParser::new().parse("'\\a'").is_err());
-}
+#[test] fn test_0()            { parse_ok("0", Number(0));      }
+#[test] fn test_negative_0()   { parse_ok("-0", Number(0));     }
+#[test] fn test_2()            { parse_ok("2", Number(2));      }
+#[test] fn test_negative_2()   { parse_ok("-2", Number(-2));    }
+#[test] fn test_42()           { parse_ok("42",   Number(42));  }
+#[test] fn test_042()          { parse_ok("042",  Number(42));  }
+#[test] fn test_00()           { parse_ok("00",   Number(0));   }
+#[test] fn test_negative_042() { parse_ok("-042", Number(-42)); }
+#[test] fn test_negative_00()  { parse_ok("-00",  Number(0));   }
 
-#[test]
-fn boolean_literals() {
-    assert_eq!(ExpressionParser::new().parse("true"), Ok(BooleanLiteral(true)));
-    assert_eq!(ExpressionParser::new().parse("false"), Ok(BooleanLiteral(false)));
-}
+
+#[test] fn test_underscore()             { parse_ok("_",     Identifier("_"));     }
+#[test] fn test_underscore_identifier()  { parse_ok("_x",    Identifier("_x"));    }
+#[test] fn test_identifier()             { parse_ok("x",     Identifier("x"));     }
+#[test] fn test_identifier_with_number() { parse_ok("x1",    Identifier("x1"));    }
+#[test] fn test_multiple_underscores()   { parse_ok("___",   Identifier("___"));   }
+#[test] fn test_long_identifier()        { parse_ok("stuff", Identifier("stuff")); }
+
+#[test] fn test_string()           { parse_ok("\"hello world\"", StringLiteral("hello world")); }
+#[test] fn test_empty_string()     { parse_ok("\"\"",            StringLiteral(""));     }
+#[test] fn test_escape_newline()   { parse_ok("\"\\n\"",         StringLiteral("\\n"));  }
+#[test] fn test_escape_tab()       { parse_ok("\"\\t\"",         StringLiteral("\\t"));  }
+#[test] fn test_escape_backspace() { parse_ok("\"\\b\"",         StringLiteral("\\b"));  }
+#[test] fn test_escape_return()    { parse_ok("\"\\r\"",         StringLiteral("\\r"));  }
+#[test] fn test_escape_backslash() { parse_ok("\"\\\\\"",        StringLiteral("\\\\")); }
+#[test] fn test_botched_escape()   { parse_err("\"\\\""); }
+#[test] fn test_invalid_escape()   { parse_err("\"\\a\""); }
+
+#[test] fn test_true()  { parse_ok("true",  BooleanLiteral(true)); }
+#[test] fn test_false() { parse_ok("false", BooleanLiteral(false)); }
 
 #[cfg(not(test))]
 fn main() {
