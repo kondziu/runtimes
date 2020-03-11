@@ -85,7 +85,7 @@ expression ::= lparen expression rparen                                     /* e
                rarrow expression                                            /* Feeny-style function definition, returns unit? */
              | identifier lparen argument_list rparen                       /* function application */
 
-             | object parameter_list begin object_body end                  /* prototype object definition */
+             | object parameter_list begin {object_body} end                /* prototype object definition */
              | expression dot identifier                                    /* field access */
              | expression dot identifier larrow expression                  /* field mutation */
              | expression dot method_identifier argument_list               /* method call */
