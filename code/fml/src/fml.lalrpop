@@ -4,17 +4,52 @@ use crate::fml_ast::AST;
 grammar;
 
 pub Expression: AST<'input> = {
-   "(" <Expression> ")"                  => <>, // expression in parentheses
-   Block                                 => <>, // expression block
+    Expression_<"I">                       => <>,
+}
 
-   Assignment                            => <>, // Feenified variable definition
-   Identifier                            => <>, // variable access
-   Mutation                              => <>, // variable mutation
+Expression_<allow>: AST<'input> = {
+    "(" <Expression> ")"                  => <>, // expression in parentheses
+    Block                                 => <>, // expression block
 
-   FunctionDefinition                    => <>, // Feeny-style function definition, returns unit?
-   FunctionApplication                   => <>, // function application
+    FunctionDefinition                    => <>, // Feeny-style function definition, returns unit?
+    FunctionApplication                   => <>, // function application
 
-   Literal                               => <>,
+                                                 // prototype object definition
+                                                 // field access
+                                                 // field mutation
+                                                 // method call
+
+                                                 // array definition (argument is array size and initial value
+                                                 // array access
+                                                 // array mutation
+
+    Conditional<allow>                    => <>, // conditional expression
+    Loop                                  => <>, // loop expression
+
+    Assignment                            => <>, // Feenified variable definition
+    Identifier                            => <>, // variable access
+    Mutation                              => <>, // variable mutation
+
+    //Print                               => <>, // call to the print built-in
+    //Operation                           => <>, // infix operators, syntactic sugar to method calls
+
+    Literal                               => <>,
+}
+
+Conditional<allow>: AST<'input> = {
+    "if" <condition: Expression> "then" <consequent: Expression_<"">> <alternative: ("else" <Expression_<"I">>)> =>
+        AST::Conditional{condition: Box::new(condition),
+                         consequent: Box::new(consequent),
+                         alternative: Box::new(alternative)},
+//    "if" <condition: Expression> "then" <consequent: Expression_<"I">> if allow != "" =>
+//        AST::Conditional{condition: Box::new(condition),
+//                         consequent: Box::new(consequent),
+//                         alternative: Box::new(AST::Unit)},
+}
+
+Loop: AST<'input> = {
+    "while" <condition: Expression> "do" <body: Expression> =>
+        AST::Loop{condition: Box::new(condition), body: Box::new(body)}
 }
 
 Block: AST<'input> = {
@@ -105,3 +140,32 @@ Boolean: AST<'input> = {
 Unit: AST<'input> = {
     "null"                               => AST::Unit,
 }
+
+//ExprOperation: AST<'input> = {
+//    <left: Expression> <operator: Operator> <right: Expression> =>
+//        AST::Operation{operator, left, right}
+//}
+
+//Tier<Operator, NextTier>: AST<'input> = {
+//    Tier<Op, NextTier> <operator: Operator> NextTier => AST::Operation(operator, Box::new(AST::Unit), Box::new(AST::Unit)),
+//    NextTier
+//};
+
+//Operator1: Operator = {
+//    "+" => Operator::Plus,
+//        "-" => Operator::Minus,
+//}
+
+//Operator2: Operator = {
+//    "*" => Operator::Times,
+//    "/" => Operator::Divide,
+//}
+
+//    "!=" => Operator::Unequal,
+//    "=="  => Operator::Equal,
+//    "<"  => Operator::Less,
+//    ">"  => Operator::Greater,
+//    ">=" => Operator::GreaterEqual,
+//    "<=" => Operator::LessEqual,
+//    "|"  => Operator::Or,
+//    "&"  => Operator::And,

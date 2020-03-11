@@ -13,7 +13,26 @@ pub enum AST<'ast> {
     Mutation {identifier: Box<AST<'ast>>, value: Box<AST<'ast>>},
     FunctionDefinition {identifier: Box<AST<'ast>>, parameters: Vec<Box<AST<'ast>>>, body: Box<AST<'ast>>},
     FunctionApplication {identifier: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>>},
-    Block(Vec<Box<AST<'ast>>>),
+    Block (Vec<Box<AST<'ast>>>),
+    Operation {operator: Operator, left: Box<AST<'ast>>, right: Box<AST<'ast>>},
+    Loop {condition: Box<AST<'ast>>, body: Box<AST<'ast>>},
+    Conditional {condition: Box<AST<'ast>>, consequent: Box<AST<'ast>>, alternative: Box<AST<'ast>>},
+}
+
+#[derive(PartialEq,Debug)]
+pub enum Operator {
+    Times,
+    Plus,
+    Minus,
+    Divide,
+    Unequal,
+    Equal,
+    Less,
+    Greater,
+    GreaterEqual,
+    LessEqual,
+    Or,
+    And,
 }
 
 impl Debug for AST<'_> {
@@ -35,6 +54,12 @@ impl Debug for AST<'_> {
                 write!(fmt, "FunctionApplication(identifier={:?}, arguments={:?})", identifier, arguments),
             Block(expressions) =>
                 write!(fmt, "Block({:?})", expressions),
+            Operation {operator, left, right} =>
+                write!(fmt, "Operation(operator={:?}, left={:?}, right={:?})", operator, left, right),
+            Loop {condition, body} =>
+                write!(fmt, "Loop(condition={:?}, body={:?})", condition, body),
+            Conditional {condition, consequent, alternative} =>
+                write!(fmt, "Conditional(condition={:?}, consequent={:?}, alternative={:?})", condition, consequent, alternative),
             //ArgumentList (elements) => write!(fmt, "[{:?}]", elements),
             //Error => write!(fmt, "error"),
         }

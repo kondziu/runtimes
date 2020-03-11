@@ -122,17 +122,45 @@ fn parse_err(input: &str) {
 #[test] fn test_application_many_extra_commas() { parse_err("f(x,,)");}
 
 #[test] fn test_empty_block_is_unit() { parse_ok("begin end", Unit) }
-#[test] fn test_block_one_expression() { parse_ok("begin 1 end", Block(vec!(
-                                                                                Box::new(Number(1))))) }
-#[test] fn test_block_many_expressions() { parse_ok("begin 1; 2; 3 end", Block(vec!(
-                                                                                    Box::new(Number(1)),
-                                                                                    Box::new(Number(2)),
-                                                                                    Box::new(Number(3))))) }
+#[test] fn test_block_one_expression() { parse_ok("begin 1 end",
+                                                  Block(vec!(Box::new(Number(1))))) }
+#[test] fn test_block_many_expressions() { parse_ok("begin 1; 2; 3 end",
+                                                    Block(vec!(Box::new(Number(1)),
+                                                                      Box::new(Number(2)),
+                                                                      Box::new(Number(3))))) }
 
-#[test] fn test_block_trailing_semicolon() { parse_ok("begin 1; 2; 3; end", Block(vec!(
-                                                                                    Box::new(Number(1)),
-                                                                                    Box::new(Number(2)),
-                                                                                    Box::new(Number(3))))) }
+#[test] fn test_block_trailing_semicolon() { parse_ok("begin 1; 2; 3; end",
+                                                      Block(vec!(Box::new(Number(1)),
+                                                                        Box::new(Number(2)),
+                                                                        Box::new(Number(3))))) }
+
+#[test] fn test_loop() { parse_ok("while true do null",
+                                  Loop {condition: Box::new(BooleanLiteral(true)),
+                                               body: Box::new(Unit)})}
+
+#[test] fn test_conditional() { parse_ok("if true then false else true",
+                                         Conditional{condition: Box::new(BooleanLiteral(true)),
+                                                            consequent: Box::new(BooleanLiteral(false)),
+                                                            alternative: Box::new(BooleanLiteral(true))})}
+
+#[test] fn test_conditional_no_alternative() { parse_ok("if true then false",
+                                                        Conditional{condition: Box::new(BooleanLiteral(true)),
+                                                            consequent: Box::new(BooleanLiteral(false)),
+                                                            alternative: Box::new(Unit)})}
+
+#[test] fn test_conditional_so_many() { parse_ok("if x then \
+                                                           if y then 3 else 2 \
+                                                        else \
+                                                           if y then 1 else 0",
+                                                        Conditional{condition: Box::new(Identifier("x")),
+                                                                           consequent: Box::new(Conditional{condition: Box::new(Identifier("y")),
+                                                                                                               consequent: Box::new(Number(3)),
+                                                                                                               alternative: Box::new(Number(2))}),
+                                                                           alternative: Box::new(Conditional{condition: Box::new(Identifier("y")),
+                                                                                                                consequent: Box::new(Number(1)),
+                                                                                                                alternative: Box::new(Number(0))})})}
+
+
 
 #[cfg(not(test))]
 fn main() {
