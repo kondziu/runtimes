@@ -4,6 +4,7 @@ use crate::fml_ast::AST;
 grammar;
 
 pub Expression: AST<'input> = {
+   "(" <Expression> ")"                  => <>, // expression in parentheses
    Literal                               => <>,
 }
 

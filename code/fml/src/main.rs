@@ -47,11 +47,15 @@ fn parse_err(input: &str) {
 #[test] fn test_escape_backspace() { parse_ok("\"\\b\"",         StringLiteral("\\b"));  }
 #[test] fn test_escape_return()    { parse_ok("\"\\r\"",         StringLiteral("\\r"));  }
 #[test] fn test_escape_backslash() { parse_ok("\"\\\\\"",        StringLiteral("\\\\")); }
-#[test] fn test_botched_escape()   { parse_err("\"\\\""); }
+#[test] fn test_botched_escape()   { parse_err("\"\\\"");  }
 #[test] fn test_invalid_escape()   { parse_err("\"\\a\""); }
 
-#[test] fn test_true()  { parse_ok("true",  BooleanLiteral(true)); }
+#[test] fn test_true()  { parse_ok("true",  BooleanLiteral(true));  }
 #[test] fn test_false() { parse_ok("false", BooleanLiteral(false)); }
+
+#[test] fn test_number_in_parens() { parse_ok("(1)", Number(1)); }
+#[test] fn test_number_in_two_parens() { parse_ok("((1))", Number(1)); }
+#[test] fn test_number_parens_with_whitespace() { parse_ok("( 1 )", Number(1)); }
 
 #[cfg(not(test))]
 fn main() {
