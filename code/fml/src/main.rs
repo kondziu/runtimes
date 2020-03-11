@@ -9,12 +9,7 @@ lalrpop_mod!(pub fml); // syntesized by LALRPOP
 
 use crate::fml::ExpressionParser;
 use crate::fml_ast::AST;
-use crate::fml_ast::AST::{Number, FunctionDefinition, FunctionApplication};
-use crate::fml_ast::AST::Identifier;
-use crate::fml_ast::AST::StringLiteral;
-use crate::fml_ast::AST::BooleanLiteral;
-use crate::fml_ast::AST::Assignment;
-use crate::fml_ast::AST::Mutation;
+use crate::fml_ast::AST::*;
 
 fn parse_ok(input: &str, correct: AST) {
     assert_eq!(ExpressionParser::new().parse(input), Ok(correct));
@@ -23,6 +18,8 @@ fn parse_ok(input: &str, correct: AST) {
 fn parse_err(input: &str) {
     assert!(ExpressionParser::new().parse(input).is_err());
 }
+
+#[test] fn test_unit()         { parse_ok("null", Unit);        }
 
 #[test] fn test_0()            { parse_ok("0", Number(0));      }
 #[test] fn test_negative_0()   { parse_ok("-0", Number(0));     }
@@ -121,8 +118,21 @@ fn parse_err(input: &str) {
                                                          arguments: vec!(Box::new(Number(0)),
                                                                          Box::new(Number(-1)))}); }
 
-#[test] fn test_application_just_a_comma() { parse_err("f(,)");}
+#[test] fn test_application_just_a_comma()      { parse_err("f(,)");}
 #[test] fn test_application_many_extra_commas() { parse_err("f(x,,)");}
+
+#[test] fn test_empty_block_is_unit() { parse_ok("begin end", Unit) }
+#[test] fn test_block_one_expression() { parse_ok("begin 1 end", Block(vec!(
+                                                                                Box::new(Number(1))))) }
+#[test] fn test_block_many_expressions() { parse_ok("begin 1; 2; 3 end", Block(vec!(
+                                                                                    Box::new(Number(1)),
+                                                                                    Box::new(Number(2)),
+                                                                                    Box::new(Number(3))))) }
+
+#[test] fn test_block_trailing_semicolon() { parse_ok("begin 1; 2; 3; end", Block(vec!(
+                                                                                    Box::new(Number(1)),
+                                                                                    Box::new(Number(2)),
+                                                                                    Box::new(Number(3))))) }
 
 #[cfg(not(test))]
 fn main() {
