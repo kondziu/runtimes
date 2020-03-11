@@ -8,6 +8,7 @@ pub Expression: AST<'input> = {
 
    Assignment                            => <>,
    Literal                               => <>,
+   Identifier                           => <>,
 }
 
 Assignment: AST<'input> = {
@@ -16,7 +17,6 @@ Assignment: AST<'input> = {
 
 Literal: AST<'input> = {
     Number                               => <>,
-    Identifier                           => <>,
     String                               => <>,
     Boolean                              => <>,
 }
