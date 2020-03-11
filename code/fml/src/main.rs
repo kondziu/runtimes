@@ -9,7 +9,7 @@ lalrpop_mod!(pub fml); // syntesized by LALRPOP
 
 use crate::fml::ExpressionParser;
 use crate::fml_ast::AST;
-use crate::fml_ast::AST::Number;
+use crate::fml_ast::AST::{Number, FunctionDefinition, FunctionApplication};
 use crate::fml_ast::AST::Identifier;
 use crate::fml_ast::AST::StringLiteral;
 use crate::fml_ast::AST::BooleanLiteral;
@@ -65,6 +65,55 @@ fn parse_err(input: &str) {
 #[test] fn test_mutation()   { parse_ok("x <- 1",
                                         Mutation   { identifier: Box::new(Identifier("x")),
                                                             value: Box::new(Number(1))}); }
+
+#[test] fn test_function_no_args() { parse_ok("function f () <- 1",
+                                              FunctionDefinition {
+                                                  identifier: Box::new(Identifier("f")),
+                                                  parameters: vec!(),
+                                                  body: Box::new(Number(1))}); }
+
+#[test] fn test_function_one_arg() { parse_ok("function f (x) <- x",
+                                              FunctionDefinition {
+                                                  identifier: Box::new(Identifier("f")),
+                                                  parameters: vec!(Box::new(Identifier("x"))),
+                                                  body: Box::new(Identifier("x"))}); }
+
+#[test] fn test_function_many_args() { parse_ok("function f (x, y, z) <- x",
+                                                FunctionDefinition {
+                                                    identifier: Box::new(Identifier("f")),
+                                                    parameters: vec!(Box::new(Identifier("x")),
+                                                                     Box::new(Identifier("y")),
+                                                                     Box::new(Identifier("z"))),
+                                                    body: Box::new(Identifier("x"))}); }
+
+#[test] fn test_application_no_args() { parse_ok("f ()",
+                                                 FunctionApplication {
+                                                     identifier: Box::new(Identifier("f")),
+                                                     arguments: vec!()}); }
+
+#[test] fn test_application_one_arg() { parse_ok("f (0)",
+                                                 FunctionApplication {
+                                                     identifier: Box::new(Identifier("f")),
+                                                     arguments: vec!(Box::new(Number(0)))}); }
+
+#[test] fn test_application_more_args() { parse_ok("f (1, x, true)",
+                                                   FunctionApplication {
+                                                       identifier: Box::new(Identifier("f")),
+                                                       arguments: vec!(Box::new(Number(1)),
+                                                                       Box::new(Identifier("x")),
+                                                                       Box::new(BooleanLiteral(true)))}); }
+
+#[test] fn test_application_no_spaces() { parse_ok("f(0,-1)",
+                                                   FunctionApplication {
+                                                       identifier: Box::new(Identifier("f")),
+                                                       arguments: vec!(Box::new(Number(0)),
+                                                                       Box::new(Number(-1)))}); }
+
+#[test] fn test_application_more_spaces() { parse_ok("f    (   0    , -1 )",
+                                                     FunctionApplication {
+                                                         identifier: Box::new(Identifier("f")),
+                                                         arguments: vec!(Box::new(Number(0)),
+                                                                         Box::new(Number(-1)))}); }
 
 #[cfg(not(test))]
 fn main() {

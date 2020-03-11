@@ -10,7 +10,42 @@ pub Expression: AST<'input> = {
    Identifier                            => <>, // variable access
    Mutation                              => <>, // variable mutation
 
+   FunctionDefinition                    => <>, // Feeny-style function definition, returns unit?
+   FunctionApplication                   => <>, // function application
+
    Literal                               => <>,
+}
+
+FunctionDefinition: AST<'input> = {
+    "function" <id: Identifier> <parameters: Parameters> "<-" <body: Expression> => {
+        let boxed_parameters: Vec<Box<AST<'input>>> =
+            parameters.into_iter().map(|e| Box::new(e)).collect();
+        AST::FunctionDefinition{identifier: Box::new(id),
+                                parameters: boxed_parameters,
+                                body: Box::new(body)}
+    }
+}
+
+Parameters: Vec<AST<'input>> = {
+    "(" <elements: (<Identifier> ",")*> <element: Identifier?> ")" => match element {
+        None => elements,
+        Some(e) => { let mut elements = elements; elements.push(e); elements }
+    }
+}
+
+FunctionApplication: AST<'input> = {
+    <function: Identifier> <arguments: Arguments> => {
+        let boxed_arguments: Vec<Box<AST<'input>>> =
+            arguments.into_iter().map(|e| Box::new(e)).collect();
+        AST::FunctionApplication{identifier: Box::new(function), arguments: boxed_arguments}
+    }
+}
+
+Arguments: Vec<AST<'input>> = {
+    "(" <elements: (<Expression> ",")*> <element: Expression?> ")" => match element {
+        None => elements,
+        Some(e) => { let mut elements = elements; elements.push(e); elements }
+    }
 }
 
 Assignment: AST<'input> = {

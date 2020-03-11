@@ -67,8 +67,7 @@ operator ::= multiply | plus | minus | divide | unequal | equal | lesser | great
 method_identifier ::= identifier | operator;
 
 /* operator precedense */
-/* plus and minus < multiply and divide < equal and unequal and lesser etc. */
-/* or < and */
+/* plus and minus and < multiply and divide < equal and unequal and lesser etc. < or < and */
 
 /* literals */
 literal ::= number | boolean | unit | begin end;                            /* begin end == unit */
