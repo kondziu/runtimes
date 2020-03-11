@@ -121,6 +121,5 @@ argument_list ::= [expression {comma expression} [comma]];
  * for Feeny, but I did Feeny style functions for now.
  */
 
-object_body ::= let identifier equal expression                              /* field definition (same as variables) */
-              | function identifier parameter_list rarrow expression;        /* method definition (same as functions) */
-
+object_body ::= let identifier equal expression                                     /* field definition (same as variables) */
+              | function identifier lparen parameter_list rparen rarrow expression; /* method definition (same as functions) */
