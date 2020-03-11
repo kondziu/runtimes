@@ -41,7 +41,7 @@ greater_or_equal ::= ">=";
 or ::= "|";
 and ::= "&";
 minus  ::= '-';
-equal ::= "=";
+equal ::= "==";
 unequal ::= "!=";
 
 /* keywords */
@@ -60,6 +60,7 @@ end ::= "end";
 this ::= "this";
 print ::= "print";
 function ::= "function";
+do ::= "do";
 
 /* identifiers */
 identifier ::= (letter | underscore) {letter | digit | underscore} | this;
@@ -89,12 +90,12 @@ expression ::= lparen expression rparen                                     /* e
              | expression dot identifier larrow expression                  /* field mutation */
              | expression dot method_identifier argument_list               /* method call */
 
-             | array lparen expression comma expression rparen              /* array definition (argument is array size) */
+             | array lparen expression comma expression rparen              /* array definition (arguments are array size and initial value) */
              | expression lbracket expression rbracket                      /* array access */
              | expression lbracket expression rbracket larrow expression    /* array mutation */
 
              | if expression then expression [else expression]              /* conditional expression */
-             | while expression begin expression end                        /* loop expression */
+             | while expression do expression                               /* loop expression */
 
              | let identifier equal expression                              /* Feeny-style variable definition */        
              | identifier                                                   /* variable access */
