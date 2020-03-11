@@ -7,7 +7,8 @@ pub enum AST<'ast> {
     Identifier(&'ast str),
     StringLiteral(&'ast str),
     BooleanLiteral(bool),
-    Assignment {identifier: Box<AST<'ast>>, value: Box<AST<'ast>>}
+    Assignment {identifier: Box<AST<'ast>>, value: Box<AST<'ast>>},
+    Mutation {identifier: Box<AST<'ast>>, value: Box<AST<'ast>>},
 }
 
 impl Debug for AST<'_> {
@@ -18,8 +19,10 @@ impl Debug for AST<'_> {
             Identifier(id) => write!(fmt, "Identifier({})", id),
             StringLiteral(s) => write!(fmt, "StringLiteral({:?})", s),
             BooleanLiteral(b) => write!(fmt, "Boolean({})", b),
-            Assignment {identifier: id, value} =>
-                write!(fmt, "Assignment({:?}, {:?})", id, value),
+            Assignment {identifier, value} =>
+                write!(fmt, "Assignment({:?}, {:?})", identifier, value),
+            Mutation {identifier, value} =>
+                write!(fmt, "Assignment({:?}, {:?})", identifier, value),
             //Error => write!(fmt, "error"),
         }
     }
