@@ -7,17 +7,19 @@ pub enum AST<'ast> {
     Identifier(&'ast str),
     StringLiteral(&'ast str),
     BooleanLiteral(bool),
+    Assignment {identifier: Box<AST<'ast>>, value: Box<AST<'ast>>}
 }
 
 impl Debug for AST<'_> {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), Error> {
         use self::AST::*;
-        match *self {
+        match self {
             Number(n) => write!(fmt, "Number({:?})", n),
             Identifier(id) => write!(fmt, "Identifier({})", id),
             StringLiteral(s) => write!(fmt, "StringLiteral({:?})", s),
             BooleanLiteral(b) => write!(fmt, "Boolean({})", b),
-            //Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
+            Assignment {identifier: id, value} =>
+                write!(fmt, "Assignment({:?}, {:?})", id, value),
             //Error => write!(fmt, "error"),
         }
     }

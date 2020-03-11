@@ -13,6 +13,7 @@ use crate::fml_ast::AST::Number;
 use crate::fml_ast::AST::Identifier;
 use crate::fml_ast::AST::StringLiteral;
 use crate::fml_ast::AST::BooleanLiteral;
+use crate::fml_ast::AST::Assignment;
 
 fn parse_ok(input: &str, correct: AST) {
     assert_eq!(ExpressionParser::new().parse(input), Ok(correct));
@@ -56,6 +57,10 @@ fn parse_err(input: &str) {
 #[test] fn test_number_in_parens() { parse_ok("(1)", Number(1)); }
 #[test] fn test_number_in_two_parens() { parse_ok("((1))", Number(1)); }
 #[test] fn test_number_parens_with_whitespace() { parse_ok("( 1 )", Number(1)); }
+
+#[test] fn test_assignment() { parse_ok("let x = 1",
+                                        Assignment { identifier: Box::new(Identifier("x")),
+                                                            value: Box::new(Number(1))}); }
 
 #[cfg(not(test))]
 fn main() {
