@@ -4,20 +4,20 @@ use crate::fml_ast::AST;
 grammar;
 
 pub TopLevel: AST<'input> = {
-    Expression                        => <>,
+    Expression              => <>,
 }
 
 Expression: AST<'input> = {
-    ParenthesizedExpression               => <>, // expression in parentheses
-    Block                                 => <>, // expression block
+    ParenthesizedExpression => <>, // expression in parentheses
+    Block                   => <>, // expression block
 
-    FunctionDefinition                    => <>, // Feeny-style function definition, returns unit?
-    Application                           => <>, // function/method application
+    FunctionDefinition      => <>, // Feeny-style function definition, returns unit?
+    Application             => <>, // function/method application
 
-    ObjectDefinition                      => <>, // prototype object definition
-    Field                                 => <>, // field access
+    ObjectDefinition        => <>, // prototype object definition
+    Field                   => <>, // field access
 
-    ArrayDefinition                       => <>, // array definition (argument is array size and initial value
+    ArrayDefinition         => <>, // array definition (argument is array size and initial value
     ArrayAccess                           => <>, // array access
 
     Conditional                           => <>, // conditional expression
@@ -170,6 +170,11 @@ Application: AST<'input> = {
         let boxed_arguments: Vec<Box<AST<'input>>> =
         arguments.into_iter().map(|e| Box::new(e)).collect();
         AST::MethodCall{field: Box::new(field), arguments: boxed_arguments}
+    },
+    <array: ArrayAccess> "(" <arguments: Arguments> ")" => {
+        let boxed_arguments: Vec<Box<AST<'input>>> =
+            arguments.into_iter().map(|e| Box::new(e)).collect();
+        AST::MethodCall{field: Box::new(array), arguments: boxed_arguments}
     }
 }
 
