@@ -7,16 +7,16 @@ pub mod fml_ast;
 
 lalrpop_mod!(pub fml); // syntesized by LALRPOP
 
-use crate::fml::ExpressionParser;
+use crate::fml::TopLevelParser;
 use crate::fml_ast::AST;
 use crate::fml_ast::AST::*;
 
 fn parse_ok(input: &str, correct: AST) {
-    assert_eq!(ExpressionParser::new().parse(input), Ok(correct));
+    assert_eq!(TopLevelParser::new().parse(input), Ok(correct));
 }
 
 fn parse_err(input: &str) {
-    assert!(ExpressionParser::new().parse(input).is_err());
+    assert!(TopLevelParser::new().parse(input).is_err());
 }
 
 #[test] fn test_unit()         { parse_ok("null", Unit);        }
@@ -298,6 +298,50 @@ fn test_object_with_many_members() {
                          identifier: Box::new(Identifier("me")),
                          parameters: vec!(),
                          body: Box::new(Identifier("this"))}))})
+}
+
+#[test] fn test_field_access_from_identifier () {
+    parse_ok("a.b",
+             FieldAccess {
+                 object: Box::new(Identifier("a")),
+                 identifier: Box::new(Identifier("b"))});
+}
+
+#[test] fn test_field_access_from_number () {
+    parse_ok("1.b",
+             FieldAccess {
+                 object: Box::new(Number(1)),
+                 identifier: Box::new(Identifier("b"))});
+}
+
+#[test] fn test_field_access_from_boolean () {
+    parse_ok("true.b",
+             FieldAccess {
+                 object: Box::new(BooleanLiteral(true)),
+                 identifier: Box::new(Identifier("b"))});
+}
+
+#[test] fn test_field_access_from_parenthesized_expression () {
+    parse_ok("(if x then 1 else 2).b",
+             FieldAccess {
+                 object: Box::new(
+                     Conditional{
+                        condition: Box::new(Identifier("x")),
+                        consequent: Box::new(Number(1)),
+                        alternative: Box::new(Number(2))}),
+                 identifier: Box::new(Identifier("b"))});
+}
+
+#[test] fn test_field_chain_access () {
+    parse_ok("a.b.c.d",
+             FieldAccess {
+                 object: Box::new(
+                     FieldAccess {
+                        object: Box::new(FieldAccess {
+                            object: Box::new(Identifier("a")),
+                            identifier: Box::new(Identifier("b"))}),
+                        identifier: Box::new(Identifier("c"))}),
+                 identifier: Box::new(Identifier("d"))});
 }
 
 #[cfg(not(test))]

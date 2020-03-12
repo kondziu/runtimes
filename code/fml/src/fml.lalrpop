@@ -1,21 +1,22 @@
 use std::str::FromStr;
 use crate::fml_ast::AST;
+use std::collections::VecDeque;
 
 grammar;
 
-pub Expression: AST<'input> = {
-    Expression_<"I">                       => <>,
+pub TopLevel: AST<'input> = {
+    Expression                        => <>,
 }
 
-Expression_<allow>: AST<'input> = {
-    "(" <Expression> ")"                  => <>, // expression in parentheses
+Expression: AST<'input> = {
+    ParenthesizedExpression               => <>, // expression in parentheses
     Block                                 => <>, // expression block
 
     FunctionDefinition                    => <>, // Feeny-style function definition, returns unit?
     FunctionApplication                   => <>, // function application
 
     ObjectDefinition                      => <>, // prototype object definition
-    //FieldAccess                           => <>, // field access FIXME
+    Field                                 => <>, // field access FIXME
     //FieldMutation                         => <>, // field mutation FIXME
     //MethodCall                            => <>,   // method call FIXME
 
@@ -23,7 +24,7 @@ Expression_<allow>: AST<'input> = {
     //ArrayAccess                         => <>, // array access FIXME
     //ArrayMutation                         => <>, // array mutation  FIXME
 
-    Conditional<allow>                    => <>, // conditional expression
+    Conditional                           => <>, // conditional expression
     Loop                                  => <>, // loop expression
 
     Assignment                            => <>, // Feenified variable definition
@@ -36,8 +37,12 @@ Expression_<allow>: AST<'input> = {
     Literal                               => <>,
 }
 
-Conditional<allow>: AST<'input> = {
-    "if" <condition: Expression> "then" <consequent: Expression_<"">> <alternative: ("else" <Expression_<"I">>)> =>
+ParenthesizedExpression: AST<'input> = {
+    "(" <Expression> ")"              => <>
+}
+
+Conditional: AST<'input> = {
+    "if" <condition: Expression> "then" <consequent: Expression> <alternative: ("else" <Expression>)> =>
         AST::Conditional{condition: Box::new(condition),
                          consequent: Box::new(consequent),
                          alternative: Box::new(alternative)},
@@ -69,9 +74,36 @@ Member: AST<'input> = {
     FunctionDefinition => <>,
 }
 
-FieldAccess: AST<'input> = {
-    <object: Expression> "." <field: Identifier> =>
-        AST::FieldAccess {object: Box::new(object), identifier: Box::new(field)}
+Accessible: AST<'input> = {
+    ParenthesizedExpression               => <>, // expression in parentheses
+    Block                                 => <>, // expression block
+    FunctionApplication                   => <>, // function application
+    //FieldMutation                         => <>, // field mutation TODO
+    //MethodCall                            => <>,   // method call TODO
+
+    ArrayDefinition                       => <>, // array definition
+    //ArrayAccess                         => <>, // array access TODO
+    //ArrayMutation                         => <>, // array mutation TODO
+    Identifier                            => <>, // variable access
+    Literal                               => <>,
+}
+
+Field: AST<'input> = {
+    <object: Accessible> "." <objects: (<Identifier> ".")*> <field: Identifier> => {
+        let mut it = {
+            let mut all = Vec::from(objects);
+            all.push(field);
+            all.into_iter()
+        };
+
+        let mut accumulator = object;
+        while let Some(field) = it.next() {
+            accumulator = AST::FieldAccess {identifier: Box::new(field),
+                                            object: Box::new(accumulator)}
+        };
+
+        accumulator
+    }
 }
 
 FieldMutation: AST<'input> = {
@@ -86,7 +118,6 @@ MethodCall: AST<'input> = {
         AST::MethodCall{object: Box::new(object), identifier: Box::new(method), arguments: boxed_arguments}
     }
 }
-
 
 ArrayDefinition: AST<'input> = {
     "array" "(" <size: Expression> "," <value: Expression> ")" =>
