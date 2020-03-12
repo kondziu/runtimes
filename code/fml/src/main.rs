@@ -56,12 +56,18 @@ fn parse_err(input: &str) {
 #[test] fn test_number_in_two_parens() { parse_ok("((1))", Number(1)); }
 #[test] fn test_number_parens_with_whitespace() { parse_ok("( 1 )", Number(1)); }
 
-#[test] fn test_assignment() { parse_ok("let x = 1",
-                                        Assignment { identifier: Box::new(Identifier("x")),
-                                                            value: Box::new(Number(1))}); }
-#[test] fn test_mutation()   { parse_ok("x <- 1",
-                                        Mutation   { identifier: Box::new(Identifier("x")),
-                                                            value: Box::new(Number(1))}); }
+#[test] fn test_assignment() {
+    parse_ok("let x = 1",
+             Assignment {
+                 identifier: Box::new(Identifier("x")),
+                 value: Box::new(Number(1))});
+}
+
+#[test] fn test_mutation()   {
+    parse_ok("x <- 1", Mutation {
+        identifier: Box::new(Identifier("x")),
+        value: Box::new(Number(1))});
+}
 
 #[test] fn test_function_no_args() {
     parse_ok("function f () <- 1",
@@ -342,6 +348,90 @@ fn test_object_with_many_members() {
                             identifier: Box::new(Identifier("b"))}),
                         identifier: Box::new(Identifier("c"))}),
                  identifier: Box::new(Identifier("d"))});
+}
+
+#[test] fn test_field_mutation_from_identifier () {
+    parse_ok("a.b <- 1",
+             FieldMutation {
+                 field: Box::new(FieldAccess {
+                    object: Box::new(Identifier("a")),
+                    identifier: Box::new(Identifier("b"))}),
+                 value: Box::new(Number(1))});
+}
+
+#[test] fn test_method_call_from_identifier () {
+    parse_ok("a.b (1)",
+             MethodCall {
+                 field: Box::new(FieldAccess {
+                     object: Box::new(Identifier("a")),
+                     identifier: Box::new(Identifier("b"))}),
+                 arguments: vec!(Box::new(Number(1)))});
+}
+
+#[test] fn test_array_access () {
+    parse_ok("a[1]",
+             ArrayAccess {
+                 array: Box::new(Identifier("a")),
+                 index: Box::new(Number(1))});
+}
+
+#[test] fn test_array_access_from_object () {
+    parse_ok("a.b[1]",
+             ArrayAccess {
+                 array: Box::new(
+                     FieldAccess {
+                         object: Box::new(Identifier("a")),
+                         identifier: Box::new(Identifier("b"))}),
+                 index: Box::new(Number(1))});
+}
+
+#[test] fn test_array_access_from_array () {
+    parse_ok("a[b][1]",
+             ArrayAccess {
+                 array: Box::new(
+                     ArrayAccess {
+                         array: Box::new(Identifier("a")),
+                         index: Box::new(Identifier("b"))}),
+                 index: Box::new(Number(1))});
+}
+
+#[test] fn test_array_access_with_array_access_as_index () {
+    parse_ok("a[b[c]]",
+             ArrayAccess {
+                 array: Box::new(Identifier("a")),
+                 index: Box::new(
+                     ArrayAccess {
+                         array: Box::new(Identifier("b")),
+                         index: Box::new(Identifier("c"))})});
+}
+
+#[test] fn test_array_access_from_function_call () {
+    parse_ok("f(0,0)[x]",
+             ArrayAccess {
+                 array: Box::new(
+                     FunctionApplication {
+                        identifier: Box::new(Identifier("f")),
+                        arguments: vec!(Box::new(Number(0)),
+                                         Box::new(Number(0)))}),
+                 index: Box::new(
+                     Identifier("x"))});
+}
+
+#[test] fn test_print_call_with_arguments() {
+    parse_ok("print(\"~ ~ ~\", 1, true, x)",
+             Print {
+                 format: Box::new(StringLiteral("~ ~ ~")),
+                 arguments: vec!(
+                     Box::new(Number(1)),
+                     Box::new(BooleanLiteral(true)),
+                     Box::new(Identifier("x")))});
+}
+
+#[test] fn test_print_call_without_arguments() {
+    parse_ok("print(\"~ ~ ~\")",
+             Print {
+                 format: Box::new(StringLiteral("~ ~ ~")),
+                 arguments: vec!()});
 }
 
 #[cfg(not(test))]

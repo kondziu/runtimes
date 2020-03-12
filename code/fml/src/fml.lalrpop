@@ -1,6 +1,5 @@
 use std::str::FromStr;
 use crate::fml_ast::AST;
-use std::collections::VecDeque;
 
 grammar;
 
@@ -13,32 +12,29 @@ Expression: AST<'input> = {
     Block                                 => <>, // expression block
 
     FunctionDefinition                    => <>, // Feeny-style function definition, returns unit?
-    FunctionApplication                   => <>, // function application
+    Application                           => <>, // function/method application
 
     ObjectDefinition                      => <>, // prototype object definition
-    Field                                 => <>, // field access FIXME
-    //FieldMutation                         => <>, // field mutation FIXME
-    //MethodCall                            => <>,   // method call FIXME
+    Field                                 => <>, // field access
 
     ArrayDefinition                       => <>, // array definition (argument is array size and initial value
-    //ArrayAccess                         => <>, // array access FIXME
-    //ArrayMutation                         => <>, // array mutation  FIXME
+    ArrayAccess                           => <>, // array access
 
     Conditional                           => <>, // conditional expression
     Loop                                  => <>, // loop expression
 
     Assignment                            => <>, // Feenified variable definition
-    Identifier                            => <>, // variable access
-    Mutation                              => <>, // variable mutation
+    Identifier                            => <>, // variable/object member access
+    Mutation                              => <>, // variable/object member mutation
 
-    //Print                               => <>, // call to the print built-in
+    Print                                 => <>, // call to the print built-in
     //Operation                           => <>, // infix operators, syntactic sugar to method calls
 
     Literal                               => <>,
 }
 
 ParenthesizedExpression: AST<'input> = {
-    "(" <Expression> ")"              => <>
+    "(" <Expression> ")"                  => <>
 }
 
 Conditional: AST<'input> = {
@@ -50,6 +46,16 @@ Conditional: AST<'input> = {
 //        AST::Conditional{condition: Box::new(condition),
 //                         consequent: Box::new(consequent),
 //                         alternative: Box::new(AST::Unit)},
+}
+
+Print: AST<'input> = { // TODO format string check
+    "print" "(" <string: String> <arguments: ("," <Arguments>)?> ")" => {
+        let boxed_arguments: Vec<Box<AST<'input>>> = match arguments {
+            Some(arguments) => arguments.into_iter().map( | e | Box::new(e)).collect(),
+            None => vec!(),
+        };
+        AST::Print {format: Box::new(string), arguments: boxed_arguments}
+    }
 }
 
 ObjectDefinition: AST<'input> = {
@@ -77,13 +83,9 @@ Member: AST<'input> = {
 Accessible: AST<'input> = {
     ParenthesizedExpression               => <>, // expression in parentheses
     Block                                 => <>, // expression block
-    FunctionApplication                   => <>, // function application
-    //FieldMutation                         => <>, // field mutation TODO
-    //MethodCall                            => <>,   // method call TODO
-
+    Application                           => <>, // function application
     ArrayDefinition                       => <>, // array definition
-    //ArrayAccess                         => <>, // array access TODO
-    //ArrayMutation                         => <>, // array mutation TODO
+    ArrayAccess                           => <>, // array access
     Identifier                            => <>, // variable access
     Literal                               => <>,
 }
@@ -106,32 +108,16 @@ Field: AST<'input> = {
     }
 }
 
-FieldMutation: AST<'input> = {
-    <object: Expression> "." <field: Identifier> "<-" <value: Expression> =>
-        AST::FieldMutation {object: Box::new(object), identifier: Box::new(field), value: Box::new(value)}
-}
-
-MethodCall: AST<'input> = {
-    <object: Expression> "." <method: Identifier> <arguments: Arguments> => {
-        let boxed_arguments: Vec<Box<AST<'input>>> =
-            arguments.into_iter().map(|e| Box::new(e)).collect();
-        AST::MethodCall{object: Box::new(object), identifier: Box::new(method), arguments: boxed_arguments}
-    }
-}
-
 ArrayDefinition: AST<'input> = {
     "array" "(" <size: Expression> "," <value: Expression> ")" =>
         AST::ArrayDefinition {size: Box::new(size), value: Box::new(value)}
 }
 
 ArrayAccess: AST<'input> = {
-    <array: Expression> "[" <index: Expression> "]" =>
-        AST::ArrayAccess {identifier: Box::new(array), index: Box::new(index)}
-}
-
-ArrayMutation: AST<'input> = {
-    <array: Expression> "[" <index: Expression> "]" "<-" <value: Expression> =>
-        AST::ArrayMutation {identifier: Box::new(array), index: Box::new(index), value: Box::new(value)}
+    <array: Accessible> "[" <index: Expression> "]" =>
+        AST::ArrayAccess {array: Box::new(array), index: Box::new(index)},
+    <array: Field> "[" <index: Expression> "]" =>
+        AST::ArrayAccess {array: Box::new(array), index: Box::new(index)}
 }
 
 Loop: AST<'input> = {
@@ -174,16 +160,21 @@ Parameters: Vec<AST<'input>> = {
     }
 }
 
-FunctionApplication: AST<'input> = {
-    <function: Identifier> <arguments: Arguments> => {
+Application: AST<'input> = {
+    <function: Identifier> "(" <arguments: Arguments> ")" => {
         let boxed_arguments: Vec<Box<AST<'input>>> =
             arguments.into_iter().map(|e| Box::new(e)).collect();
         AST::FunctionApplication{identifier: Box::new(function), arguments: boxed_arguments}
+    },
+    <field: Field> "(" <arguments: Arguments> ")" => {
+        let boxed_arguments: Vec<Box<AST<'input>>> =
+        arguments.into_iter().map(|e| Box::new(e)).collect();
+        AST::MethodCall{field: Box::new(field), arguments: boxed_arguments}
     }
 }
 
 Arguments: Vec<AST<'input>> = {
-    "(" <elements: (<Expression> ",")*> <element: Expression?> ")" => match element {
+    <elements: (<Expression> ",")*> <element: Expression?> => match element {
         None => elements,
         Some(e) => { let mut elements = elements; elements.push(e); elements }
     }
@@ -197,11 +188,15 @@ Assignment: AST<'input> = {
 Mutation: AST<'input> = {
     <id: Identifier> "<-" <v: Expression> =>
         AST::Mutation{identifier: Box::new(id), value: Box::new(v)},
+    <field: Field> "<-" <v: Expression> =>
+        AST::FieldMutation{field: Box::new(field), value: Box::new(v)},
+    <array: ArrayAccess> "<-" <v: Expression> =>
+        AST::ArrayMutation {array: Box::new(array), value: Box::new(v)},
 }
 
 Literal: AST<'input> = {
     Number                               => <>,
-    String                               => <>,
+    String                               => <>, //FIXME remove
     Boolean                              => <>,
     Unit                                 => <>,
 }
