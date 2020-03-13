@@ -8,33 +8,36 @@ pub TopLevel: AST<'input> = {
 }
 
 Expression: AST<'input> = {
-    ParenthesizedExpression => <>, // expression in parentheses
-    Block                   => <>, // expression block
-
     FunctionDefinition      => <>, // Feeny-style function definition, returns unit?
-    Application             => <>, // function/method application
-
     ObjectDefinition        => <>, // prototype object definition
     Field                   => <>, // field access
+    Conditional             => <>, // conditional expression
+    Loop                    => <>, // loop expression
+    Assignment              => <>, // Feenified variable definition
+    Mutation                => <>, // variable/object member mutation
+    Print                   => <>, // call to the print built-in
+    Accessible              => <>,
+}
 
-    ArrayDefinition         => <>, // array definition (argument is array size and initial value
-    ArrayAccess                           => <>, // array access
+Accessible: AST<'input> = {
+    ParenthesizedExpression => <>, // expression in parentheses
+    Block                   => <>, // expression block
+    Application             => <>, // function application
+    ArrayDefinition         => <>, // array definition
+    ArrayAccess             => <>, // array access
+    Identifier              => <>, // variable access
+    Literal                 => <>,
+}
 
-    Conditional                           => <>, // conditional expression
-    Loop                                  => <>, // loop expression
-
-    Assignment                            => <>, // Feenified variable definition
-    Identifier                            => <>, // variable/object member access
-    Mutation                              => <>, // variable/object member mutation
-
-    Print                                 => <>, // call to the print built-in
-    //Operation                           => <>, // infix operators, syntactic sugar to method calls
-
-    Literal                               => <>,
+Literal: AST<'input> = {
+    Number  => <>,
+    //String  => <>, //FIXME remove
+    Boolean => <>,
+    Unit    => <>,
 }
 
 ParenthesizedExpression: AST<'input> = {
-    "(" <Expression> ")"                  => <>
+    "(" <Expression> ")"    => <>
 }
 
 Conditional: AST<'input> = {
@@ -78,16 +81,6 @@ Members: Vec<AST<'input>> = {
 Member: AST<'input> = {
     Assignment         => <>,
     FunctionDefinition => <>,
-}
-
-Accessible: AST<'input> = {
-    ParenthesizedExpression               => <>, // expression in parentheses
-    Block                                 => <>, // expression block
-    Application                           => <>, // function application
-    ArrayDefinition                       => <>, // array definition
-    ArrayAccess                           => <>, // array access
-    Identifier                            => <>, // variable access
-    Literal                               => <>,
 }
 
 Field: AST<'input> = {
@@ -199,20 +192,13 @@ Mutation: AST<'input> = {
         AST::ArrayMutation {array: Box::new(array), value: Box::new(v)},
 }
 
-Literal: AST<'input> = {
-    Number                               => <>,
-    String                               => <>, //FIXME remove
-    Boolean                              => <>,
-    Unit                                 => <>,
-}
-
 Identifier: AST<'input> = {
-     r"[_A-Za-z][_A-Za-z0-9]*"           => AST::Identifier(<>),
-     "this"                              => AST::Identifier(<>),
+     r"[_A-Za-z][_A-Za-z0-9]*" => AST::Identifier(<>),
+     "this"                    => AST::Identifier(<>),
 }
 
 Number: AST<'input> = {
-    r"[-]?[0-9]+"                        => AST::Number(i32::from_str(<>).unwrap()),
+    r"[-]?[0-9]+"              => AST::Number(i32::from_str(<>).unwrap()),
 }
 
 String: AST<'input> = {
