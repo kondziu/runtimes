@@ -7,7 +7,7 @@ grammar;
 
 pub TopLevel: AST<'input> = {
     <expressions: Expressions> => expressions,
-    => AST::Unit,
+                               => AST::Unit,
 }
 
 Expressions: AST<'input> = {
@@ -22,7 +22,6 @@ Expressions: AST<'input> = {
     }
 }
 
-
 Expression: AST<'input> = {
     FunctionDefinition      => <>, // Feeny-style function definition, returns unit?
     ObjectDefinition        => <>, // prototype object definition
@@ -32,22 +31,14 @@ Expression: AST<'input> = {
     Assignment              => <>, // Feenified variable definition
     Mutation                => <>, // variable/object member mutation
     Print                   => <>, // call to the print built-in
-
-Operation               => <>, // operations, but this also leads to Accessible
+    Operation               => <>, // operations, but this also leads to Accessible
 }
 
 
 Block: AST<'input> = {
-"begin" "end" => AST::Unit,
-"begin" <expressions: Expressions> "end" => expressions
+    "begin" "end"                            => AST::Unit,
+    "begin" <expressions: Expressions> "end" => expressions
 }
-
-
-//match element {
- //       None => elements,
-  //      Some(e) => { let mut elements = elements; elements.push(e); elements }
-    //}
-//}
 
 Accessible: AST<'input> = {
     ParenthesizedExpression => <>, // expression in parentheses
@@ -121,6 +112,7 @@ AdditiveOperator: Operator = {
 FactorOperator: Operator = {
     "*" => Operator::Multiplication,
     "/" => Operator::Division,
+    "%" => Operator::Module,
 }
 
 Literal: AST<'input> = {
@@ -261,7 +253,7 @@ Mutation: AST<'input> = {
 }
 
 Identifier: AST<'input> = {
-     r"[_A-Za-z][_A-Za-z0-9]*"             => AST::Identifier(<>),
+     r"[_A-Za-z][_A-Za-z0-9]*"           => AST::Identifier(<>),
      "this"                              => AST::Identifier(<>),
 }
 

@@ -35,6 +35,7 @@ be                  ::= "=";
 plus                ::= "+";
 multiply            ::= "*";
 divide              ::= "/";
+module              ::= "%";
 lesser_or_equal     ::= "<=";
 greater_or_equal    ::= ">=";
 lesser              ::= "<";
@@ -67,7 +68,8 @@ extends             ::= "extends";
 /* identifiers */
 identifier          ::= (letter | underscore)
                         {letter | digit | underscore} | this;
-operator            ::= multiply | plus | minus | divide
+operator            ::= multiply | plus
+                      | minus | divide | module
                       | unequal | equal | lesser | greater
                       | lesser_or_equal | greater_or_equal
                       | or | and;

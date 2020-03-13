@@ -731,6 +731,14 @@ fn test_object_with_many_members() {
                  right: Box::new(Number(2))});
 }
 
+#[test] fn test_simple_module() {
+    parse_ok("1 % 2",
+             Operation {
+                 operator: Module,
+                 left: Box::new(Number(1)),
+                 right: Box::new(Number(2))});
+}
+
 #[test] fn test_simple_division() {
     parse_ok("1 / 2",
              Operation {

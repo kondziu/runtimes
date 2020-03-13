@@ -31,6 +31,7 @@ pub enum AST<'ast> {
 pub enum Operator {
     Multiplication,
     Division,
+    Module,
     Addition,
     Subtraction,
     Inequality,
