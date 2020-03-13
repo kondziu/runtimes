@@ -1,6 +1,5 @@
 use std::fmt::{Debug, Error, Formatter};
 use std::cmp::PartialEq;
-//use std::string::ToString;
 
 #[derive(PartialEq)]
 pub enum AST<'ast> {
@@ -29,18 +28,18 @@ pub enum AST<'ast> {
 
 #[derive(PartialEq,Debug)]
 pub enum Operator {
-    Times,
-    Plus,
-    Minus,
-    Divide,
-    Unequal,
-    Equal,
+    Multiplication,
+    Division,
+    Addition,
+    Subtraction,
+    Inequality,
+    Equality,
     Less,
+    LessEqual,
     Greater,
     GreaterEqual,
-    LessEqual,
-    Or,
-    And,
+    Disjunction, // |
+    Conjunction, // &
 }
 
 impl Debug for AST<'_> {
@@ -86,5 +85,18 @@ impl Debug for AST<'_> {
                 write!(fmt, "Print(format={:?}, arguments={:?})", format, arguments),
             //Error => write!(fmt, "error"),
         }
+    }
+}
+
+#[macro_export]
+macro_rules! make_operator_ast {
+    ( $head:expr, $tail:expr ) => {
+        ($tail).into_iter().fold($head, |left, right| {
+            let (operator, value) = right;
+            AST::Operation {
+                operator: operator,
+                left: Box::new(left),
+                right: Box::new(value)}
+        })
     }
 }

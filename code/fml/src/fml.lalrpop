@@ -1,10 +1,11 @@
 use std::str::FromStr;
 use crate::fml_ast::AST;
+use crate::fml_ast::Operator;
 
 grammar;
 
 pub TopLevel: AST<'input> = {
-    Expression              => <>,
+    Expression              => <>, // an entry point for the parser
 }
 
 Expression: AST<'input> = {
@@ -16,7 +17,7 @@ Expression: AST<'input> = {
     Assignment              => <>, // Feenified variable definition
     Mutation                => <>, // variable/object member mutation
     Print                   => <>, // call to the print built-in
-    Accessible              => <>,
+    Operation               => <>, // operations, but this also leads to Accessible
 }
 
 Accessible: AST<'input> = {
@@ -26,7 +27,63 @@ Accessible: AST<'input> = {
     ArrayDefinition         => <>, // array definition
     ArrayAccess             => <>, // array access
     Identifier              => <>, // variable access
-    Literal                 => <>,
+    Literal                 => <>, // literal, duh
+}
+
+Operation: AST<'input> = {
+    Disjunction             => <> // Let's climb the operator precedence!
+}
+
+Disjunction: AST<'input> = {
+    <head: Conjunction> <tail: (<DisjunctionOperator> <Conjunction>)*> =>
+        make_operator_ast!(head, tail)
+}
+
+Conjunction: AST<'input> = {
+    <head: Comparison> <tail: (<ConjunctionOperator> <Comparison>)*> =>
+        make_operator_ast!(head, tail)
+}
+
+Comparison: AST<'input> = {
+    <head: Additive> <tail: (<EqualityOperator> <Additive>)*> =>
+        make_operator_ast!(head, tail)
+}
+
+Additive: AST<'input> = {
+    <head: Factor> <tail: (<AdditiveOperator> <Factor>)*> =>
+        make_operator_ast!(head, tail)
+}
+
+Factor: AST<'input> = {
+    <head: Accessible> <tail: (<FactorOperator> <Accessible>)*> =>
+        make_operator_ast!(head, tail)
+}
+
+ConjunctionOperator: Operator = {
+    "&" => Operator::Conjunction,
+}
+
+DisjunctionOperator: Operator = {
+    "|" => Operator::Disjunction,
+}
+
+EqualityOperator: Operator = {
+    "==" => Operator::Equality,
+    "!=" => Operator::Inequality,
+    ">"  => Operator::Greater,
+    ">=" => Operator::GreaterEqual,
+    "<"  => Operator::Less,
+    "<=" => Operator::LessEqual,
+}
+
+AdditiveOperator: Operator = {
+    "+" => Operator::Addition,
+    "-" => Operator::Subtraction,
+}
+
+FactorOperator: Operator = {
+    "*" => Operator::Multiplication,
+    "/" => Operator::Division,
 }
 
 Literal: AST<'input> = {
@@ -84,18 +141,10 @@ Members: Vec<AST<'input>> = {
 
 Field: AST<'input> = {
     <object: Accessible> "." <objects: (<Identifier> ".")*> <field: Identifier> => {
-        let mut it = {
-            let mut all = Vec::from(objects);
-            all.push(field);
-            all.into_iter()
-        };
-
-        let mut accumulator = object;
-        while let Some(field) = it.next() {
-            accumulator = AST::FieldAccess {field: Box::new(field), object: Box::new(accumulator)}
-        };
-
-        accumulator
+        let mut tail = Vec::from(objects);
+        tail.push(field);
+        tail.into_iter().fold(object, |left, right|
+            AST::FieldAccess {object: Box::new(left), field: Box::new(right)})
     }
 }
 
@@ -211,32 +260,3 @@ Boolean: AST<'input> = {
 Unit: AST<'input> = {
     "null"                               => AST::Unit,
 }
-
-//ExprOperation: AST<'input> = {
-//    <left: Expression> <operator: Operator> <right: Expression> =>
-//        AST::Operation{operator, left, right}
-//}
-
-//Tier<Operator, NextTier>: AST<'input> = {
-//    Tier<Op, NextTier> <operator: Operator> NextTier => AST::Operation(operator, Box::new(AST::Unit), Box::new(AST::Unit)),
-//    NextTier
-//};
-
-//Operator1: Operator = {
-//    "+" => Operator::Plus,
-//        "-" => Operator::Minus,
-//}
-
-//Operator2: Operator = {
-//    "*" => Operator::Times,
-//    "/" => Operator::Divide,
-//}
-
-//    "!=" => Operator::Unequal,
-//    "=="  => Operator::Equal,
-//    "<"  => Operator::Less,
-//    ">"  => Operator::Greater,
-//    ">=" => Operator::GreaterEqual,
-//    "<=" => Operator::LessEqual,
-//    "|"  => Operator::Or,
-//    "&"  => Operator::And,

@@ -2,6 +2,7 @@
 extern crate lalrpop_util;
 extern crate unescape;
 
+#[macro_use]
 pub mod fml_ast;
 //pub mod tools;
 
@@ -10,6 +11,7 @@ lalrpop_mod!(pub fml); // syntesized by LALRPOP
 use crate::fml::TopLevelParser;
 use crate::fml_ast::AST;
 use crate::fml_ast::AST::*;
+use crate::fml_ast::Operator::*;
 
 fn parse_ok(input: &str, correct: AST) {
     assert_eq!(TopLevelParser::new().parse(input), Ok(correct));
@@ -497,6 +499,222 @@ fn test_object_with_many_members() {
 
 #[test] fn test_print_call_botched_escape() { parse_err("print(\"\\\")");  }
 #[test] fn test_print_call_invalid_escape() { parse_err("print(\"\\a\")"); }
+
+
+#[test] fn test_simple_disjunction() {
+    parse_ok("true | false",
+             Operation {
+                 operator: Disjunction,
+                 left: Box::new(Boolean(true)),
+                 right: Box::new(Boolean(false))});
+}
+
+#[test] fn test_double_disjunction() {
+    parse_ok("true | false | true",
+             Operation {
+                 operator: Disjunction,
+                 left: Box::new(
+                     Operation {
+                         operator: Disjunction,
+                         left: Box::new(Boolean(true)),
+                         right: Box::new(Boolean(false))}),
+                 right: Box::new(Boolean(true))});
+}
+
+#[test] fn test_simple_conjunction() {
+    parse_ok("true & false",
+             Operation {
+                 operator: Conjunction,
+                 left: Box::new(Boolean(true)),
+                 right: Box::new(Boolean(false))});
+}
+
+#[test] fn test_double_conjunction() {
+    parse_ok("true & false & true",
+             Operation {
+                 operator: Conjunction,
+                 left: Box::new(
+                     Operation {
+                         operator: Conjunction,
+                         left: Box::new(Boolean(true)),
+                         right: Box::new(Boolean(false))}),
+                 right: Box::new(Boolean(true))});
+}
+
+#[test] fn test_simple_equality() {
+    parse_ok("true == false",
+             Operation {
+                 operator: Equality,
+                 left: Box::new(Boolean(true)),
+                 right: Box::new(Boolean(false))});
+}
+
+
+#[test] fn test_simple_inequality() {
+    parse_ok("true != false",
+             Operation {
+                 operator: Inequality,
+                 left: Box::new(Boolean(true)),
+                 right: Box::new(Boolean(false))});
+}
+
+#[test] fn test_disjunction_and_conjunction() {
+    //or (true, (true & false & false)))
+    parse_ok("true | true & false",
+             Operation {
+                 operator: Disjunction,
+                 left: Box::new(Boolean(true)),
+                 right: Box::new(Operation {
+                     operator: Conjunction,
+                     left: Box::new(Boolean(true)),
+                     right: Box::new(Boolean(false))
+                 })
+             });
+}
+
+#[test] fn test_disjunction_and_conjunctions() {
+    //or (true, (true & false & false)))
+    parse_ok("true & false | true & false",
+             Operation {
+                 operator: Disjunction,
+                 left: Box::new(Operation {
+                     operator: Conjunction,
+                     left: Box::new(Boolean(true)),
+                     right: Box::new(Boolean(false))
+                 }),
+                 right: Box::new(Operation {
+                     operator: Conjunction,
+                     left: Box::new(Boolean(true)),
+                     right: Box::new(Boolean(false))
+                 })
+             });
+}
+
+#[test] fn test_disjunctions_and_conjunctions() {
+    //or (true, (true & false & false)))
+    parse_ok("true & false | true & false | true & false",
+             Operation {
+                 operator: Disjunction,
+                 left: Box::new(Operation {
+                     operator: Disjunction,
+                     left: Box::new(Operation {
+                         operator: Conjunction,
+                         left: Box::new(Boolean(true)),
+                         right: Box::new(Boolean(false))
+                     }),
+                     right: Box::new(Operation {
+                         operator: Conjunction,
+                         left: Box::new(Boolean(true)),
+                         right: Box::new(Boolean(false))
+                     })
+                 }),
+                 right: Box::new(Operation {
+                     operator: Conjunction,
+                     left: Box::new(Boolean(true)),
+                     right: Box::new(Boolean(false))
+                 })});
+}
+
+#[test] fn test_more_disjunctions_and_more_conjunctions() {
+    //or (true, (true & false & false)))
+    parse_ok("true & false & true | true & true & false & true | true & false",
+             Operation {
+                 operator: Disjunction,
+                 left: Box::new(Operation {
+                     operator: Disjunction,
+                     left: Box::new(Operation {
+                         operator: Conjunction,
+                         left: Box::new(Operation {
+                             operator: Conjunction,
+                             left: Box::new(Boolean(true)),
+                             right: Box::new(Boolean(false))
+                         }),
+                         right: Box::new(Boolean(true))
+                     }),
+                     right: Box::new(Operation {
+                         operator: Conjunction,
+                         left: Box::new(Operation {
+                             operator: Conjunction,
+                             left: Box::new(Operation {
+                                 operator: Conjunction,
+                                 left: Box::new(Boolean(true)),
+                                 right: Box::new(Boolean(true))
+                             }),
+                             right: Box::new(Boolean(false))
+                         }),
+                         right: Box::new(Boolean(true))
+                     })
+                 }),
+                 right: Box::new(Operation {
+                     operator: Conjunction,
+                     left: Box::new(Boolean(true)),
+                     right: Box::new(Boolean(false))
+                 })});
+}
+
+#[test] fn test_simple_addition() {
+    parse_ok("1 + 2",
+             Operation {
+                 operator: Addition,
+                 left: Box::new(Number(1)),
+                 right: Box::new(Number(2))});
+}
+
+#[test] fn test_simple_subtraction() {
+    parse_ok("1 - 2",
+             Operation {
+                 operator: Subtraction,
+                 left: Box::new(Number(1)),
+                 right: Box::new(Number(2))});
+}
+
+#[test] fn test_simple_multiplication() {
+    parse_ok("1 * 2",
+             Operation {
+                 operator: Multiplication,
+                 left: Box::new(Number(1)),
+                 right: Box::new(Number(2))});
+}
+
+#[test] fn test_simple_division() {
+    parse_ok("1 / 2",
+             Operation {
+                 operator: Division,
+                 left: Box::new(Number(1)),
+                 right: Box::new(Number(2))});
+}
+
+#[test] fn test_simple_less_than() {
+    parse_ok("1 < 2",
+             Operation {
+                 operator: Less,
+                 left: Box::new(Number(1)),
+                 right: Box::new(Number(2))});
+}
+
+#[test] fn test_simple_less_or_equal() {
+    parse_ok("1 <= 2",
+             Operation {
+                 operator: LessEqual,
+                 left: Box::new(Number(1)),
+                 right: Box::new(Number(2))});
+}
+
+#[test] fn test_simple_greater_than() {
+    parse_ok("1 > 2",
+             Operation {
+                 operator: Greater,
+                 left: Box::new(Number(1)),
+                 right: Box::new(Number(2))});
+}
+
+#[test] fn test_simple_greater_or_equal() {
+    parse_ok("1 >= 2",
+             Operation {
+                 operator: GreaterEqual,
+                 left: Box::new(Number(1)),
+                 right: Box::new(Number(2))});
+}
 
 #[cfg(not(test))]
 fn main() {

@@ -4,13 +4,14 @@
  * Based loosely on the EBNF from https://caml.inria.fr/pub/docs/manual-ocaml/
  *
  */
+toplevel            ::= expression;
 
 /* The following characters are considered as blanks. Blanks are ignored, but
  * they separate adjacent identifiers, literals and keywords that would 
  * otherwise be confused as one single identifier, literal or keyword. 
  */
-blanks              ::= 'regexp[ \t\r\n]';
-comment             ::= 'regexp:\(\*.*\)\*' /* ML-style comments*/
+blanks              ::= 'regexp:[ \t\r\n]';
+comment             ::= 'regexp:\(\*([^\)][^\*])*\)\*'; /* ML-style comments*/
 
 /* various simple tokens */
 letter              ::= 'regexp:[A-Za-z]';
@@ -65,9 +66,9 @@ extends             ::= "extends";
 /* identifiers */
 identifier          ::= (letter | underscore)
                         {letter | digit | underscore} | this;
-operator            ::= multiply | plus | minus | divide |
-                      | unequal | equal | lesser | greater |
-                      | lesser_or_equal | greater_or_equal |
+operator            ::= multiply | plus | minus | divide
+                      | unequal | equal | lesser | greater
+                      | lesser_or_equal | greater_or_equal
                       | or | and;
 method_id           ::= identifier | operator;
 
@@ -89,18 +90,20 @@ boolean             ::= true | false;                                           
 expression          ::= function identifier lparen parameter_list rparen
                         rarrow expression                                          /* Feeny-style function definition,
                                                                                       returns unit? */
-                      | object parameter_list begin object_body end                /* prototype object definition */
+                      | object parameter_list [extends expression]                 /* prototype object definition */
+                        begin object_body end
                       | field                                                      /* field access */
-                      | expression dot identifier larrow expression                /* field mutation */
-                      | expression dot method_id argument_list                     /* method call */
-                      | expression lbracket expression rbracket larrow expression  /* array mutation */
+                      | field larrow expression                                    /* field mutation */
+                      | method argument_list                                       /* method call */
+                      | accessible lbracket expression rbracket larrow expression  /* array mutation */
                       | if expression then expression [else expression]            /* conditional expression */
                       | while expression do expression                             /* loop expression */
                       | let identifier equal expression                            /* Feeny-style variable definition */
                       | identifier larrow expression                               /* variable mutation */
                       | print lparen string [comma argument_list] rparen           /* call to the print built-in */
-                      | expression operator expression;                            /* infix operators, syntactic sugar
+                      | expression operator expression                             /* infix operators, syntactic sugar
                                                                                       for method calls */
+                      | accessible;
 
 accessible          ::= lparen expression rparen                                   /* expression in parentheses */
                       | begin expression {semicolon expression} end                /* expression block */
@@ -112,12 +115,13 @@ accessible          ::= lparen expression rparen                                
                       | literal;
 
 field               ::= accessible dot {identifier dot} identifier;                /* object field path */
+method              ::= accessible dot {identifier dot} method_id;                 /* object method path */
 parameter_list      ::= [identifier {comma identifier} [comma]];                   /* you can have an extra trailing
                                                                                       comma */
 argument_list       ::= [expression {comma expression} [comma]];
 object_body         ::= [member {semicolon member} [semicolon]];                   /* contents of an object definition*/
 member              ::= let identifier equal expression                            /* field definition (same as
-                                                                                    variables) */
+                                                                                      variables) */
                       | function identifier lparen parameter_list rparen
                         rarrow expression;                                         /* method definition (same as
                                                                                       functions) */
