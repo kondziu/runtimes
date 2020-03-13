@@ -8,11 +8,11 @@ pub enum AST<'ast> {
     Number(i32),
     Identifier(&'ast str),
     StringLiteral(&'ast str),
-    BooleanLiteral(bool),
+    Boolean(bool),
     Assignment {identifier: Box<AST<'ast>>, value: Box<AST<'ast>>},
     Mutation {identifier: Box<AST<'ast>>, value: Box<AST<'ast>>},
-    FunctionDefinition {identifier: Box<AST<'ast>>, parameters: Vec<Box<AST<'ast>>>, body: Box<AST<'ast>>},
-    FunctionApplication {identifier: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>>},
+    FunctionDefinition {name: Box<AST<'ast>>, parameters: Vec<Box<AST<'ast>>>, body: Box<AST<'ast>>},
+    FunctionApplication {function: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>>},
     Block (Vec<Box<AST<'ast>>>),
     Operation {operator: Operator, left: Box<AST<'ast>>, right: Box<AST<'ast>>},
     Loop {condition: Box<AST<'ast>>, body: Box<AST<'ast>>},
@@ -21,9 +21,9 @@ pub enum AST<'ast> {
     ArrayAccess {array: Box<AST<'ast>>, index: Box<AST<'ast>>},
     ArrayMutation {array: Box<AST<'ast>>, value: Box<AST<'ast>>},
     ObjectDefinition {parameters: Vec<Box<AST<'ast>>>, members: Vec<Box<AST<'ast>>>},
-    FieldAccess {object: Box<AST<'ast>>, identifier: Box<AST<'ast>>},
-    FieldMutation {field: Box<AST<'ast>>, value: Box<AST<'ast>>},
-    MethodCall {field: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>>},
+    FieldAccess {object: Box<AST<'ast>>, field: Box<AST<'ast>>},
+    FieldMutation {field_path: Box<AST<'ast>>, value: Box<AST<'ast>>},
+    MethodCall {method_path: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>>},
     Print {format: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>>},
 }
 
@@ -51,14 +51,14 @@ impl Debug for AST<'_> {
             Number(n) => write!(fmt, "Number({:?})", n),
             Identifier(id) => write!(fmt, "Identifier({})", id),
             StringLiteral(s) => write!(fmt, "StringLiteral({:?})", s),
-            BooleanLiteral(b) => write!(fmt, "Boolean({})", b),
+            Boolean(b) => write!(fmt, "Boolean({})", b),
             Assignment {identifier, value} =>
                 write!(fmt, "Assignment(identifier={:?}, value={:?})", identifier, value),
             Mutation {identifier, value} =>
                 write!(fmt, "Mutation(identifier={:?}, value={:?})", identifier, value),
-            FunctionDefinition {identifier,parameters, body} =>
+            FunctionDefinition { name: identifier,parameters, body} =>
                 write!(fmt, "FunctionDefinition(identifier={:?}, parameters={:?}, body={:?})", identifier, parameters, body),
-            FunctionApplication {identifier,arguments} =>
+            FunctionApplication { function: identifier,arguments} =>
                 write!(fmt, "FunctionApplication(identifier={:?}, arguments={:?})", identifier, arguments),
             Block(expressions) =>
                 write!(fmt, "Block({:?})", expressions),
@@ -76,11 +76,11 @@ impl Debug for AST<'_> {
                 write!(fmt, "ArrayMutation(array={:?}, value={:?})", array, value),
             ObjectDefinition {parameters, members} =>
                 write!(fmt, "ObjectDefinition(parameters={:?}, members={:?})", parameters, members),
-            FieldAccess {object, identifier} =>
+            FieldAccess {object, field: identifier } =>
                 write!(fmt, "FieldAccess(object={:?}, identifier={:?})", object, identifier),
-            FieldMutation {field, value} =>
+            FieldMutation { field_path: field, value} =>
                 write!(fmt, "FieldMutation(field={:?}, value={:?})", field, value),
-            MethodCall {field, arguments} =>
+            MethodCall { method_path: field, arguments} =>
                 write!(fmt, "MethodCall(field={:?}, arguments={:?})", field, arguments),
             Print {format, arguments} =>
                 write!(fmt, "Print(format={:?}, arguments={:?})", format, arguments),

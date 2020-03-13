@@ -39,8 +39,8 @@ fn parse_err(input: &str) {
 #[test] fn test_multiple_underscores()   { parse_ok("___",   Identifier("___"));   }
 #[test] fn test_long_identifier()        { parse_ok("stuff", Identifier("stuff")); }
 
-#[test] fn test_true()  { parse_ok("true",  BooleanLiteral(true));  }
-#[test] fn test_false() { parse_ok("false", BooleanLiteral(false)); }
+#[test] fn test_true()  { parse_ok("true", Boolean(true));  }
+#[test] fn test_false() { parse_ok("false", Boolean(false)); }
 
 #[test] fn test_number_in_parens() { parse_ok("(1)", Number(1)); }
 #[test] fn test_number_in_two_parens() { parse_ok("((1))", Number(1)); }
@@ -62,14 +62,14 @@ fn parse_err(input: &str) {
 #[test] fn test_function_no_args() {
     parse_ok("function f () <- 1",
              FunctionDefinition {
-                 identifier: Box::new(Identifier("f")),
+                 name: Box::new(Identifier("f")),
                  parameters: vec!(),
                  body: Box::new(Number(1))}); }
 
 #[test] fn test_function_one_arg() {
     parse_ok("function f (x) <- x",
              FunctionDefinition {
-                 identifier: Box::new(Identifier("f")),
+                 name: Box::new(Identifier("f")),
                  parameters: vec!(Box::new(Identifier("x"))),
                  body: Box::new(Identifier("x"))});
 }
@@ -77,7 +77,7 @@ fn parse_err(input: &str) {
 #[test] fn test_function_many_args() {
     parse_ok("function f (x, y, z) <- x",
              FunctionDefinition {
-                 identifier: Box::new(Identifier("f")),
+                 name: Box::new(Identifier("f")),
                  parameters: vec!(Box::new(Identifier("x")),
                                   Box::new(Identifier("y")),
                                   Box::new(Identifier("z"))),
@@ -87,30 +87,30 @@ fn parse_err(input: &str) {
 #[test] fn test_application_no_args() {
     parse_ok("f ()",
              FunctionApplication {
-                 identifier: Box::new(Identifier("f")),
+                 function: Box::new(Identifier("f")),
                  arguments: vec!()});
 }
 
 #[test] fn test_application_one_arg() {
     parse_ok("f (0)",
              FunctionApplication {
-                 identifier: Box::new(Identifier("f")),
+                 function: Box::new(Identifier("f")),
                  arguments: vec!(Box::new(Number(0)))});
 }
 
 #[test] fn test_application_more_args() {
     parse_ok("f (1, x, true)",
              FunctionApplication {
-                 identifier: Box::new(Identifier("f")),
+                 function: Box::new(Identifier("f")),
                  arguments: vec!(Box::new(Number(1)),
                                  Box::new(Identifier("x")),
-                                 Box::new(BooleanLiteral(true)))});
+                                 Box::new(Boolean(true)))});
 }
 
 #[test] fn test_application_no_spaces() {
     parse_ok("f(0,-1)",
              FunctionApplication {
-                 identifier: Box::new(Identifier("f")),
+                 function: Box::new(Identifier("f")),
                  arguments: vec!(Box::new(Number(0)),
                                  Box::new(Number(-1)))});
 }
@@ -118,7 +118,7 @@ fn parse_err(input: &str) {
 #[test] fn test_application_more_spaces() {
     parse_ok("f    (   0    , -1 )",
              FunctionApplication {
-                 identifier: Box::new(Identifier("f")),
+                 function: Box::new(Identifier("f")),
                  arguments: vec!(Box::new(Number(0)),
                                  Box::new(Number(-1)))});
 }
@@ -126,7 +126,7 @@ fn parse_err(input: &str) {
 #[test] fn test_application_extra_comma() {
     parse_ok("f(0,-1,)",
              FunctionApplication {
-                 identifier: Box::new(Identifier("f")),
+                 function: Box::new(Identifier("f")),
                  arguments: vec!(Box::new(Number(0)),
                                  Box::new(Number(-1)))});
 }
@@ -156,23 +156,23 @@ fn parse_err(input: &str) {
 #[test] fn test_loop() {
     parse_ok("while true do null",
              Loop {
-                 condition: Box::new(BooleanLiteral(true)),
+                 condition: Box::new(Boolean(true)),
                  body: Box::new(Unit)})
 }
 
 #[test] fn test_conditional() {
     parse_ok("if true then false else true",
              Conditional{
-                 condition: Box::new(BooleanLiteral(true)),
-                 consequent: Box::new(BooleanLiteral(false)),
-                 alternative: Box::new(BooleanLiteral(true))})
+                 condition: Box::new(Boolean(true)),
+                 consequent: Box::new(Boolean(false)),
+                 alternative: Box::new(Boolean(true))})
 }
 
 #[test] fn test_conditional_no_alternative() {
     parse_ok("if true then false",
              Conditional{
-                 condition: Box::new(BooleanLiteral(true)),
-                 consequent: Box::new(BooleanLiteral(false)),
+                 condition: Box::new(Boolean(true)),
+                 consequent: Box::new(Boolean(false)),
                  alternative: Box::new(Unit)})
 }
 
@@ -255,7 +255,7 @@ fn test_object_with_one_method() {
                  parameters: vec!(Box::new(Identifier("x"))),
                  members: vec!(Box::new(
                      FunctionDefinition {
-                        identifier: Box::new(Identifier("m")),
+                        name: Box::new(Identifier("m")),
                         parameters: vec!(Box::new(Identifier("x")),
                                         Box::new(Identifier("y")),
                                           Box::new(Identifier("z"))),
@@ -279,19 +279,19 @@ fn test_object_with_many_members() {
                         value: Box::new(Identifier("x"))}),
                      Box::new(Assignment {
                          identifier: Box::new(Identifier("b")),
-                         value: Box::new(BooleanLiteral(true))}),
+                         value: Box::new(Boolean(true))}),
                      Box::new(FunctionDefinition {
-                        identifier: Box::new(Identifier("m")),
+                        name: Box::new(Identifier("m")),
                         parameters: vec!(Box::new(Identifier("x")),
                                       Box::new(Identifier("y")),
                                       Box::new(Identifier("z"))),
                         body: Box::new(Identifier("y"))}),
                      Box::new(FunctionDefinition {
-                         identifier: Box::new(Identifier("id")),
+                         name: Box::new(Identifier("id")),
                          parameters: vec!(Box::new(Identifier("x"))),
                          body: Box::new(Identifier("x"))}),
                      Box::new(FunctionDefinition {
-                         identifier: Box::new(Identifier("me")),
+                         name: Box::new(Identifier("me")),
                          parameters: vec!(),
                          body: Box::new(Identifier("this"))}))})
 }
@@ -300,21 +300,21 @@ fn test_object_with_many_members() {
     parse_ok("a.b",
              FieldAccess {
                  object: Box::new(Identifier("a")),
-                 identifier: Box::new(Identifier("b"))});
+                 field: Box::new(Identifier("b"))});
 }
 
 #[test] fn test_field_access_from_number () {
     parse_ok("1.b",
              FieldAccess {
                  object: Box::new(Number(1)),
-                 identifier: Box::new(Identifier("b"))});
+                 field: Box::new(Identifier("b"))});
 }
 
 #[test] fn test_field_access_from_boolean () {
     parse_ok("true.b",
              FieldAccess {
-                 object: Box::new(BooleanLiteral(true)),
-                 identifier: Box::new(Identifier("b"))});
+                 object: Box::new(Boolean(true)),
+                 field: Box::new(Identifier("b"))});
 }
 
 #[test] fn test_field_access_from_parenthesized_expression () {
@@ -325,7 +325,7 @@ fn test_object_with_many_members() {
                         condition: Box::new(Identifier("x")),
                         consequent: Box::new(Number(1)),
                         alternative: Box::new(Number(2))}),
-                 identifier: Box::new(Identifier("b"))});
+                 field: Box::new(Identifier("b"))});
 }
 
 #[test] fn test_field_chain_access () {
@@ -335,26 +335,26 @@ fn test_object_with_many_members() {
                      FieldAccess {
                         object: Box::new(FieldAccess {
                             object: Box::new(Identifier("a")),
-                            identifier: Box::new(Identifier("b"))}),
-                        identifier: Box::new(Identifier("c"))}),
-                 identifier: Box::new(Identifier("d"))});
+                            field: Box::new(Identifier("b"))}),
+                        field: Box::new(Identifier("c"))}),
+                 field: Box::new(Identifier("d"))});
 }
 
 #[test] fn test_field_mutation_from_identifier () {
     parse_ok("a.b <- 1",
              FieldMutation {
-                 field: Box::new(FieldAccess {
+                 field_path: Box::new(FieldAccess {
                     object: Box::new(Identifier("a")),
-                    identifier: Box::new(Identifier("b"))}),
+                    field: Box::new(Identifier("b"))}),
                  value: Box::new(Number(1))});
 }
 
 #[test] fn test_method_call_from_identifier () {
     parse_ok("a.b (1)",
              MethodCall {
-                 field: Box::new(FieldAccess {
+                 method_path: Box::new(FieldAccess {
                      object: Box::new(Identifier("a")),
-                     identifier: Box::new(Identifier("b"))}),
+                     field: Box::new(Identifier("b"))}),
                  arguments: vec!(Box::new(Number(1)))});
 }
 
@@ -371,7 +371,7 @@ fn test_object_with_many_members() {
                  array: Box::new(
                      FieldAccess {
                          object: Box::new(Identifier("a")),
-                         identifier: Box::new(Identifier("b"))}),
+                         field: Box::new(Identifier("b"))}),
                  index: Box::new(Number(1))});
 }
 
@@ -389,7 +389,7 @@ fn test_object_with_many_members() {
     parse_ok("a[b](1)",
               {
                   MethodCall {
-                     field: Box::new(
+                     method_path: Box::new(
                          ArrayAccess {
                              array: Box::new(Identifier("a")),
                              index: Box::new(Identifier("b"))}),
@@ -404,7 +404,7 @@ fn test_object_with_many_members() {
                          ArrayAccess {
                              array: Box::new(Identifier("a")),
                              index: Box::new(Identifier("b"))}),
-                     identifier: Box::new(Identifier("a"))}});
+                     field: Box::new(Identifier("a"))}});
 }
 
 #[test] fn test_array_access_with_array_access_as_index () {
@@ -422,7 +422,7 @@ fn test_object_with_many_members() {
              ArrayAccess {
                  array: Box::new(
                      FunctionApplication {
-                        identifier: Box::new(Identifier("f")),
+                        function: Box::new(Identifier("f")),
                         arguments: vec!(Box::new(Number(0)),
                                          Box::new(Number(0)))}),
                  index: Box::new(
@@ -435,7 +435,7 @@ fn test_object_with_many_members() {
                  format: Box::new(StringLiteral("~ ~ ~")),
                  arguments: vec!(
                      Box::new(Number(1)),
-                     Box::new(BooleanLiteral(true)),
+                     Box::new(Boolean(true)),
                      Box::new(Identifier("x")))});
 }
 

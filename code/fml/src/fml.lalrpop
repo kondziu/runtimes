@@ -30,14 +30,18 @@ Accessible: AST<'input> = {
 }
 
 Literal: AST<'input> = {
-    Number  => <>,
-    //String  => <>, //FIXME remove
-    Boolean => <>,
-    Unit    => <>,
+    Number                  => <>,
+    Boolean                 => <>,
+    Unit                    => <>,
 }
 
 ParenthesizedExpression: AST<'input> = {
     "(" <Expression> ")"    => <>
+}
+
+Member: AST<'input> = {
+    Assignment              => <>,
+    FunctionDefinition      => <>,
 }
 
 Conditional: AST<'input> = {
@@ -78,11 +82,6 @@ Members: Vec<AST<'input>> = {
     }
 }
 
-Member: AST<'input> = {
-    Assignment         => <>,
-    FunctionDefinition => <>,
-}
-
 Field: AST<'input> = {
     <object: Accessible> "." <objects: (<Identifier> ".")*> <field: Identifier> => {
         let mut it = {
@@ -93,8 +92,7 @@ Field: AST<'input> = {
 
         let mut accumulator = object;
         while let Some(field) = it.next() {
-            accumulator = AST::FieldAccess {identifier: Box::new(field),
-                                            object: Box::new(accumulator)}
+            accumulator = AST::FieldAccess {field: Box::new(field), object: Box::new(accumulator)}
         };
 
         accumulator
@@ -140,7 +138,7 @@ FunctionDefinition: AST<'input> = {
     "function" <id: Identifier> <parameters: Parameters> "<-" <body: Expression> => {
         let boxed_parameters: Vec<Box<AST<'input>>> =
             parameters.into_iter().map(|e| Box::new(e)).collect();
-        AST::FunctionDefinition{identifier: Box::new(id),
+        AST::FunctionDefinition{name: Box::new(id),
                                 parameters: boxed_parameters,
                                 body: Box::new(body)}
     }
@@ -157,17 +155,17 @@ Application: AST<'input> = {
     <function: Identifier> "(" <arguments: Arguments> ")" => {
         let boxed_arguments: Vec<Box<AST<'input>>> =
             arguments.into_iter().map(|e| Box::new(e)).collect();
-        AST::FunctionApplication{identifier: Box::new(function), arguments: boxed_arguments}
+        AST::FunctionApplication{function: Box::new(function), arguments: boxed_arguments}
     },
     <field: Field> "(" <arguments: Arguments> ")" => {
         let boxed_arguments: Vec<Box<AST<'input>>> =
         arguments.into_iter().map(|e| Box::new(e)).collect();
-        AST::MethodCall{field: Box::new(field), arguments: boxed_arguments}
+        AST::MethodCall{method_path: Box::new(field), arguments: boxed_arguments}
     },
     <array: ArrayAccess> "(" <arguments: Arguments> ")" => {
         let boxed_arguments: Vec<Box<AST<'input>>> =
             arguments.into_iter().map(|e| Box::new(e)).collect();
-        AST::MethodCall{field: Box::new(array), arguments: boxed_arguments}
+        AST::MethodCall{method_path: Box::new(array), arguments: boxed_arguments}
     }
 }
 
@@ -187,18 +185,18 @@ Mutation: AST<'input> = {
     <id: Identifier> "<-" <v: Expression> =>
         AST::Mutation{identifier: Box::new(id), value: Box::new(v)},
     <field: Field> "<-" <v: Expression> =>
-        AST::FieldMutation{field: Box::new(field), value: Box::new(v)},
+        AST::FieldMutation{field_path: Box::new(field), value: Box::new(v)},
     <array: ArrayAccess> "<-" <v: Expression> =>
         AST::ArrayMutation {array: Box::new(array), value: Box::new(v)},
 }
 
 Identifier: AST<'input> = {
-     r"[_A-Za-z][_A-Za-z0-9]*" => AST::Identifier(<>),
-     "this"                    => AST::Identifier(<>),
+     r"[_A-Za-z][_A-Za-z0-9]*"             => AST::Identifier(<>),
+     "this"                              => AST::Identifier(<>),
 }
 
 Number: AST<'input> = {
-    r"[-]?[0-9]+"              => AST::Number(i32::from_str(<>).unwrap()),
+    r"[-]?[0-9]+"                        => AST::Number(i32::from_str(<>).unwrap()),
 }
 
 String: AST<'input> = {
@@ -206,8 +204,8 @@ String: AST<'input> = {
 }
 
 Boolean: AST<'input> = {
-    "true"                               => AST::BooleanLiteral(true),
-    "false"                              => AST::BooleanLiteral(false),
+    "true"                               => AST::Boolean(true),
+    "false"                              => AST::Boolean(false),
 }
 
 Unit: AST<'input> = {
