@@ -1,12 +1,27 @@
 use std::str::FromStr;
+use std::collections::VecDeque;
 use crate::fml_ast::AST;
 use crate::fml_ast::Operator;
 
 grammar;
 
 pub TopLevel: AST<'input> = {
-    Expression              => <>, // an entry point for the parser
+    <expressions: Expressions> => expressions,
+    => AST::Unit,
 }
+
+Expressions: AST<'input> = {
+    <element: Expression> <elements: (";" <Expression>)*> ";"? => {
+        if elements.is_empty() {
+            element
+        } else {
+            let mut all = VecDeque::from(elements);
+            all.push_front(element);
+            AST::Block(put_into_boxes!(Vec::from(all)))
+        }
+    }
+}
+
 
 Expression: AST<'input> = {
     FunctionDefinition      => <>, // Feeny-style function definition, returns unit?
@@ -17,8 +32,22 @@ Expression: AST<'input> = {
     Assignment              => <>, // Feenified variable definition
     Mutation                => <>, // variable/object member mutation
     Print                   => <>, // call to the print built-in
-    Operation               => <>, // operations, but this also leads to Accessible
+
+Operation               => <>, // operations, but this also leads to Accessible
 }
+
+
+Block: AST<'input> = {
+"begin" "end" => AST::Unit,
+"begin" <expressions: Expressions> "end" => expressions
+}
+
+
+//match element {
+ //       None => elements,
+  //      Some(e) => { let mut elements = elements; elements.push(e); elements }
+    //}
+//}
 
 Accessible: AST<'input> = {
     ParenthesizedExpression => <>, // expression in parentheses
@@ -169,22 +198,6 @@ ArrayAccess: AST<'input> = {
 Loop: AST<'input> = {
     "while" <condition: Expression> "do" <body: Expression> =>
         AST::Loop{condition: Box::new(condition), body: Box::new(body)}
-}
-
-Block: AST<'input> = {
-    "begin" <expressions: Expressions> "end" =>
-        if expressions.is_empty() {
-            AST::Unit
-        } else {
-            AST::Block(put_into_boxes!(expressions))
-        }
-}
-
-Expressions: Vec<AST<'input>> = {
-    <elements: (<Expression> ";")*> <element: Expression?> => match element {
-        None => elements,
-        Some(e) => { let mut elements = elements; elements.push(e); elements }
-    }
 }
 
 FunctionDefinition: AST<'input> = {
