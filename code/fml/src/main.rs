@@ -4,7 +4,6 @@ extern crate unescape;
 
 #[macro_use]
 pub mod fml_ast;
-//pub mod tools;
 
 lalrpop_mod!(pub fml); // syntesized by LALRPOP
 
@@ -217,6 +216,7 @@ fn test_array_definition_spaces() {
 fn test_empty_object() {
     parse_ok("object () begin end",
              ObjectDefinition {
+                 extends: None,
                  parameters: vec!(),
                  members: vec!()})
 }
@@ -225,6 +225,40 @@ fn test_empty_object() {
 fn test_empty_object_with_one_parameter() {
     parse_ok("object (x) begin end",
              ObjectDefinition {
+                 extends: None,
+                 parameters: vec!(Box::new(Identifier("x"))),
+                 members: vec!()})
+}
+
+#[test]
+fn test_empty_object_with_superobject() {
+    parse_ok("object (x) extends y begin end",
+             ObjectDefinition {
+                 extends: Some(Box::new(Identifier("y"))),
+                 parameters: vec!(Box::new(Identifier("x"))),
+                 members: vec!()})
+}
+
+#[test]
+fn test_object_extending_expression() {
+    parse_ok("object (x) extends (if y then 1 else true) begin end",
+             ObjectDefinition {
+                 extends: Some(Box::new(Conditional{
+                     condition: Box::new(Identifier("y")),
+                     consequent: Box::new(Number(1)),
+                     alternative: Box::new(Boolean(true))})),
+                 parameters: vec!(Box::new(Identifier("x"))),
+                 members: vec!()})
+}
+
+#[test]
+fn test_object_extending_ad_hoc_object() {
+    parse_ok("object (x) extends (object () begin end) begin end",
+             ObjectDefinition {
+                 extends: Some(Box::new(ObjectDefinition {
+                     extends: None,
+                     parameters: vec!(),
+                     members: vec!()})),
                  parameters: vec!(Box::new(Identifier("x"))),
                  members: vec!()})
 }
@@ -233,6 +267,7 @@ fn test_empty_object_with_one_parameter() {
 fn test_empty_object_with_many_parameters() {
     parse_ok("object (x, y, z) begin end",
              ObjectDefinition {
+                 extends: None,
                  parameters: vec!(Box::new(Identifier("x")),
                                   Box::new(Identifier("y")),
                                   Box::new(Identifier("z"))),
@@ -243,6 +278,7 @@ fn test_empty_object_with_many_parameters() {
 fn test_object_with_one_field() {
     parse_ok("object (x) begin let y = x; end",
              ObjectDefinition {
+                 extends: None,
                  parameters: vec!(Box::new(Identifier("x"))),
                  members: vec!(Box::new(
                      Assignment {
@@ -254,6 +290,7 @@ fn test_object_with_one_field() {
 fn test_object_with_one_method() {
     parse_ok("object (x) begin function m (x, y, z) <- y; end",
              ObjectDefinition {
+                 extends: None,
                  parameters: vec!(Box::new(Identifier("x"))),
                  members: vec!(Box::new(
                      FunctionDefinition {
@@ -262,6 +299,19 @@ fn test_object_with_one_method() {
                                         Box::new(Identifier("y")),
                                           Box::new(Identifier("z"))),
                         body: Box::new(Identifier("y"))}))})
+}
+
+#[test]
+fn test_object_with_an_operator() {
+    parse_ok("object () begin function + (y) <- y; end",
+             ObjectDefinition {
+                 extends: None,
+                 parameters: vec!(),
+                 members: vec!(Box::new(
+                     OperatorDefinition {
+                         operator: Addition,
+                         parameters: vec!(Box::new(Identifier("y"))),
+                         body: Box::new(Identifier("y"))}))})
 }
 
 #[test]
@@ -274,6 +324,7 @@ fn test_object_with_many_members() {
                     function me () <- this; \
                 end",
              ObjectDefinition {
+                 extends: None,
                  parameters: vec!(Box::new(Identifier("x"))),
                  members: vec!(
                      Box::new(Assignment {

@@ -11,6 +11,7 @@ pub enum AST<'ast> {
     Assignment {identifier: Box<AST<'ast>>, value: Box<AST<'ast>>},
     Mutation {identifier: Box<AST<'ast>>, value: Box<AST<'ast>>},
     FunctionDefinition {name: Box<AST<'ast>>, parameters: Vec<Box<AST<'ast>>>, body: Box<AST<'ast>>},
+    OperatorDefinition {operator: Operator, parameters: Vec<Box<AST<'ast>>>, body: Box<AST<'ast>>},
     FunctionApplication {function: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>>},
     Block (Vec<Box<AST<'ast>>>),
     Operation {operator: Operator, left: Box<AST<'ast>>, right: Box<AST<'ast>>},
@@ -19,7 +20,7 @@ pub enum AST<'ast> {
     ArrayDefinition {size: Box<AST<'ast>>, value: Box<AST<'ast>>},
     ArrayAccess {array: Box<AST<'ast>>, index: Box<AST<'ast>>},
     ArrayMutation {array: Box<AST<'ast>>, value: Box<AST<'ast>>},
-    ObjectDefinition {parameters: Vec<Box<AST<'ast>>>, members: Vec<Box<AST<'ast>>>},
+    ObjectDefinition {extends: Option<Box<AST<'ast>>>, parameters: Vec<Box<AST<'ast>>>, members: Vec<Box<AST<'ast>>>},
     FieldAccess {object: Box<AST<'ast>>, field: Box<AST<'ast>>},
     FieldMutation {field_path: Box<AST<'ast>>, value: Box<AST<'ast>>},
     MethodCall {method_path: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>>},
@@ -57,6 +58,8 @@ impl Debug for AST<'_> {
                 write!(fmt, "Mutation(identifier={:?}, value={:?})", identifier, value),
             FunctionDefinition { name: identifier,parameters, body} =>
                 write!(fmt, "FunctionDefinition(identifier={:?}, parameters={:?}, body={:?})", identifier, parameters, body),
+            OperatorDefinition {operator,parameters, body} =>
+                write!(fmt, "OperatorDefinition(operator={:?}, parameters={:?}, body={:?})", operator, parameters, body),
             FunctionApplication { function: identifier,arguments} =>
                 write!(fmt, "FunctionApplication(identifier={:?}, arguments={:?})", identifier, arguments),
             Block(expressions) =>
@@ -73,8 +76,8 @@ impl Debug for AST<'_> {
                 write!(fmt, "ArrayAccess(array={:?}, index={:?})", array, index),
             ArrayMutation {array, value} =>
                 write!(fmt, "ArrayMutation(array={:?}, value={:?})", array, value),
-            ObjectDefinition {parameters, members} =>
-                write!(fmt, "ObjectDefinition(parameters={:?}, members={:?})", parameters, members),
+            ObjectDefinition {extends, parameters, members} =>
+                write!(fmt, "ObjectDefinition(extends={:?}, parameters={:?}, members={:?})", extends, parameters, members),
             FieldAccess {object, field: identifier } =>
                 write!(fmt, "FieldAccess(object={:?}, identifier={:?})", object, identifier),
             FieldMutation { field_path: field, value} =>
@@ -98,5 +101,22 @@ macro_rules! make_operator_ast {
                 left: Box::new(left),
                 right: Box::new(value)}
         })
+    }
+}
+
+#[macro_export]
+macro_rules! put_into_boxes {
+    ( $collection:expr ) => {
+        ($collection).into_iter().map(|e| Box::new(e)).collect();
+    }
+}
+
+#[macro_export]
+macro_rules! option_into_box {
+    ( $option:expr ) => {
+        match $option {
+            Some(value) => Some(Box::new(value)),
+            None => None
+        }
     }
 }

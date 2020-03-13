@@ -59,6 +59,14 @@ Factor: AST<'input> = {
         make_operator_ast!(head, tail)
 }
 
+Operator: Operator = {
+    ConjunctionOperator => <>,
+    DisjunctionOperator => <>,
+    EqualityOperator    => <>,
+    AdditiveOperator    => <>,
+    FactorOperator      => <>,
+}
+
 ConjunctionOperator: Operator = {
     "&" => Operator::Conjunction,
 }
@@ -99,6 +107,7 @@ ParenthesizedExpression: AST<'input> = {
 Member: AST<'input> = {
     Assignment              => <>,
     FunctionDefinition      => <>,
+    OperatorDefinition      => <>,
 }
 
 Conditional: AST<'input> = {
@@ -123,13 +132,10 @@ Print: AST<'input> = { // TODO format string check
 }
 
 ObjectDefinition: AST<'input> = {
-    "object" <parameters: Parameters> <members: Members> => {
-        let boxed_parameters: Vec<Box<AST<'input>>> =
-            parameters.into_iter().map(|e| Box::new(e)).collect();
-        let boxed_members: Vec<Box<AST<'input>>> =
-            members.into_iter().map(|e| Box::new(e)).collect();
-        AST::ObjectDefinition {parameters: boxed_parameters, members: boxed_members}
-    }
+    "object" <parameters: Parameters> <extends: ("extends" <Accessible>)?> <members: Members> =>
+        AST::ObjectDefinition {extends: option_into_box!(extends),
+                               parameters: put_into_boxes!(parameters),
+                               members: put_into_boxes!(members)}
 }
 
 Members: Vec<AST<'input>> = {
@@ -170,9 +176,7 @@ Block: AST<'input> = {
         if expressions.is_empty() {
             AST::Unit
         } else {
-            let boxed_expressions: Vec<Box<AST<'input>>> =
-                    expressions.into_iter().map(|e| Box::new(e)).collect();
-            AST::Block(boxed_expressions)
+            AST::Block(put_into_boxes!(expressions))
         }
 }
 
@@ -184,13 +188,17 @@ Expressions: Vec<AST<'input>> = {
 }
 
 FunctionDefinition: AST<'input> = {
-    "function" <id: Identifier> <parameters: Parameters> "<-" <body: Expression> => {
-        let boxed_parameters: Vec<Box<AST<'input>>> =
-            parameters.into_iter().map(|e| Box::new(e)).collect();
+    "function" <id: Identifier> <parameters: Parameters> "<-" <body: Expression> =>
         AST::FunctionDefinition{name: Box::new(id),
-                                parameters: boxed_parameters,
+                                parameters: put_into_boxes!(parameters),
                                 body: Box::new(body)}
-    }
+}
+
+OperatorDefinition: AST<'input> = {
+    "function" <operator: Operator> <parameters: Parameters> "<-" <body: Expression> =>
+        AST::OperatorDefinition{operator: operator,
+                                parameters: put_into_boxes!(parameters),
+                                body: Box::new(body)}
 }
 
 Parameters: Vec<AST<'input>> = {
