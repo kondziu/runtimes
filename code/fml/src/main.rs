@@ -241,7 +241,7 @@ fn test_empty_object_with_superobject() {
 
 #[test]
 fn test_object_extending_expression() {
-    parse_ok("object (x) extends (if y then 1 else true) begin end",
+    parse_ok("object (x) extends if y then 1 else true begin end",
              ObjectDefinition {
                  extends: Some(Box::new(Conditional{
                      condition: Box::new(Identifier("y")),
@@ -253,7 +253,7 @@ fn test_object_extending_expression() {
 
 #[test]
 fn test_object_extending_ad_hoc_object() {
-    parse_ok("object (x) extends (object () begin end) begin end",
+    parse_ok("object (x) extends object () begin end begin end",
              ObjectDefinition {
                  extends: Some(Box::new(ObjectDefinition {
                      extends: None,
