@@ -9,107 +9,123 @@
  * they separate adjacent identifiers, literals and keywords that would 
  * otherwise be confused as one single identifier, literal or keyword. 
  */
-blanks ::= ' ' | '\t' | '\n' | '\r';
-
-comment ::= 'regexp:\(\*.*\)\*' /* ML-style comments*/
+blanks              ::= 'regexp[ \t\r\n]';
+comment             ::= 'regexp:\(\*.*\)\*' /* ML-style comments*/
 
 /* various simple tokens */
-letter ::= 'regexp:[A-Za-z]';
-digit  ::= 'regexp:[0-9]';
-underscore ::= '_';
-regular_character ::= 'regexp:[^/"]';
-escape_sequence ::= '\' ('"' | 'n' | 't' | 'b' | 'r' | '\');
-double_quote ::= '"';
-lparen ::= "(";
-rparen ::= ")";
-lbracket ::= "[";
-rbracket ::= "]";
-semicolon ::= ";"
-dot ::= ".";
-comma ::= ",";
-larrow ::= "<-";
-rarrow ::= "->";
+letter              ::= 'regexp:[A-Za-z]';
+digit               ::= 'regexp:[0-9]';
+underscore          ::= '_';
+regular_character   ::= 'regexp:[^/"]';
+escape_sequence     ::= 'regexp:\\["ntbr\\]';
+double_quote        ::= '"';
+lparen              ::= "(";
+rparen              ::= ")";
+lbracket            ::= "[";
+rbracket            ::= "]";
+semicolon           ::= ";"
+dot                 ::= ".";
+comma               ::= ",";
+larrow              ::= "<-";
+rarrow              ::= "->";
 
 /* operators */
-plus ::= "+";
-multiply ::= "*";
-divide ::= "/";
-lesser ::= "<";
-lesser_or_equal ::= "<=";
-greater ::= ">";
-greater_or_equal ::= ">=";
-or ::= "|";
-and ::= "&";
-minus  ::= '-';
-equal ::= "==";
-unequal ::= "!=";
+plus                ::= "+";
+multiply            ::= "*";
+divide              ::= "/";
+lesser_or_equal     ::= "<=";
+greater_or_equal    ::= ">=";
+lesser              ::= "<";
+greater             ::= ">";
+or                  ::= "|";
+and                 ::= "&";
+minus               ::= '-';
+equal               ::= "==";
+unequal             ::= "!=";
 
 /* keywords */
-while ::= "while";
-object ::= "object";
-if ::= "if";
-else  ::= "else";
-then ::= "then";
-true ::= "true";
-false ::= "false";
-array ::= "array";
-unit ::= "null";
-let ::= "let";
-begin ::= "begin";
-end ::= "end";
-this ::= "this";
-print ::= "print";
-function ::= "function";
-do ::= "do";
+while               ::= "while";
+object              ::= "object";
+if                  ::= "if";
+else                ::= "else";
+then                ::= "then";
+true                ::= "true";
+false               ::= "false";
+array               ::= "array";
+unit                ::= "null";
+let                 ::= "let";
+begin               ::= "begin";
+end                 ::= "end";
+this                ::= "this";
+print               ::= "print";
+function            ::= "function";
+do                  ::= "do";
+extends             ::= "extends";
 
 /* identifiers */
-identifier ::= (letter | underscore) {letter | digit | underscore} | this;
-operator ::= multiply | plus | minus | divide | unequal | equal | lesser | greater | lesser_or_equal | greater_or_equal | or | and;
-method_identifier ::= identifier | operator;
+identifier          ::= (letter | underscore)
+                        {letter | digit | underscore} | this;
+operator            ::= multiply | plus | minus | divide |
+                      | unequal | equal | lesser | greater |
+                      | lesser_or_equal | greater_or_equal |
+                      | or | and;
+method_id           ::= identifier | operator;
 
-/* operator precedense */
-/* plus and minus and < multiply and divide < equal and unequal and lesser etc. < or < and */
+/* operator precedence:
+ *     multiply, divide
+ *   < plus, minus
+ *   < equal, unequal
+ *   < lesser, greater, lesser equal, greater equal
+ *   < or
+ *   < and
+ */
 
 /* literals */
-literal ::= number | boolean | unit | begin end;                            /* begin end == unit */
-number ::= [minus] {digit};
-string ::= double_quote {string_element} double_quote;
-string_element ::= regular_character | escape_sequence;
-boolean ::= true | false;                                                   /* still thinking about it */
+literal             ::= number | boolean | unit | begin end;                       /* begin end == unit */
+number              ::= [minus] {digit};
+boolean             ::= true | false;                                              /* still thinking about it */
 
 /* the big expression machine */
-expression ::= lparen expression rparen                                     /* expression in parentheses */
-             | begin expression {semicolon expression} end                  /* expression block */
+expression          ::= function identifier lparen parameter_list rparen
+                        rarrow expression                                          /* Feeny-style function definition,
+                                                                                      returns unit? */
+                      | object parameter_list begin object_body end                /* prototype object definition */
+                      | field                                                      /* field access */
+                      | expression dot identifier larrow expression                /* field mutation */
+                      | expression dot method_id argument_list                     /* method call */
+                      | expression lbracket expression rbracket larrow expression  /* array mutation */
+                      | if expression then expression [else expression]            /* conditional expression */
+                      | while expression do expression                             /* loop expression */
+                      | let identifier equal expression                            /* Feeny-style variable definition */
+                      | identifier larrow expression                               /* variable mutation */
+                      | print lparen string [comma argument_list] rparen           /* call to the print built-in */
+                      | expression operator expression;                            /* infix operators, syntactic sugar
+                                                                                      for method calls */
 
-             | function identifier lparen parameter_list rparen
-               rarrow expression                                            /* Feeny-style function definition, returns unit? */
-             | identifier lparen argument_list rparen                       /* function application */
+accessible          ::= lparen expression rparen                                   /* expression in parentheses */
+                      | begin expression {semicolon expression} end                /* expression block */
+                      | (identifier | field) lparen argument_list rparen           /* function/method application */
+                      | array lparen expression comma expression rparen            /* array definition (arguments are
+                                                                                      array size and initial value) */
+                      | expression lbracket expression rbracket                    /* array access */
+                      | identifier                                                 /* variable access */
+                      | literal;
 
-             | object parameter_list begin object_body end                  /* prototype object definition */
-             | expression dot identifier                                    /* field access */
-             | expression dot identifier larrow expression                  /* field mutation */
-             | expression dot method_identifier argument_list               /* method call */
+field               ::= accessible dot {identifier dot} identifier;                /* object field path */
+parameter_list      ::= [identifier {comma identifier} [comma]];                   /* you can have an extra trailing
+                                                                                      comma */
+argument_list       ::= [expression {comma expression} [comma]];
+object_body         ::= [member {semicolon member} [semicolon]];                   /* contents of an object definition*/
+member              ::= let identifier equal expression                            /* field definition (same as
+                                                                                    variables) */
+                      | function identifier lparen parameter_list rparen
+                        rarrow expression;                                         /* method definition (same as
+                                                                                      functions) */
+string              ::= double_quote {(regular_character | escape_sequence)}
+                        double_quote;                                              /* string literals for use in print
+                                                                                      (and nowhere else)*/
 
-             | array lparen expression comma expression rparen              /* array definition (arguments are array size and initial value) */
-             | expression lbracket expression rbracket                      /* array access */
-             | expression lbracket expression rbracket larrow expression    /* array mutation */
-
-             | if expression then expression [else expression]              /* conditional expression */
-             | while expression do expression                               /* loop expression */
-
-             | let identifier equal expression                              /* Feeny-style variable definition */        
-             | identifier                                                   /* variable access */
-             | identifier larrow expression                                 /* variable mutation */
-
-             | print lparen string [comma argument_list] rparen             /* call to the print built-in */
-             | expression operator expression                               /* infix operators, syntactic sugar for method calls */
-             | literal;
-
-parameter_list ::= [identifier {comma identifier} [comma]];                 /* you can have an extra trailing comma */
-argument_list ::= [expression {comma expression} [comma]];
-object_body ::= [member {semicolon member} [semicolon]];
-
-/* A note on function definition. 
+/* A note on function definition.
  * 
  * In ML a function is anonymous, and a `function x -> x+1` statement returns a
  * function object. This object can be returns out of a scope.
@@ -122,5 +138,3 @@ object_body ::= [member {semicolon member} [semicolon]];
  * for Feeny, but I did Feeny style functions for now.
  */
 
-object_body ::= let identifier equal expression                                     /* field definition (same as variables) */
-              | function identifier lparen parameter_list rparen rarrow expression; /* method definition (same as functions) */
