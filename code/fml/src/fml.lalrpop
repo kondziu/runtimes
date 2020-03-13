@@ -132,7 +132,7 @@ Print: AST<'input> = { // TODO format string check
 }
 
 ObjectDefinition: AST<'input> = {
-    "object" <parameters: Parameters> <extends: ("extends" <Accessible>)?> <members: Members> =>
+    "object" <parameters: Parameters> <extends: ("extends" <Expression>)?> <members: Members> =>
         AST::ObjectDefinition {extends: option_into_box!(extends),
                                parameters: put_into_boxes!(parameters),
                                members: put_into_boxes!(members)}
