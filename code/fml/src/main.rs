@@ -5,7 +5,7 @@ extern crate unescape;
 #[macro_use]
 pub mod fml_ast;
 
-lalrpop_mod!(pub fml); // syntesized by LALRPOP
+lalrpop_mod!(pub fml); // synthesized by LALRPOP
 
 use crate::fml::TopLevelParser;
 use crate::fml_ast::AST;
