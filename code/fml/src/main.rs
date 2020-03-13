@@ -39,16 +39,6 @@ fn parse_err(input: &str) {
 #[test] fn test_multiple_underscores()   { parse_ok("___",   Identifier("___"));   }
 #[test] fn test_long_identifier()        { parse_ok("stuff", Identifier("stuff")); }
 
-#[test] fn test_string()           { parse_ok("\"hello world\"", StringLiteral("hello world")); }
-#[test] fn test_empty_string()     { parse_ok("\"\"",            StringLiteral(""));     }
-#[test] fn test_escape_newline()   { parse_ok("\"\\n\"",         StringLiteral("\\n"));  }
-#[test] fn test_escape_tab()       { parse_ok("\"\\t\"",         StringLiteral("\\t"));  }
-#[test] fn test_escape_backspace() { parse_ok("\"\\b\"",         StringLiteral("\\b"));  }
-#[test] fn test_escape_return()    { parse_ok("\"\\r\"",         StringLiteral("\\r"));  }
-#[test] fn test_escape_backslash() { parse_ok("\"\\\\\"",        StringLiteral("\\\\")); }
-#[test] fn test_botched_escape()   { parse_err("\"\\\"");  }
-#[test] fn test_invalid_escape()   { parse_err("\"\\a\""); }
-
 #[test] fn test_true()  { parse_ok("true",  BooleanLiteral(true));  }
 #[test] fn test_false() { parse_ok("false", BooleanLiteral(false)); }
 
@@ -395,6 +385,28 @@ fn test_object_with_many_members() {
                  index: Box::new(Number(1))});
 }
 
+#[test] fn test_array_call_method_on_member () {
+    parse_ok("a[b](1)",
+              {
+                  MethodCall {
+                     field: Box::new(
+                         ArrayAccess {
+                             array: Box::new(Identifier("a")),
+                             index: Box::new(Identifier("b"))}),
+                     arguments: vec!(Box::new(Number(1)))}});
+}
+
+#[test] fn test_array_access_member_of_member () {
+    parse_ok("a[b].a",
+             {
+                 FieldAccess {
+                     object: Box::new(
+                         ArrayAccess {
+                             array: Box::new(Identifier("a")),
+                             index: Box::new(Identifier("b"))}),
+                     identifier: Box::new(Identifier("a"))}});
+}
+
 #[test] fn test_array_access_with_array_access_as_index () {
     parse_ok("a[b[c]]",
              ArrayAccess {
@@ -433,6 +445,58 @@ fn test_object_with_many_members() {
                  format: Box::new(StringLiteral("~ ~ ~")),
                  arguments: vec!()});
 }
+
+#[test] fn test_print_call_string() {
+        parse_ok("print(\"hello world\")",
+                 Print {
+                     format: Box::new(StringLiteral("hello world")),
+                     arguments: vec!()});
+}
+
+#[test] fn test_print_call_empty_string() {
+        parse_ok("print(\"\")",
+                 Print {
+                     format: Box::new(StringLiteral("")),
+                     arguments: vec!()});
+}
+
+#[test] fn test_print_call_escape_newline() {
+        parse_ok("print(\"\\n\")",
+                 Print {
+                     format: Box::new(StringLiteral("\\n")),
+                     arguments: vec!()});
+}
+
+#[test] fn test_print_call_escape_tab() {
+        parse_ok("print(\"\\t\")",
+                 Print {
+                     format: Box::new(StringLiteral("\\t")),
+                     arguments: vec!()});
+}
+
+#[test] fn test_print_call_escape_backspace() {
+        parse_ok("print(\"\\b\")",
+                 Print {
+                     format: Box::new(StringLiteral("\\b")),
+                     arguments: vec!()});
+}
+
+#[test] fn test_print_call_escape_return() {
+    parse_ok("print(\"\\r\")",
+             Print {
+                 format: Box::new(StringLiteral("\\r")),
+                 arguments: vec!()});
+}
+
+#[test] fn test_print_call_escape_backslash() {
+    parse_ok("print(\"\\\\\")",
+             Print {
+                 format: Box::new(StringLiteral("\\\\")),
+                 arguments: vec!()});
+}
+
+#[test] fn test_print_call_botched_escape() { parse_err("print(\"\\\")");  }
+#[test] fn test_print_call_invalid_escape() { parse_err("print(\"\\a\")"); }
 
 #[cfg(not(test))]
 fn main() {
