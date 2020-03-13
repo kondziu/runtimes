@@ -415,6 +415,15 @@ fn test_object_with_many_members() {
                  arguments: vec!(Box::new(Number(1)))});
 }
 
+#[test] fn test_method_call_to_operator () {
+    parse_ok("a.+(1)",
+             MethodCall {
+                 method_path: Box::new(FieldAccess {
+                     object: Box::new(Identifier("a")),
+                     field: Box::new(Identifier("+"))}),
+                 arguments: vec!(Box::new(Number(1)))});
+}
+
 #[test] fn test_array_access () {
     parse_ok("a[1]",
              ArrayAccess {

@@ -4,76 +4,77 @@
  * Based loosely on the EBNF from https://caml.inria.fr/pub/docs/manual-ocaml/
  *
  */
-toplevel            ::= expression {";" expression} [";"];
+toplevel             ::= [expression {";" expression} [";"]];
 
 /* The following characters are considered as blanks. Blanks are ignored, but
  * they separate adjacent identifiers, literals and keywords that would 
  * otherwise be confused as one single identifier, literal or keyword. 
  */
-blanks              ::= 'regexp:[ \t\r\n]';
-comment             ::= 'regexp:\(\*([^\)][^\*])*\)\*'; /* ML-style comments*/
+blanks               ::= 'regexp:[ \t\r\n]';
+comment              ::= 'regexp:\(\*([^\)][^\*])*\)\*'; /* ML-style comments*/
 
 /* various simple tokens */
-letter              ::= 'regexp:[A-Za-z]';
-digit               ::= 'regexp:[0-9]';
-underscore          ::= '_';
-regular_character   ::= 'regexp:[^/"]';
-escape_sequence     ::= 'regexp:\\["ntbr\\]';
-double_quote        ::= '"';
-lparen              ::= "(";
-rparen              ::= ")";
-lbracket            ::= "[";
-rbracket            ::= "]";
-semicolon           ::= ";"
-dot                 ::= ".";
-comma               ::= ",";
-larrow              ::= "<-";
-rarrow              ::= "->";
-be                  ::= "=";
+letter               ::= 'regexp:[A-Za-z]';
+digit                ::= 'regexp:[0-9]';
+underscore           ::= '_';
+regular_character    ::= 'regexp:[^/"]';
+escape_sequence      ::= 'regexp:\\["ntbr\\]';
+double_quote         ::= '"';
+lparen               ::= "(";
+rparen               ::= ")";
+lbracket             ::= "[";
+rbracket             ::= "]";
+semicolon            ::= ";"
+dot                  ::= ".";
+comma                ::= ",";
+larrow               ::= "<-";
+rarrow               ::= "->";
+be                   ::= "=";
 
 /* operators */
-plus                ::= "+";
-multiply            ::= "*";
-divide              ::= "/";
-module              ::= "%";
-lesser_or_equal     ::= "<=";
-greater_or_equal    ::= ">=";
-lesser              ::= "<";
-greater             ::= ">";
-or                  ::= "|";
-and                 ::= "&";
-minus               ::= '-';
-equal               ::= "==";
-unequal             ::= "!=";
+plus                 ::= "+";
+multiply             ::= "*";
+divide               ::= "/";
+module               ::= "%";
+lesser_or_equal      ::= "<=";
+greater_or_equal     ::= ">=";
+lesser               ::= "<";
+greater              ::= ">";
+or                   ::= "|";
+and                  ::= "&";
+minus                ::= '-';
+equal                ::= "==";
+unequal              ::= "!=";
 
 /* keywords */
-while               ::= "while";
-object              ::= "object";
-if                  ::= "if";
-else                ::= "else";
-then                ::= "then";
-true                ::= "true";
-false               ::= "false";
-array               ::= "array";
-unit                ::= "null";
-let                 ::= "let";
-begin               ::= "begin";
-end                 ::= "end";
-this                ::= "this";
-print               ::= "print";
-function            ::= "function";
-do                  ::= "do";
-extends             ::= "extends";
+while                ::= "while";
+object               ::= "object";
+if                   ::= "if";
+else                 ::= "else";
+then                 ::= "then";
+true                 ::= "true";
+false                ::= "false";
+array                ::= "array";
+unit                 ::= "null";
+let                  ::= "let";
+begin                ::= "begin";
+end                  ::= "end";
+this                 ::= "this";
+print                ::= "print";
+function             ::= "function";
+do                   ::= "do";
+extends              ::= "extends";
 
 /* identifiers */
-identifier          ::= (letter | underscore)
-                        {letter | digit | underscore} | this;
-operator            ::= multiply | plus
-                      | minus | divide | module
-                      | unequal | equal | lesser | greater
-                      | lesser_or_equal | greater_or_equal
-                      | or | and;
-method_id           ::= identifier | operator;
+identifier           ::= (letter | underscore)
+                         {letter | digit | underscore} | this;
+operator             ::=
+
+factor_operator      ::= multiply | plus;
+additive_operator    ::= minus | divide | module;
+comparison_operator  ::= unequal | equal | lesser | greater | lesser_or_equal | greater_or_equal;
+conjunction_operator ::= and;
+disjunction_operator ::= or;
 
 /* operator precedence:
  *     multiply, divide
@@ -85,52 +86,72 @@ method_id           ::= identifier | operator;
  */
 
 /* literals */
-literal             ::= number | boolean | unit | begin end;                       /* begin end == unit */
-number              ::= [minus] {digit};
-boolean             ::= true | false;                                              /* still thinking about it */
+literal              ::= number | boolean | unit | begin end;                  /* begin end == unit */
+number               ::= [minus] {digit};
+boolean              ::= true | false;                                         /* still thinking about it */
 
 /* the big expression machine */
-expression          ::= function identifier lparen parameter_list rparen
-                        rarrow expression                                          /* Feeny-style function definition,
-                                                                                      returns unit? */
-                      | object parameter_list [extends expression]                 /* prototype object definition */
-                        begin object_body end
-                      | field                                                      /* field access */
-                      | field larrow expression                                    /* field mutation */
-                      | method argument_list                                       /* method call */
-                      | accessible lbracket expression rbracket larrow expression  /* array mutation */
-                      | if expression then expression [else expression]            /* conditional expression */
-                      | while expression do expression                             /* loop expression */
-                      | let identifier be expression                               /* Feeny-style variable definition */
-                      | identifier larrow expression                               /* variable mutation */
-                      | print lparen string [comma argument_list] rparen           /* call to the print built-in */
-                      | expression operator expression                             /* infix operators, syntactic sugar
-                                                                                      for method calls */
-                      | accessible;
+expression           ::= function_definition                                   /* Feeny-style definition returns unit*/
+                       | object_definition                                     /* object instance definition */
+                       | variable_definition                                   /* Feeny-style variable definition */
+                       | field                                                 /* field access */
+                       | conditional                                           /* conditional expression */
+                       | loop                                                  /* loop expression */
+                       | mutation                                              /* field/variable/array mutation */
+                       | print                                                 /* call to the print built-in */
+                       | operation;
 
-accessible          ::= lparen expression rparen                                   /* expression in parentheses */
-                      | begin expression {semicolon expression} end                /* expression block */
-                      | (identifier | field) lparen argument_list rparen           /* function/method application */
-                      | array lparen expression comma expression rparen            /* array definition (arguments are
-                                                                                      array size and initial value) */
-                      | expression lbracket expression rbracket                    /* array access */
-                      | identifier                                                 /* variable access */
-                      | literal;
+function_definition  ::= function identifier lparen parameter_list rparen rarrow expression;
+operator_definition  ::= function operator lparen parameter_list rparen rarrow expression;
+variable_definition  ::= let identifier be expression;
+array_definition     ::= array lparen expression comma expression rparen;
 
-field               ::= accessible dot {identifier dot} identifier;                /* object field path */
-method              ::= accessible dot {identifier dot} method_id;                 /* object method path */
-parameter_list      ::= [identifier {comma identifier} [comma]];                   /* you can have an extra trailing
-                                                                                      comma */
-argument_list       ::= [expression {comma expression} [comma]];
-object_body         ::= [member {semicolon member} [semicolon]];                   /* contents of an object definition*/
-member              ::= let identifier equal expression                            /* field definition (same as
-                                                                                      variables) */
-                      | function identifier lparen parameter_list rparen
-                        rarrow expression;                                         /* method definition (same as
-                                                                                      functions) */
-string              ::= double_quote {(regular_character | escape_sequence)}
-                        double_quote;                                              /* string literals for use in print
-                                                                                      (and nowhere else)*/
+object_definition    ::= object parameter_list [extends expression] begin object_body end;
+object_body          ::= [member {semicolon member} [semicolon]];
+member               ::= variable_definition
+                       | function_definition
+                       | operator_definition;
+
+mutation             ::= identifier larrow expression
+                       | field larrow expression
+                       | array_access larrow expression;
+
+accessible           ::= lparen expression rparen    /* expression in parentheses */
+                       | block                       /* expression block */
+                       | application                 /* function/method/element application */
+                       | array_definition            /* array definition (arguments are array size and initial value) */
+                       | array_access                /* array access */
+                       | identifier                  /* variable access */
+                       | literal;
+
+conditional          ::= if expression then expression [else expression];
+loop                 ::= while expression do expression;
+block                ::= begin expression {semicolon expression} end;
+
+
+field                ::= accessible dot {identifier dot} identifier;                /* object field path */
+method               ::= accessible dot {identifier dot} (identifier|operator);     /* object method path */
+parameter_list       ::= [identifier {comma identifier} [comma]];                   /* you can have a trailing comma */
+argument_list        ::= [expression {comma expression} [comma]];
+
+application          ::= (identifier | field | array) lparen argument_list rparen;
+array_access         ::= (accessible | field) lbracket expression rbracket;
+
+print                ::= print lparen string [comma argument_list] rparen
+string               ::= double_quote {(regular_character | escape_sequence)} double_quote;    /* only used in print */
+
+operation            ::= disjunction;                                               /* infix operators, syntactic sugar
+                                                                                      for method calls; this is a
+                                                                                      precedense climb over all the
+                                                                                      operators that ends in a subset
+                                                                                      of expression that can be used on
+                                                                                      the left of `.`, `[`, `(` etc. */
+
+disjunction          ::= conjunction {disjunction_operator conjunction};
+conjunction          ::= comparison {disjunction_operator comparison};
+comparison           ::= additive {comparison_operator additive};
+additive             ::= factor {additive_operator factor};
+factor               ::= accessible {factor_operator accessible};
 
 /* A note on function definition.
  * 
