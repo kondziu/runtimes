@@ -4,7 +4,7 @@
  * Based loosely on the EBNF from https://caml.inria.fr/pub/docs/manual-ocaml/
  *
  */
-toplevel            ::= expression;
+toplevel            ::= expression {";" expression} [";"];
 
 /* The following characters are considered as blanks. Blanks are ignored, but
  * they separate adjacent identifiers, literals and keywords that would 
@@ -29,6 +29,7 @@ dot                 ::= ".";
 comma               ::= ",";
 larrow              ::= "<-";
 rarrow              ::= "->";
+be                  ::= "=";
 
 /* operators */
 plus                ::= "+";
@@ -98,7 +99,7 @@ expression          ::= function identifier lparen parameter_list rparen
                       | accessible lbracket expression rbracket larrow expression  /* array mutation */
                       | if expression then expression [else expression]            /* conditional expression */
                       | while expression do expression                             /* loop expression */
-                      | let identifier equal expression                            /* Feeny-style variable definition */
+                      | let identifier be expression                               /* Feeny-style variable definition */
                       | identifier larrow expression                               /* variable mutation */
                       | print lparen string [comma argument_list] rparen           /* call to the print built-in */
                       | expression operator expression                             /* infix operators, syntactic sugar
