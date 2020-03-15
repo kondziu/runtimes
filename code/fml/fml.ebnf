@@ -148,7 +148,7 @@ operation            ::= disjunction;                                           
                                                                                       the left of `.`, `[`, `(` etc. */
 
 disjunction          ::= conjunction {disjunction_operator conjunction};
-conjunction          ::= comparison {disjunction_operator comparison};
+conjunction          ::= comparison {conjunction_operator comparison};
 comparison           ::= additive {comparison_operator additive};
 additive             ::= factor {additive_operator factor};
 factor               ::= accessible {factor_operator accessible};
