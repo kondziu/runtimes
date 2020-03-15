@@ -187,12 +187,12 @@ Member: AST<'input> = {
 }
 
 Conditional<openness>: AST<'input> = {
-    IF <condition: Accessible> THEN <consequent: Expression<"closed">>
+    IF <condition: Expression<"open">> THEN <consequent: Expression<"closed">>
                                        ELSE <alternative: Expression<openness>> =>
         AST::Conditional{condition: Box::new(condition),
                          consequent: Box::new(consequent),
                          alternative: Box::new(alternative)},
-    IF <condition: Accessible> THEN <consequent: Expression<"open">> if openness == "open" => // TODO condition: Accessible or Expression
+    IF <condition: Expression<"open">> THEN <consequent: Expression<"open">> if openness == "open" =>
         AST::Conditional{condition: Box::new(condition),
                          consequent: Box::new(consequent),
                          alternative: Box::new(AST::Unit)},
