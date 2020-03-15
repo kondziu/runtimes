@@ -255,7 +255,7 @@ ArrayAccess: AST<'input> = {
 }
 
 Loop<openness>: AST<'input> = {
-    WHILE <condition: Accessible> DO <body: Expression<openness>> => // FIXME Expresison or accessible
+    WHILE <condition: Expression<"open">> DO <body: Expression<openness>> =>
         AST::Loop{condition: Box::new(condition), body: Box::new(body)}
 }
 
