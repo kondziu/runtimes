@@ -240,8 +240,6 @@ Method: AST<'input> = {
     }
 }
 
-//FIXME method
-
 ArrayDefinition: AST<'input> = {
     ARRAY LPAREN <size: Expression<"open">> COMMA <value: Expression<"open">> RPAREN =>
         AST::ArrayDefinition {size: Box::new(size), value: Box::new(value)}
@@ -260,14 +258,14 @@ Loop<openness>: AST<'input> = {
 }
 
 FunctionDefinition<openness>: AST<'input> = {
-    FUNCTION <id: Identifier> <parameters: Parameters> LARROW <body: Expression<openness>> => // FIXME open or possibly closed?
+    FUNCTION <id: Identifier> <parameters: Parameters> LARROW <body: Expression<openness>> =>
         AST::FunctionDefinition{name: Box::new(id),
                                 parameters: put_into_boxes!(parameters),
                                 body: Box::new(body)}
 }
 
 OperatorDefinition<openness>: AST<'input> = {
-    FUNCTION <operator: Operator> <parameters: Parameters> LARROW <body: Expression<openness>> => // FIXME open or possibly closed?
+    FUNCTION <operator: Operator> <parameters: Parameters> LARROW <body: Expression<openness>> =>
         AST::OperatorDefinition{operator: operator,
                                 parameters: put_into_boxes!(parameters),
                                 body: Box::new(body)}
@@ -307,16 +305,16 @@ Arguments: Vec<AST<'input>> = {
 }
 
 Assignment<openness>: AST<'input> = {
-    LET <id: Identifier> BE <v: Expression<openness>> => // FIXME potential problem with opennes
+    LET <id: Identifier> BE <v: Expression<openness>> =>
         AST::Assignment{identifier: Box::new(id), value: Box::new(v)},
 }
 
 Mutation<openness>: AST<'input> = {
-    <id: Identifier> LARROW <v: Expression<openness>> => // FIXME potential problem with opennes
+    <id: Identifier> LARROW <v: Expression<openness>> =>
         AST::Mutation{identifier: Box::new(id), value: Box::new(v)},
-    <field: Field> LARROW <v: Expression<openness>> => // FIXME potential problem with opennes
+    <field: Field> LARROW <v: Expression<openness>> =>
         AST::FieldMutation{field_path: Box::new(field), value: Box::new(v)},
-    <array: ArrayAccess> LARROW <v: Expression<openness>> => // FIXME potential problem with opennes
+    <array: ArrayAccess> LARROW <v: Expression<openness>> =>
         AST::ArrayMutation {array: Box::new(array), value: Box::new(v)},
 }
 
