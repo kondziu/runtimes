@@ -1,0 +1,55 @@
+use crate::ast::AST;
+
+grammar;
+
+pub TopLevel: AST<'input> = {
+    Expression => <>,
+}
+
+Expression: AST<'input> = {
+    Condition => <>,
+    Conditional => <>,
+}
+
+Condition: AST<'input> = {
+    Number => <>,
+    Identifier => <>,
+    Boolean => <>,
+}
+
+Conditional: AST<'input> = {
+    "if" <condition: Condition> "then" <consequent: LimitedExpression> "else" <alternative: Expression> =>
+        AST::Parent("if-then-else", vec!(Box::new(condition),
+                                         Box::new(consequent),
+                                         Box::new(alternative))),
+
+    "if" <condition: Condition> "then" <consequent: Expression> =>
+        AST::Parent("if-then", vec!(Box::new(condition),
+                                    Box::new(consequent))),
+}
+
+LimitedExpression: AST<'input> = {
+    Condition => <>,
+    LimitedConditional => <>,
+}
+
+LimitedConditional: AST<'input> = {
+    "if" <condition: Condition> "then" <consequent: LimitedExpression> "else" <alternative: LimitedExpression> =>
+        AST::Parent("if-then-else", vec!(Box::new(condition),
+                                         Box::new(consequent),
+                                         Box::new(alternative))),
+}
+
+Boolean: AST<'input> = {
+    "true" => AST::Leaf(<>),
+    "false" => AST::Leaf(<>),
+}
+
+Number: AST<'input> = {
+    r"[0-9]+" => AST::Leaf(<>),
+}
+
+Identifier: AST<'input> = {
+    r"[A-Za-z]+" => AST::Leaf(<>),
+}
+

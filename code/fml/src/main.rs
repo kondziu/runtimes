@@ -14,7 +14,7 @@ use crate::fml_ast::Operator::*;
 
 fn parse_ok(input: &str, correct: AST) {
     println!("{}", input);
-    for i in 1..input.len() {
+    for i in 0..input.len() {
         if i%10 == 0 {
             print!(" ");
         } else {

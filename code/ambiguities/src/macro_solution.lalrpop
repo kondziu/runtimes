@@ -1,0 +1,43 @@
+use crate::ast::AST;
+
+grammar;
+
+pub TopLevel: AST<'input> = {
+    Expression<"open"> => <>,
+}
+
+Expression<openness>: AST<'input> = {
+    Condition => <>,
+    Conditional<openness> => <>,
+}
+
+Condition: AST<'input> = {
+    Number => <>,
+    Identifier => <>,
+    Boolean => <>,
+}
+
+Conditional<openness>: AST<'input> = {
+    "if" <condition: Condition> "then" <consequent: Expression<"closed">> "else" <alternative: Expression<openness>> =>
+        AST::Parent("if-then-else", vec!(Box::new(condition),
+                                         Box::new(consequent),
+                                         Box::new(alternative))),
+
+    "if" <condition: Condition> "then" <consequent: Expression<"open">> if openness == "open" =>
+        AST::Parent("if-then", vec!(Box::new(condition),
+                                    Box::new(consequent))),
+}
+
+Boolean: AST<'input> = {
+    "true" => AST::Leaf(<>),
+    "false" => AST::Leaf(<>),
+}
+
+Number: AST<'input> = {
+    r"[0-9]+" => AST::Leaf(<>),
+}
+
+Identifier: AST<'input> = {
+    r"[A-Za-z]+" => AST::Leaf(<>),
+}
+

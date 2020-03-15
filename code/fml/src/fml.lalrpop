@@ -66,7 +66,7 @@ pub TopLevel: AST<'input> = {
 }
 
 Expressions: AST<'input> = {
-    <element: Expression> <elements: (SEMICOLON <Expression>)*> SEMICOLON? => {
+    <element: Expression<"open">> <elements: (SEMICOLON <Expression<"open">>)*> SEMICOLON? => {
         if elements.is_empty() {
             element
         } else {
@@ -77,16 +77,16 @@ Expressions: AST<'input> = {
     }
 }
 
-Expression: AST<'input> = {
-    FunctionDefinition      => <>, // Feeny-style function definition, returns unit?
-    ObjectDefinition        => <>, // prototype object definition
-    Assignment              => <>, // Feenified variable definition
-    Field                   => <>, // field access
-    Conditional             => <>, // conditional expression
-    Loop                    => <>, // loop expression
-    Mutation                => <>, // variable/object member mutation
-    Print                   => <>, // call to the print built-in
-    Operation               => <>, // operations, but this also leads to Accessible
+Expression<openness>: AST<'input> = {
+    FunctionDefinition<openness>      => <>, // Feeny-style function definition, returns unit?
+    ObjectDefinition                  => <>, // prototype object definition
+    Assignment<openness>              => <>, // Feenified variable definition
+    Field                             => <>, // field access
+    Conditional<openness>             => <>, // conditional expression
+    Loop<openness>                    => <>, // loop expression
+    Mutation<openness>                => <>, // variable/object member mutation
+    Print                             => <>, // call to the print built-in
+    Operation                         => <>, // operations, but this also leads to Accessible
 }
 
 
@@ -96,13 +96,13 @@ Block: AST<'input> = {
 }
 
 Accessible: AST<'input> = {
-    ParenthesizedExpression => <>, // expression in parentheses
-    Block                   => <>, // expression block
-    Application             => <>, // function application
-    ArrayDefinition         => <>, // array definition
-    ArrayAccess             => <>, // array access
-    Identifier              => <>, // variable access
-    Literal                 => <>, // literal, duh
+    ParenthesizedExpression           => <>, // expression in parentheses
+    Block                             => <>, // expression block
+    Application                       => <>, // function application
+    ArrayDefinition                   => <>, // array definition
+    ArrayAccess                       => <>, // array access
+    Identifier                        => <>, // variable access
+    Literal                           => <>, // literal, duh
 }
 
 Operation: AST<'input> = {
@@ -177,24 +177,25 @@ Literal: AST<'input> = {
 }
 
 ParenthesizedExpression: AST<'input> = {
-    LPAREN <Expression> RPAREN    => <>
+    LPAREN <Expression<"open">> RPAREN    => <>
 }
 
 Member: AST<'input> = {
-    Assignment              => <>,
-    FunctionDefinition      => <>,
-    OperatorDefinition      => <>,
+    Assignment<"open">         => <>,
+    FunctionDefinition<"open"> => <>,
+    OperatorDefinition<"open"> => <>,
 }
 
-Conditional: AST<'input> = {
-    IF <condition: Expression> THEN <consequent: Expression> <alternative: (ELSE <Expression>)> =>
+Conditional<openness>: AST<'input> = {
+    IF <condition: Accessible> THEN <consequent: Expression<"closed">>
+                                       ELSE <alternative: Expression<openness>> =>
         AST::Conditional{condition: Box::new(condition),
                          consequent: Box::new(consequent),
                          alternative: Box::new(alternative)},
-//    "if" <condition: Expression> "then" <consequent: Expression_<"I">> if allow != "" =>
-//        AST::Conditional{condition: Box::new(condition),
-//                         consequent: Box::new(consequent),
-//                         alternative: Box::new(AST::Unit)},
+    IF <condition: Accessible> THEN <consequent: Expression<"open">> if openness == "open" => // TODO condition: Accessible or Expression
+        AST::Conditional{condition: Box::new(condition),
+                         consequent: Box::new(consequent),
+                         alternative: Box::new(AST::Unit)},
 }
 
 Print: AST<'input> = { // TODO format string check
@@ -208,7 +209,7 @@ Print: AST<'input> = { // TODO format string check
 }
 
 ObjectDefinition: AST<'input> = {
-    OBJECT <parameters: Parameters> <extends: (EXTENDS <Expression>)?> <members: Members> =>
+    OBJECT <parameters: Parameters> <extends: (EXTENDS <Expression<"open">>)?> <members: Members> =>
         AST::ObjectDefinition {extends: option_into_box!(extends),
                                parameters: put_into_boxes!(parameters),
                                members: put_into_boxes!(members)}
@@ -233,31 +234,31 @@ Field: AST<'input> = {
 //FIXME method
 
 ArrayDefinition: AST<'input> = {
-    ARRAY LPAREN <size: Expression> COMMA <value: Expression> RPAREN =>
+    ARRAY LPAREN <size: Expression<"open">> COMMA <value: Expression<"open">> RPAREN =>
         AST::ArrayDefinition {size: Box::new(size), value: Box::new(value)}
 }
 
 ArrayAccess: AST<'input> = {
-    <array: Accessible> LBRACKET <index: Expression> RBRACKET =>
+    <array: Accessible> LBRACKET <index: Expression<"open">> RBRACKET =>
         AST::ArrayAccess {array: Box::new(array), index: Box::new(index)},
-    <array: Field> LBRACKET <index: Expression> RBRACKET =>
+    <array: Field> LBRACKET <index: Expression<"open">> RBRACKET =>
         AST::ArrayAccess {array: Box::new(array), index: Box::new(index)}
 }
 
-Loop: AST<'input> = {
-    WHILE <condition: Expression> DO <body: Expression> =>
+Loop<openness>: AST<'input> = {
+    WHILE <condition: Accessible> DO <body: Expression<openness>> => // FIXME Expresison or accessible
         AST::Loop{condition: Box::new(condition), body: Box::new(body)}
 }
 
-FunctionDefinition: AST<'input> = {
-    FUNCTION <id: Identifier> <parameters: Parameters> LARROW <body: Expression> =>
+FunctionDefinition<openness>: AST<'input> = {
+    FUNCTION <id: Identifier> <parameters: Parameters> LARROW <body: Expression<openness>> => // FIXME open or possibly closed?
         AST::FunctionDefinition{name: Box::new(id),
                                 parameters: put_into_boxes!(parameters),
                                 body: Box::new(body)}
 }
 
-OperatorDefinition: AST<'input> = {
-    FUNCTION <operator: Operator> <parameters: Parameters> LARROW <body: Expression> =>
+OperatorDefinition<openness>: AST<'input> = {
+    FUNCTION <operator: Operator> <parameters: Parameters> LARROW <body: Expression<openness>> => // FIXME open or possibly closed?
         AST::OperatorDefinition{operator: operator,
                                 parameters: put_into_boxes!(parameters),
                                 body: Box::new(body)}
@@ -290,23 +291,23 @@ Application: AST<'input> = {
 }
 
 Arguments: Vec<AST<'input>> = {
-    <elements: (<Expression> COMMA)*> <element: Expression?> => match element {
+    <elements: (<Expression<"open">> COMMA)*> <element: Expression<"open">?> => match element {
         None => elements,
         Some(e) => { let mut elements = elements; elements.push(e); elements }
     }
 }
 
-Assignment: AST<'input> = {
-    LET <id: Identifier> BE <v: Expression> =>
+Assignment<openness>: AST<'input> = {
+    LET <id: Identifier> BE <v: Expression<openness>> => // FIXME potential problem with opennes
         AST::Assignment{identifier: Box::new(id), value: Box::new(v)},
 }
 
-Mutation: AST<'input> = {
-    <id: Identifier> LARROW <v: Expression> =>
+Mutation<openness>: AST<'input> = {
+    <id: Identifier> LARROW <v: Expression<openness>> => // FIXME potential problem with opennes
         AST::Mutation{identifier: Box::new(id), value: Box::new(v)},
-    <field: Field> LARROW <v: Expression> =>
+    <field: Field> LARROW <v: Expression<openness>> => // FIXME potential problem with opennes
         AST::FieldMutation{field_path: Box::new(field), value: Box::new(v)},
-    <array: ArrayAccess> LARROW <v: Expression> =>
+    <array: ArrayAccess> LARROW <v: Expression<openness>> => // FIXME potential problem with opennes
         AST::ArrayMutation {array: Box::new(array), value: Box::new(v)},
 }
 
