@@ -231,6 +231,15 @@ Field: AST<'input> = {
     }
 }
 
+Method: AST<'input> = {
+    Field => <>,
+    <object: Accessible> DOT <objects: (<Identifier> DOT)*> <operator: Operator> => {
+        let path = objects.into_iter().fold(object, |left, right|
+            AST::FieldAccess {object: Box::new(left), field: Box::new(right)});
+        AST::OperatorAccess {object: Box::new(path), operator}
+    }
+}
+
 //FIXME method
 
 ArrayDefinition: AST<'input> = {
@@ -278,10 +287,10 @@ Application: AST<'input> = {
             arguments.into_iter().map(|e| Box::new(e)).collect();
         AST::FunctionApplication{function: Box::new(function), arguments: boxed_arguments}
     },
-    <field: Field> LPAREN <arguments: Arguments> RPAREN => {
+    <method: Method> LPAREN <arguments: Arguments> RPAREN => {
         let boxed_arguments: Vec<Box<AST<'input>>> =
-        arguments.into_iter().map(|e| Box::new(e)).collect();
-        AST::MethodCall{method_path: Box::new(field), arguments: boxed_arguments}
+            arguments.into_iter().map(|e| Box::new(e)).collect();
+        AST::MethodCall{method_path: Box::new(method), arguments: boxed_arguments}
     },
     <array: ArrayAccess> LPAREN <arguments: Arguments> RPAREN => {
         let boxed_arguments: Vec<Box<AST<'input>>> =

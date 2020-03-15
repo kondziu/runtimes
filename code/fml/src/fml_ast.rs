@@ -22,12 +22,13 @@ pub enum AST<'ast> {
     ArrayMutation {array: Box<AST<'ast>>, value: Box<AST<'ast>>},
     ObjectDefinition {extends: Option<Box<AST<'ast>>>, parameters: Vec<Box<AST<'ast>>>, members: Vec<Box<AST<'ast>>>},
     FieldAccess {object: Box<AST<'ast>>, field: Box<AST<'ast>>},
+    OperatorAccess {object: Box<AST<'ast>>, operator: Operator},
     FieldMutation {field_path: Box<AST<'ast>>, value: Box<AST<'ast>>},
     MethodCall {method_path: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>>},
     Print {format: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>>},
 }
 
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Copy,Clone)]
 pub enum Operator {
     Multiplication,
     Division,
@@ -81,6 +82,8 @@ impl Debug for AST<'_> {
                 write!(fmt, "ObjectDefinition(extends={:?}, parameters={:?}, members={:?})", extends, parameters, members),
             FieldAccess {object, field: identifier } =>
                 write!(fmt, "FieldAccess(object={:?}, identifier={:?})", object, identifier),
+            OperatorAccess {object, operator } =>
+                write!(fmt, "OperatorAccess(object={:?}, operator={:?})", object, operator),
             FieldMutation { field_path: field, value} =>
                 write!(fmt, "FieldMutation(field={:?}, value={:?})", field, value),
             MethodCall { method_path: field, arguments} =>

@@ -428,9 +428,9 @@ fn test_object_with_many_members() {
 #[test] fn test_method_call_to_operator () {
     parse_ok("a.+(1)",
              MethodCall {
-                 method_path: Box::new(FieldAccess {
+                 method_path: Box::new(OperatorAccess {
                      object: Box::new(Identifier("a")),
-                     field: Box::new(Identifier("+"))}),
+                     operator: Addition}),
                  arguments: vec!(Box::new(Number(1)))});
 }
 

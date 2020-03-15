@@ -134,7 +134,7 @@ method               ::= accessible dot {identifier dot} (identifier|operator); 
 parameter_list       ::= [identifier {comma identifier} [comma]];                   /* you can have a trailing comma */
 argument_list        ::= [expression {comma expression} [comma]];
 
-application          ::= (identifier | field | array) lparen argument_list rparen;
+application          ::= (identifier | method | array) lparen argument_list rparen;
 array_access         ::= (accessible | field) lbracket expression rbracket;
 
 print                ::= print lparen string [comma argument_list] rparen
