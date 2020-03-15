@@ -13,10 +13,20 @@ use crate::fml_ast::AST::*;
 use crate::fml_ast::Operator::*;
 
 fn parse_ok(input: &str, correct: AST) {
+    println!("{}", input);
+    for i in 1..input.len() {
+        if i%10 == 0 {
+            print!(" ");
+        } else {
+            print!("{}", i % 10);
+        }
+    }
+    println!();
     assert_eq!(TopLevelParser::new().parse(input), Ok(correct));
 }
 
 fn parse_err(input: &str) {
+    println!("{}", input);
     assert!(TopLevelParser::new().parse(input).is_err());
 }
 
@@ -786,6 +796,21 @@ fn test_object_with_many_members() {
                  operator: GreaterEqual,
                  left: Box::new(Number(1)),
                  right: Box::new(Number(2))});
+}
+
+#[test] fn test_comment() {
+    parse_ok("(* a *)", Unit);
+}
+#[test] fn test_comment_in_expression() {
+    parse_ok("1 + (* a *) 2",
+             Operation {
+                 operator: Addition,
+                 left: Box::new(Number(1)),
+                 right: Box::new(Number(2))});
+}
+
+#[test] fn test_multiline_comment() {
+    parse_ok("(* \n\n\n *)", Unit);
 }
 
 #[cfg(not(test))]

@@ -5,13 +5,68 @@ use crate::fml_ast::Operator;
 
 grammar;
 
+// Lexer
+match {
+    r"\s*" => { }, // ignore whitespace
+    r"\(\*([^\*]*\*+[^\*\(])*([^\*]*\*+|[^\*])*\*\)" => { }, // ignore
+
+    // all keywords and fixed tokens
+    ";" => SEMICOLON,
+    "begin" => BEGIN,
+    "end" => END,
+    "|" => OR,
+    "&" => AND,
+    "==" => EQUAL,
+    "!=" => UNEQUAL,
+    ">" => GREATER,
+    "<" => LESS,
+    ">=" => GREATER_EQUAL,
+    "<=" => LESS_EQUAL,
+    "+" => PLUS,
+    "-" => MINUS,
+    "/" => DIVIDE,
+    "*" => MULTIPLY,
+    "%" => MODULE,
+    "if" => IF,
+    "then" => THEN,
+    "else" => ELSE,
+    "(" => LPAREN,
+    ")" => RPAREN,
+    "let" => LET,
+    "=" => BE,
+    "null" => UNIT,
+    "<-" => LARROW,
+    "->" => RARROW,
+    "print" => PRINT,
+    "object" => OBJECT,
+    "extends" => EXTENDS,
+    "." => DOT,
+    "[" => LBRACKET,
+    "]" => RBRACKET,
+    "while" => WHILE,
+    "do" => DO,
+    "function" => FUNCTION,
+    "array" => ARRAY,
+    "," => COMMA,
+    "true" => TRUE,
+    "false" => FALSE,
+    "this" => THIS,
+
+    // all fungible tokens
+    r"[_A-Za-z][_A-Za-z0-9]*" => IDENTIFIER,
+    r"[-]?[0-9]+" => NUMBER,
+    r#""([^\\]|\\[ntbr\\])*""# => STRING_LITERAL,
+}
+
+// Parser
+
 pub TopLevel: AST<'input> = {
     <expressions: Expressions> => expressions,
                                => AST::Unit,
 }
 
 Expressions: AST<'input> = {
-    <element: Expression> <elements: (";" <Expression>)*> ";"? => {
+    <element: Expression> <elements: (SEMICOLON <Expression>)*> SEMICOLON? => {
         if elements.is_empty() {
             element
         } else {
@@ -36,8 +91,8 @@ Expression: AST<'input> = {
 
 
 Block: AST<'input> = {
-    "begin" "end"                            => AST::Unit,
-    "begin" <expressions: Expressions> "end" => expressions
+    BEGIN END                            => AST::Unit,
+    BEGIN <expressions: Expressions> END => expressions
 }
 
 Accessible: AST<'input> = {
@@ -88,31 +143,31 @@ Operator: Operator = {
 }
 
 ConjunctionOperator: Operator = {
-    "&" => Operator::Conjunction,
+    AND => Operator::Conjunction,
 }
 
 DisjunctionOperator: Operator = {
-    "|" => Operator::Disjunction,
+    OR => Operator::Disjunction,
 }
 
 EqualityOperator: Operator = {
-    "==" => Operator::Equality,
-    "!=" => Operator::Inequality,
-    ">"  => Operator::Greater,
-    ">=" => Operator::GreaterEqual,
-    "<"  => Operator::Less,
-    "<=" => Operator::LessEqual,
+    EQUAL => Operator::Equality,
+    UNEQUAL => Operator::Inequality,
+    GREATER  => Operator::Greater,
+    GREATER_EQUAL => Operator::GreaterEqual,
+    LESS => Operator::Less,
+    LESS_EQUAL => Operator::LessEqual,
 }
 
 AdditiveOperator: Operator = {
-    "+" => Operator::Addition,
-    "-" => Operator::Subtraction,
+    PLUS => Operator::Addition,
+    MINUS => Operator::Subtraction,
 }
 
 FactorOperator: Operator = {
-    "*" => Operator::Multiplication,
-    "/" => Operator::Division,
-    "%" => Operator::Module,
+    MULTIPLY => Operator::Multiplication,
+    DIVIDE => Operator::Division,
+    MODULE => Operator::Module,
 }
 
 Literal: AST<'input> = {
@@ -122,7 +177,7 @@ Literal: AST<'input> = {
 }
 
 ParenthesizedExpression: AST<'input> = {
-    "(" <Expression> ")"    => <>
+    LPAREN <Expression> RPAREN    => <>
 }
 
 Member: AST<'input> = {
@@ -132,7 +187,7 @@ Member: AST<'input> = {
 }
 
 Conditional: AST<'input> = {
-    "if" <condition: Expression> "then" <consequent: Expression> <alternative: ("else" <Expression>)> =>
+    IF <condition: Expression> THEN <consequent: Expression> <alternative: (ELSE <Expression>)> =>
         AST::Conditional{condition: Box::new(condition),
                          consequent: Box::new(consequent),
                          alternative: Box::new(alternative)},
@@ -143,7 +198,7 @@ Conditional: AST<'input> = {
 }
 
 Print: AST<'input> = { // TODO format string check
-    "print" "(" <string: String> <arguments: ("," <Arguments>)?> ")" => {
+    PRINT LPAREN <string: String> <arguments: (COMMA <Arguments>)?> RPAREN => {
         let boxed_arguments: Vec<Box<AST<'input>>> = match arguments {
             Some(arguments) => arguments.into_iter().map( | e | Box::new(e)).collect(),
             None => vec!(),
@@ -153,21 +208,21 @@ Print: AST<'input> = { // TODO format string check
 }
 
 ObjectDefinition: AST<'input> = {
-    "object" <parameters: Parameters> <extends: ("extends" <Expression>)?> <members: Members> =>
+    OBJECT <parameters: Parameters> <extends: (EXTENDS <Expression>)?> <members: Members> =>
         AST::ObjectDefinition {extends: option_into_box!(extends),
                                parameters: put_into_boxes!(parameters),
                                members: put_into_boxes!(members)}
 }
 
 Members: Vec<AST<'input>> = {
-    "begin" <elements: (<Member> ";")*> <element: Member?> "end" => match element {
+    BEGIN <elements: (<Member> SEMICOLON)*> <element: Member?> END => match element {
         None => elements,
         Some(e) => { let mut elements = elements; elements.push(e); elements }
     }
 }
 
 Field: AST<'input> = {
-    <object: Accessible> "." <objects: (<Identifier> ".")*> <field: Identifier> => {
+    <object: Accessible> DOT <objects: (<Identifier> DOT)*> <field: Identifier> => {
         let mut tail = Vec::from(objects);
         tail.push(field);
         tail.into_iter().fold(object, |left, right|
@@ -178,55 +233,56 @@ Field: AST<'input> = {
 //FIXME method
 
 ArrayDefinition: AST<'input> = {
-    "array" "(" <size: Expression> "," <value: Expression> ")" =>
+    ARRAY LPAREN <size: Expression> COMMA <value: Expression> RPAREN =>
         AST::ArrayDefinition {size: Box::new(size), value: Box::new(value)}
 }
 
 ArrayAccess: AST<'input> = {
-    <array: Accessible> "[" <index: Expression> "]" =>
+    <array: Accessible> LBRACKET <index: Expression> RBRACKET =>
         AST::ArrayAccess {array: Box::new(array), index: Box::new(index)},
-    <array: Field> "[" <index: Expression> "]" =>
+    <array: Field> LBRACKET <index: Expression> RBRACKET =>
         AST::ArrayAccess {array: Box::new(array), index: Box::new(index)}
 }
 
 Loop: AST<'input> = {
-    "while" <condition: Expression> "do" <body: Expression> =>
+    WHILE <condition: Expression> DO <body: Expression> =>
         AST::Loop{condition: Box::new(condition), body: Box::new(body)}
 }
 
 FunctionDefinition: AST<'input> = {
-    "function" <id: Identifier> <parameters: Parameters> "<-" <body: Expression> =>
+    FUNCTION <id: Identifier> <parameters: Parameters> LARROW <body: Expression> =>
         AST::FunctionDefinition{name: Box::new(id),
                                 parameters: put_into_boxes!(parameters),
                                 body: Box::new(body)}
 }
 
 OperatorDefinition: AST<'input> = {
-    "function" <operator: Operator> <parameters: Parameters> "<-" <body: Expression> =>
+    FUNCTION <operator: Operator> <parameters: Parameters> LARROW <body: Expression> =>
         AST::OperatorDefinition{operator: operator,
                                 parameters: put_into_boxes!(parameters),
                                 body: Box::new(body)}
 }
 
 Parameters: Vec<AST<'input>> = {
-    "(" <elements: (<Identifier> ",")*> <element: Identifier?> ")" => match element {
-        None => elements,
-        Some(e) => { let mut elements = elements; elements.push(e); elements }
-    }
+    LPAREN <elements: (<Identifier> COMMA)*> <element: Identifier?> RPAREN =>
+        match element {
+            None => elements,
+            Some(e) => { let mut elements = elements; elements.push(e); elements }
+        }
 }
 
 Application: AST<'input> = {
-    <function: Identifier> "(" <arguments: Arguments> ")" => {
+    <function: Identifier> LPAREN <arguments: Arguments> RPAREN => {
         let boxed_arguments: Vec<Box<AST<'input>>> =
             arguments.into_iter().map(|e| Box::new(e)).collect();
         AST::FunctionApplication{function: Box::new(function), arguments: boxed_arguments}
     },
-    <field: Field> "(" <arguments: Arguments> ")" => {
+    <field: Field> LPAREN <arguments: Arguments> RPAREN => {
         let boxed_arguments: Vec<Box<AST<'input>>> =
         arguments.into_iter().map(|e| Box::new(e)).collect();
         AST::MethodCall{method_path: Box::new(field), arguments: boxed_arguments}
     },
-    <array: ArrayAccess> "(" <arguments: Arguments> ")" => {
+    <array: ArrayAccess> LPAREN <arguments: Arguments> RPAREN => {
         let boxed_arguments: Vec<Box<AST<'input>>> =
             arguments.into_iter().map(|e| Box::new(e)).collect();
         AST::MethodCall{method_path: Box::new(array), arguments: boxed_arguments}
@@ -234,44 +290,44 @@ Application: AST<'input> = {
 }
 
 Arguments: Vec<AST<'input>> = {
-    <elements: (<Expression> ",")*> <element: Expression?> => match element {
+    <elements: (<Expression> COMMA)*> <element: Expression?> => match element {
         None => elements,
         Some(e) => { let mut elements = elements; elements.push(e); elements }
     }
 }
 
 Assignment: AST<'input> = {
-    "let" <id: Identifier> "=" <v: Expression> =>
+    LET <id: Identifier> BE <v: Expression> =>
         AST::Assignment{identifier: Box::new(id), value: Box::new(v)},
 }
 
 Mutation: AST<'input> = {
-    <id: Identifier> "<-" <v: Expression> =>
+    <id: Identifier> LARROW <v: Expression> =>
         AST::Mutation{identifier: Box::new(id), value: Box::new(v)},
-    <field: Field> "<-" <v: Expression> =>
+    <field: Field> LARROW <v: Expression> =>
         AST::FieldMutation{field_path: Box::new(field), value: Box::new(v)},
-    <array: ArrayAccess> "<-" <v: Expression> =>
+    <array: ArrayAccess> LARROW <v: Expression> =>
         AST::ArrayMutation {array: Box::new(array), value: Box::new(v)},
 }
 
 Identifier: AST<'input> = {
-     r"[_A-Za-z][_A-Za-z0-9]*"           => AST::Identifier(<>),
-     "this"                              => AST::Identifier(<>),
+     IDENTIFIER                          => AST::Identifier(<>),
+     THIS                                => AST::Identifier(<>),
 }
 
 Number: AST<'input> = {
-    r"[-]?[0-9]+"                        => AST::Number(i32::from_str(<>).unwrap()),
+     NUMBER                              => AST::Number(i32::from_str(<>).unwrap()),
 }
 
 String: AST<'input> = {
-    <s:r#""([^\\]|\\[ntbr\\])*""#>       => AST::StringLiteral(&s[1..s.len()-1]),
+    <s:STRING_LITERAL>                   => AST::StringLiteral(&s[1..s.len()-1]),
 }
 
 Boolean: AST<'input> = {
-    "true"                               => AST::Boolean(true),
-    "false"                              => AST::Boolean(false),
+    TRUE                                 => AST::Boolean(true),
+    FALSE                                => AST::Boolean(false),
 }
 
 Unit: AST<'input> = {
-    "null"                               => AST::Unit,
+    UNIT                                 => AST::Unit,
 }
