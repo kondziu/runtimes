@@ -1,18 +1,22 @@
-use std::fmt::{Debug, Error, Formatter};
+use std::fmt::Debug;
 use std::cmp::PartialEq;
+use serde::{Serialize, Deserialize};
 
-#[derive(PartialEq,Debug)]
+pub trait Portable {
+  fn to_string(&self) -> String;
+}
+
+#[derive(PartialEq,Debug,Serialize,Deserialize)]
 pub enum AST<'ast> {
-    Unit,
-
-    Number(i32),
-    Identifier(&'ast str),
     StringLiteral(&'ast str),
+    Number(i32),
     Boolean(bool),
+    Unit,
+    Identifier(&'ast str),
 
-    LocalDefinition { identifier: Box<AST<'ast>>, value: Box<AST<'ast>>},
-    ArrayDefinition { size: Box<AST<'ast>>, value: Box<AST<'ast>>},
-    ObjectDefinition { extends: Option<Box<AST<'ast>>>, parameters: Vec<Box<AST<'ast>>>, members: Vec<Box<AST<'ast>>>},
+    LocalDefinition { identifier: Box<AST<'ast>>, value: Box<AST<'ast>> },
+    ArrayDefinition { size: Box<AST<'ast>>, value: Box<AST<'ast>> },
+    ObjectDefinition { extends: Option<Box<AST<'ast>>>, parameters: Vec<Box<AST<'ast>>>, members: Vec<Box<AST<'ast>>> },
 
     LocalMutation { identifier: Box<AST<'ast>>, value: Box<AST<'ast>> },
     FieldMutation { field_path: Box<AST<'ast>>, value: Box<AST<'ast>> },
@@ -35,7 +39,7 @@ pub enum AST<'ast> {
     Conditional { condition: Box<AST<'ast>>, consequent: Box<AST<'ast>>, alternative: Box<AST<'ast>> },
 }
 
-#[derive(PartialEq,Debug,Copy,Clone)]
+#[derive(PartialEq,Debug,Copy,Clone,Serialize,Deserialize)]
 pub enum Operator {
     Multiplication,
     Division,
@@ -48,8 +52,8 @@ pub enum Operator {
     LessEqual,
     Greater,
     GreaterEqual,
-    Disjunction, // |
-    Conjunction, // &
+    Disjunction,
+    Conjunction,
 }
 
 #[macro_export]
