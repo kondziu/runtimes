@@ -306,12 +306,12 @@ Arguments: Vec<AST<'input>> = {
 
 Assignment<openness>: AST<'input> = {
     LET <id: Identifier> BE <v: Expression<openness>> =>
-        AST::Assignment{identifier: Box::new(id), value: Box::new(v)},
+        AST::LocalDefinition{identifier: Box::new(id), value: Box::new(v)},
 }
 
 Mutation<openness>: AST<'input> = {
     <id: Identifier> LARROW <v: Expression<openness>> =>
-        AST::Mutation{identifier: Box::new(id), value: Box::new(v)},
+        AST::LocalMutation{identifier: Box::new(id), value: Box::new(v)},
     <field: Field> LARROW <v: Expression<openness>> =>
         AST::FieldMutation{field_path: Box::new(field), value: Box::new(v)},
     <array: ArrayAccess> LARROW <v: Expression<openness>> =>

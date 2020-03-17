@@ -58,15 +58,15 @@ fn parse_err(input: &str) {
 #[test] fn test_number_in_two_parens() { parse_ok("((1))", Number(1)); }
 #[test] fn test_number_parens_with_whitespace() { parse_ok("( 1 )", Number(1)); }
 
-#[test] fn test_assignment() {
+#[test] fn test_local_definition() {
     parse_ok("let x = 1",
-             Assignment {
+             LocalDefinition {
                  identifier: Box::new(Identifier("x")),
                  value: Box::new(Number(1))});
 }
 
 #[test] fn test_mutation()   {
-    parse_ok("x <- 1", Mutation {
+    parse_ok("x <- 1", LocalMutation {
         identifier: Box::new(Identifier("x")),
         value: Box::new(Number(1))});
 }
@@ -295,7 +295,7 @@ fn test_object_with_one_field() {
                  extends: None,
                  parameters: vec!(Box::new(Identifier("x"))),
                  members: vec!(Box::new(
-                     Assignment {
+                     LocalDefinition {
                         identifier: Box::new(Identifier("y")),
                         value: Box::new(Identifier("x"))}))})
 }
@@ -341,10 +341,10 @@ fn test_object_with_many_members() {
                  extends: None,
                  parameters: vec!(Box::new(Identifier("x"))),
                  members: vec!(
-                     Box::new(Assignment {
+                     Box::new(LocalDefinition {
                         identifier: Box::new(Identifier("a")),
                         value: Box::new(Identifier("x"))}),
-                     Box::new(Assignment {
+                     Box::new(LocalDefinition {
                          identifier: Box::new(Identifier("b")),
                          value: Box::new(Boolean(true))}),
                      Box::new(FunctionDefinition {
