@@ -131,7 +131,9 @@ Additive: AST<'input> = {
 
 Factor: AST<'input> = {
     <head: Accessible> <tail: (<FactorOperator> <Accessible>)*> =>
-        make_operator_ast!(head, tail)
+        make_operator_ast!(head, tail),
+    //<head: Field> <tail: (<FactorOperator> <Operand>)*> =>
+    //    make_operator_ast!(head, tail)
 }
 
 Operator: Operator = {
@@ -315,7 +317,7 @@ Mutation<openness>: AST<'input> = {
     <field: Field> LARROW <v: Expression<openness>> =>
         AST::FieldMutation{field_path: Box::new(field), value: Box::new(v)},
     <array: ArrayAccess> LARROW <v: Expression<openness>> =>
-        AST::ArrayMutation {array: Box::new(array), value: Box::new(v)},
+        AST::ArrayMutation{array: Box::new(array), value: Box::new(v)},
 }
 
 Identifier: AST<'input> = {
@@ -328,7 +330,7 @@ Number: AST<'input> = {
 }
 
 String: AST<'input> = {
-    <s:STRING_LITERAL>                   => AST::StringLiteral(&s[1..s.len()-1]),
+    <s:STRING_LITERAL>                   => AST::String(&s[1..s.len()-1]),
 }
 
 Boolean: AST<'input> = {

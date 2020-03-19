@@ -14,6 +14,7 @@ lalrpop_mod!(pub fml); // synthesized by LALRPOP
 
 use crate::fml::TopLevelParser;
 use crate::fml_ast::AST;
+use crate::fml_ast::Operator;
 
 #[allow(dead_code)]
 fn parse_ok(input: &str, correct: AST) {
@@ -328,7 +329,7 @@ fn test_object_with_an_operator() {
                  parameters: vec!(),
                  members: vec!(Box::new(
                      AST::OperatorDefinition {
-                         operator: AST::Operator::Addition,
+                         operator: Operator::Addition,
                          parameters: vec!(Box::new(AST::Identifier("y"))),
                          body: Box::new(AST::Identifier("y"))}))})
 }
@@ -435,7 +436,7 @@ fn test_object_with_many_members() {
              AST::MethodCall {
                  method_path: Box::new(AST::OperatorAccess {
                      object: Box::new(AST::Identifier("a")),
-                     operator: AST::Operator::Addition}),
+                     operator: Operator::Addition}),
                  arguments: vec!(Box::new(AST::Number(1)))});
 }
 
@@ -513,7 +514,7 @@ fn test_object_with_many_members() {
 #[test] fn test_print_call_with_arguments() {
     parse_ok("print(\"~ ~ ~\", 1, true, x)",
              AST::Print {
-                 format: Box::new(AST::StringLiteral("~ ~ ~")),
+                 format: Box::new(AST::String("~ ~ ~")),
                  arguments: vec!(
                      Box::new(AST::Number(1)),
                      Box::new(AST::Boolean(true)),
@@ -523,56 +524,56 @@ fn test_object_with_many_members() {
 #[test] fn test_print_call_without_arguments() {
     parse_ok("print(\"~ ~ ~\")",
              AST::Print {
-                 format: Box::new(AST::StringLiteral("~ ~ ~")),
+                 format: Box::new(AST::String("~ ~ ~")),
                  arguments: vec!()});
 }
 
 #[test] fn test_print_call_string() {
         parse_ok("print(\"hello world\")",
                  AST::Print {
-                     format: Box::new(AST::StringLiteral("hello world")),
+                     format: Box::new(AST::String("hello world")),
                      arguments: vec!()});
 }
 
 #[test] fn test_print_call_empty_string() {
         parse_ok("print(\"\")",
                  AST::Print {
-                     format: Box::new(AST::StringLiteral("")),
+                     format: Box::new(AST::String("")),
                      arguments: vec!()});
 }
 
 #[test] fn test_print_call_escape_newline() {
         parse_ok("print(\"\\n\")",
                  AST::Print {
-                     format: Box::new(AST::StringLiteral("\\n")),
+                     format: Box::new(AST::String("\\n")),
                      arguments: vec!()});
 }
 
 #[test] fn test_print_call_escape_tab() {
         parse_ok("print(\"\\t\")",
                  AST::Print {
-                     format: Box::new(AST::StringLiteral("\\t")),
+                     format: Box::new(AST::String("\\t")),
                      arguments: vec!()});
 }
 
 #[test] fn test_print_call_escape_backspace() {
         parse_ok("print(\"\\b\")",
                  AST::Print {
-                     format: Box::new(AST::StringLiteral("\\b")),
+                     format: Box::new(AST::String("\\b")),
                      arguments: vec!()});
 }
 
 #[test] fn test_print_call_escape_return() {
     parse_ok("print(\"\\r\")",
              AST::Print {
-                 format: Box::new(AST::StringLiteral("\\r")),
+                 format: Box::new(AST::String("\\r")),
                  arguments: vec!()});
 }
 
 #[test] fn test_print_call_escape_backslash() {
     parse_ok("print(\"\\\\\")",
              AST::Print {
-                 format: Box::new(AST::StringLiteral("\\\\")),
+                 format: Box::new(AST::String("\\\\")),
                  arguments: vec!()});
 }
 
@@ -583,7 +584,7 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_disjunction() {
     parse_ok("true | false",
              AST::Operation {
-                 operator: AST::Operator::Disjunction,
+                 operator: Operator::Disjunction,
                  left: Box::new(AST::Boolean(true)),
                  right: Box::new(AST::Boolean(false))});
 }
@@ -591,10 +592,10 @@ fn test_object_with_many_members() {
 #[test] fn test_double_disjunction() {
     parse_ok("true | false | true",
              AST::Operation {
-                 operator: AST::Operator::Disjunction,
+                 operator: Operator::Disjunction,
                  left: Box::new(
                      AST::Operation {
-                         operator: AST::Operator::Disjunction,
+                         operator: Operator::Disjunction,
                          left: Box::new(AST::Boolean(true)),
                          right: Box::new(AST::Boolean(false))}),
                  right: Box::new(AST::Boolean(true))});
@@ -603,7 +604,7 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_conjunction() {
     parse_ok("true & false",
              AST::Operation {
-                 operator: AST::Operator::Conjunction,
+                 operator: Operator::Conjunction,
                  left: Box::new(AST::Boolean(true)),
                  right: Box::new(AST::Boolean(false))});
 }
@@ -611,10 +612,10 @@ fn test_object_with_many_members() {
 #[test] fn test_double_conjunction() {
     parse_ok("true & false & true",
              AST::Operation {
-                 operator: AST::Operator::Conjunction,
+                 operator: Operator::Conjunction,
                  left: Box::new(
                      AST::Operation {
-                         operator: AST::Operator::Conjunction,
+                         operator: Operator::Conjunction,
                          left: Box::new(AST::Boolean(true)),
                          right: Box::new(AST::Boolean(false))}),
                  right: Box::new(AST::Boolean(true))});
@@ -623,7 +624,7 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_equality() {
     parse_ok("true == false",
              AST::Operation {
-                 operator: AST::Operator::Equality,
+                 operator: Operator::Equality,
                  left: Box::new(AST::Boolean(true)),
                  right: Box::new(AST::Boolean(false))});
 }
@@ -632,7 +633,7 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_inequality() {
     parse_ok("true != false",
              AST::Operation {
-                 operator: AST::Operator::Inequality,
+                 operator: Operator::Inequality,
                  left: Box::new(AST::Boolean(true)),
                  right: Box::new(AST::Boolean(false))});
 }
@@ -641,10 +642,10 @@ fn test_object_with_many_members() {
     //or (true, (true & false & false)))
     parse_ok("true | true & false",
              AST::Operation {
-                 operator: AST::Operator::Disjunction,
+                 operator: Operator::Disjunction,
                  left: Box::new(AST::Boolean(true)),
                  right: Box::new(AST::Operation {
-                     operator: AST::Operator::Conjunction,
+                     operator: Operator::Conjunction,
                      left: Box::new(AST::Boolean(true)),
                      right: Box::new(AST::Boolean(false))
                  })
@@ -655,14 +656,14 @@ fn test_object_with_many_members() {
     //or (true, (true & false & false)))
     parse_ok("true & false | true & false",
              AST::Operation {
-                 operator: AST::Operator::Disjunction,
+                 operator: Operator::Disjunction,
                  left: Box::new(AST::Operation {
-                     operator: AST::Operator::Conjunction,
+                     operator: Operator::Conjunction,
                      left: Box::new(AST::Boolean(true)),
                      right: Box::new(AST::Boolean(false))
                  }),
                  right: Box::new(AST::Operation {
-                     operator: AST::Operator::Conjunction,
+                     operator: Operator::Conjunction,
                      left: Box::new(AST::Boolean(true)),
                      right: Box::new(AST::Boolean(false))
                  })
@@ -673,22 +674,22 @@ fn test_object_with_many_members() {
     //or (true, (true & false & false)))
     parse_ok("true & false | true & false | true & false",
              AST::Operation {
-                 operator: AST::Operator::Disjunction,
+                 operator: Operator::Disjunction,
                  left: Box::new(AST::Operation {
-                     operator: AST::Operator::Disjunction,
+                     operator: Operator::Disjunction,
                      left: Box::new(AST::Operation {
-                         operator: AST::Operator::Conjunction,
+                         operator: Operator::Conjunction,
                          left: Box::new(AST::Boolean(true)),
                          right: Box::new(AST::Boolean(false))
                      }),
                      right: Box::new(AST::Operation {
-                         operator: AST::Operator::Conjunction,
+                         operator: Operator::Conjunction,
                          left: Box::new(AST::Boolean(true)),
                          right: Box::new(AST::Boolean(false))
                      })
                  }),
                  right: Box::new(AST::Operation {
-                     operator: AST::Operator::Conjunction,
+                     operator: Operator::Conjunction,
                      left: Box::new(AST::Boolean(true)),
                      right: Box::new(AST::Boolean(false))
                  })});
@@ -698,24 +699,24 @@ fn test_object_with_many_members() {
     //or (true, (true & false & false)))
     parse_ok("true & false & true | true & true & false & true | true & false",
              AST::Operation {
-                 operator: AST::Operator::Disjunction,
+                 operator: Operator::Disjunction,
                  left: Box::new(AST::Operation {
-                     operator: AST::Operator::Disjunction,
+                     operator: Operator::Disjunction,
                      left: Box::new(AST::Operation {
-                         operator: AST::Operator::Conjunction,
+                         operator: Operator::Conjunction,
                          left: Box::new(AST::Operation {
-                             operator: AST::Operator::Conjunction,
+                             operator: Operator::Conjunction,
                              left: Box::new(AST::Boolean(true)),
                              right: Box::new(AST::Boolean(false))
                          }),
                          right: Box::new(AST::Boolean(true))
                      }),
                      right: Box::new(AST::Operation {
-                         operator: AST::Operator::Conjunction,
+                         operator: Operator::Conjunction,
                          left: Box::new(AST::Operation {
-                             operator: AST::Operator::Conjunction,
+                             operator: Operator::Conjunction,
                              left: Box::new(AST::Operation {
-                                 operator: AST::Operator::Conjunction,
+                                 operator: Operator::Conjunction,
                                  left: Box::new(AST::Boolean(true)),
                                  right: Box::new(AST::Boolean(true))
                              }),
@@ -725,7 +726,7 @@ fn test_object_with_many_members() {
                      })
                  }),
                  right: Box::new(AST::Operation {
-                     operator: AST::Operator::Conjunction,
+                     operator: Operator::Conjunction,
                      left: Box::new(AST::Boolean(true)),
                      right: Box::new(AST::Boolean(false))
                  })});
@@ -734,15 +735,25 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_addition() {
     parse_ok("1 + 2",
              AST::Operation {
-                 operator: AST::Operator::Addition,
+                 operator: Operator::Addition,
                  left: Box::new(AST::Number(1)),
+                 right: Box::new(AST::Number(2))});
+}
+
+#[test] fn test_addition_to_field_object() {
+    parse_ok("a.x + 2",
+             AST::Operation {
+                 operator: Operator::Addition,
+                 left: Box::new(AST::FieldAccess {
+                     field: Box::new(AST::Identifier("x")),
+                     object: Box::new(AST::Identifier("a"))}),
                  right: Box::new(AST::Number(2))});
 }
 
 #[test] fn test_simple_subtraction() {
     parse_ok("1 - 2",
              AST::Operation {
-                 operator: AST::Operator::Subtraction,
+                 operator: Operator::Subtraction,
                  left: Box::new(AST::Number(1)),
                  right: Box::new(AST::Number(2))});
 }
@@ -750,7 +761,7 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_multiplication() {
     parse_ok("1 * 2",
              AST::Operation {
-                 operator: AST::Operator::Multiplication,
+                 operator: Operator::Multiplication,
                  left: Box::new(AST::Number(1)),
                  right: Box::new(AST::Number(2))});
 }
@@ -758,7 +769,7 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_module() {
     parse_ok("1 % 2",
              AST::Operation {
-                 operator: AST::Operator::Module,
+                 operator: Operator::Module,
                  left: Box::new(AST::Number(1)),
                  right: Box::new(AST::Number(2))});
 }
@@ -766,7 +777,7 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_division() {
     parse_ok("1 / 2",
              AST::Operation {
-                 operator: AST::Operator::Division,
+                 operator: Operator::Division,
                  left: Box::new(AST::Number(1)),
                  right: Box::new(AST::Number(2))});
 }
@@ -774,7 +785,7 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_less_than() {
     parse_ok("1 < 2",
              AST::Operation {
-                 operator: AST::Operator::Less,
+                 operator: Operator::Less,
                  left: Box::new(AST::Number(1)),
                  right: Box::new(AST::Number(2))});
 }
@@ -782,7 +793,7 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_less_or_equal() {
     parse_ok("1 <= 2",
              AST::Operation {
-                 operator: AST::Operator::LessEqual,
+                 operator: Operator::LessEqual,
                  left: Box::new(AST::Number(1)),
                  right: Box::new(AST::Number(2))});
 }
@@ -790,7 +801,7 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_greater_than() {
     parse_ok("1 > 2",
              AST::Operation {
-                 operator: AST::Operator::Greater,
+                 operator: Operator::Greater,
                  left: Box::new(AST::Number(1)),
                  right: Box::new(AST::Number(2))});
 }
@@ -798,7 +809,7 @@ fn test_object_with_many_members() {
 #[test] fn test_simple_greater_or_equal() {
     parse_ok("1 >= 2",
              AST::Operation {
-                 operator: AST::Operator::GreaterEqual,
+                 operator: Operator::GreaterEqual,
                  left: Box::new(AST::Number(1)),
                  right: Box::new(AST::Number(2))});
 }
@@ -809,7 +820,7 @@ fn test_object_with_many_members() {
 #[test] fn test_comment_in_expression() {
     parse_ok("1 + (* a *) 2",
              AST::Operation {
-                 operator: AST::Operator::Addition,
+                 operator: Operator::Addition,
                  left: Box::new(AST::Number(1)),
                  right: Box::new(AST::Number(2))});
 }

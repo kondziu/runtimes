@@ -8,7 +8,7 @@ pub trait Portable {
 
 #[derive(PartialEq,Debug,Serialize,Deserialize)]
 pub enum AST<'ast> {
-    StringLiteral(&'ast str),
+    String(&'ast str),
     Number(i32),
     Boolean(bool),
     Unit,
