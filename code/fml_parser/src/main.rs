@@ -1,6 +1,7 @@
 #[macro_use]
 pub mod ast;
 pub mod environment;
+pub mod interpreter;
 
 extern crate serde;
 extern crate serde_lexpr;
