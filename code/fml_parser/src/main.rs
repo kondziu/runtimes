@@ -11,7 +11,7 @@ extern crate serde_yaml;
 #[test] fn environment_basic_test() {
     let mut gamma = environment::Environment::new();
     assert!(gamma.define_binding("x", environment::Object::Reference(0)).is_ok());
-    assert!(Ok(environment::Object::Reference(0)) == gamma.lookup_binding("x"));
+    assert_eq!(gamma.lookup_binding("x"), Ok(environment::Object::Reference(0)));
 }
 
 #[test] fn environment_parent_test() {
@@ -19,7 +19,7 @@ extern crate serde_yaml;
     assert!(gamma_parent.define_binding("x", environment::Object::Reference(0)).is_ok());
 
     let gamma_child = gamma_parent.child();
-    assert!(Ok(environment::Object::Reference(0)) == gamma_child.lookup_binding("x"));
+    assert_eq!(gamma_child.lookup_binding("x"), Ok(environment::Object::Reference(0)));
 }
 
 #[test] fn environment_shadowing_test() {
@@ -28,7 +28,7 @@ extern crate serde_yaml;
 
     let mut gamma_child = gamma_parent.child();
     assert!(gamma_child.define_binding("x", environment::Object::Reference(1)).is_ok());
-    assert!(Ok(environment::Object::Reference(1)) == gamma_child.lookup_binding("x"));
+    assert_eq!(gamma_child.lookup_binding("x"), Ok(environment::Object::Reference(1)));
 }
 
 #[test] fn environment_undefined_lookup_test() {
@@ -46,12 +46,23 @@ extern crate serde_yaml;
     let mut gamma = environment::Environment::new();
     assert!(gamma.define_binding("x", environment::Object::Reference(0)).is_ok());
     assert!(gamma.redefine_binding("x", environment::Object::Reference(1)).is_ok());
-    assert!(Ok(environment::Object::Reference(1)) == gamma.lookup_binding("x"));
+    assert_eq!(gamma.lookup_binding("x"), Ok(environment::Object::Reference(1)));
 }
 
 #[test] fn environment_redefine_undefined_error_test() {
     let mut gamma = environment::Environment::new();
     assert!(gamma.redefine_binding("x", environment::Object::Reference(1)).is_err());
+}
+
+#[test] fn interpreter_define_test() {
+    let mut gamma = environment::Environment::new();
+
+    let ast = ast::AST::LocalDefinition {
+        identifier: Box::new(ast::AST::Identifier("x")),
+        value: Box::new(ast::AST::Number(1))
+    };
+
+    assert_eq!(interpreter::evaluate(&mut gamma, ast), environment::Object::Unit)
 }
 
 fn main() {
