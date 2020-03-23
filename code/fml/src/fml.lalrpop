@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::collections::VecDeque;
-use crate::fml_ast::AST;
-use crate::fml_ast::Operator;
+use crate::ast::AST;
+use crate::ast::Operator;
 
 grammar;
 

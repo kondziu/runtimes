@@ -8,13 +8,16 @@ extern crate serde_json;
 extern crate serde_yaml;
 
 #[macro_use]
-pub mod fml_ast;
-
+pub mod ast;
 lalrpop_mod!(pub fml); // synthesized by LALRPOP
 
+//pub mod objects;
+//pub mod environment;
+//pub mod int;
+
 use crate::fml::TopLevelParser;
-use crate::fml_ast::AST;
-use crate::fml_ast::Operator;
+use crate::ast::AST;
+use crate::ast::Operator;
 
 #[allow(dead_code)]
 fn parse_ok(input: &str, correct: AST) {
@@ -828,6 +831,8 @@ fn test_object_with_many_members() {
 #[test] fn test_multiline_comment() {
     parse_ok("(* \n\n\n *)", AST::Unit);
 }
+
+
 
 #[cfg(not(test))]
 fn main() {

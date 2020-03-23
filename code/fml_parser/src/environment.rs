@@ -6,6 +6,9 @@ use std::fmt;
 pub enum Object {
     Unit,
     Reference(u64),
+    Integer(i32),
+    Boolean(bool),
+    //String(&'obj str),
 }
 
 pub struct ObjectInstance;
@@ -13,10 +16,17 @@ pub struct ObjectInstance;
 //type ObjectInstances = HashMap<u64, ObjectInstance>;
 
 #[derive(Debug)]
+struct FunctionDefinition<'env> {
+    name: &'env str,
+    parameters: Vec<&'env str>,
+    body: u64,
+}
+
+#[derive(Debug)]
 pub struct Environment<'env> {
     parent: Option<Box<&'env Environment<'env>>>,
     bindings: HashMap<String, Object>,
-    //functions: HashMap<String, Object>,
+    functions: HashMap<String, FunctionDefinition<'env>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -26,8 +36,8 @@ pub enum BindingError {
     BindingNotFound (String),
 }
 
-type BindingResult<'e> = Result<(), BindingError>;
-type Binding<'e> = Result<Object, BindingError>;
+type BindingResult<'env> = Result<(), BindingError>;
+type Binding<'env> = Result<Object, BindingError>;
 
 impl BindingError {
     fn undefined(binding: &str) -> BindingResult {
@@ -60,12 +70,12 @@ impl error::Error for BindingError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> { None }
 }
 
-impl Environment<'_> {
+impl <'env> Environment<'env> {
     pub fn child(&mut self) -> Environment {
         Environment {
             parent: Some(Box::new(self)),
             bindings: HashMap::new(),
-            //functions: HashMap::new(),
+            functions: HashMap::new(),
         }
     }
 
@@ -73,7 +83,7 @@ impl Environment<'_> {
         Environment {
             parent: None,
             bindings: HashMap::new(),
-            //functions: HashMap::new(),
+            functions: HashMap::new(),
         }
     }
 
@@ -108,5 +118,19 @@ impl Environment<'_> {
             Some(parent) => (*parent).lookup_binding(name),
             None => BindingError::not_found(name)
         }
+    }
+
+    pub fn function_is_defined(&self, name: &str) -> bool {
+        self.functions.contains_key(name)
+    }
+
+    pub fn define_function (&mut self, name: &'env str, parameters: Vec<&'env str>, body_reference: u64) -> BindingResult {
+        if self.function_is_defined(name) {
+            return BindingError::already_defined(name);
+        }
+
+        let definition : FunctionDefinition = FunctionDefinition { name, parameters, body: body_reference };
+        self.functions.insert(name.to_string(), definition);
+        Ok(())
     }
 }
