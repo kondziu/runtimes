@@ -1,6 +1,6 @@
 use crate::ast::AST;
 use crate::environment::EnvironmentStack;
-use crate::heap::{Memory, Function, Reference, FunctionReference};
+use crate::heap::{Memory, Function, Reference};
 
 macro_rules! extract_identifier_token {
     ($ast:expr) => {
@@ -20,7 +20,8 @@ macro_rules! extract_identifier_token {
 //    }
 //}
 
-pub fn evaluate<'forever> (stack: &'forever mut EnvironmentStack, memory: &'forever mut Memory<'forever>, expression: &'forever AST) -> Reference {
+pub fn evaluate<'forever> (stack: &mut EnvironmentStack, memory: &mut Memory<'forever>, expression: &'forever AST) -> Reference {
+//pub fn evaluate(stack: &mut EnvironmentStack, memory: &mut Memory, expression: &AST) -> Reference {
     match expression {
 
         AST::LocalDefinition {identifier, value} => {
@@ -102,9 +103,6 @@ pub fn evaluate<'forever> (stack: &'forever mut EnvironmentStack, memory: &'fore
                 .map (|parameter: &Box<AST>| extract_identifier_token!(parameter) )
                 .collect();
 
-            // TODO put body on a heap
-            // get reference to body from heap
-            let body_reference = 0;
             let function = Function::new(name.to_string(),params, &**body);
             let function_reference = memory.put_function(function);
 
