@@ -7,36 +7,36 @@ pub trait Portable {
 }
 
 #[derive(PartialEq,Debug,Serialize,Deserialize)]
-pub enum AST<'ast> {
-    String(&'ast str),
+pub enum AST {
+    String(String),
     Number(i32),
     Boolean(bool),
     Unit,
-    Identifier(&'ast str),
+    Identifier(String),
 
-    LocalDefinition { identifier: Box<AST<'ast>>, value: Box<AST<'ast>> },
-    ArrayDefinition { size: Box<AST<'ast>>, value: Box<AST<'ast>> },
-    ObjectDefinition { extends: Option<Box<AST<'ast>>>, parameters: Vec<Box<AST<'ast>>>, members: Vec<Box<AST<'ast>>> },
+    LocalDefinition { identifier: Box<AST>, value: Box<AST> },
+    ArrayDefinition { size: Box<AST>, value: Box<AST> },
+    ObjectDefinition { extends: Option<Box<AST>>, parameters: Vec<Box<AST>>, members: Vec<Box<AST>> },
 
-    LocalMutation { identifier: Box<AST<'ast>>, value: Box<AST<'ast>> },
-    FieldMutation { field_path: Box<AST<'ast>>, value: Box<AST<'ast>> },
-    ArrayMutation { array: Box<AST<'ast>>, value: Box<AST<'ast>> },
+    LocalMutation { identifier: Box<AST>, value: Box<AST> },
+    FieldMutation { field_path: Box<AST>, value: Box<AST> },
+    ArrayMutation { array: Box<AST>, value: Box<AST> },
 
-    FunctionDefinition { name: Box<AST<'ast>>, parameters: Vec<Box<AST<'ast>>>, body: Box<AST<'ast>> },
-    OperatorDefinition { operator: Operator, parameters: Vec<Box<AST<'ast>>>, body: Box<AST<'ast>> },
+    FunctionDefinition { name: Box<AST>, parameters: Vec<Box<AST>>, body: Box<AST> },
+    OperatorDefinition { operator: Operator, parameters: Vec<Box<AST>>, body: Box<AST> },
 
-    FunctionApplication { function: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>> },
-    MethodCall { method_path: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>> },
-    Print { format: Box<AST<'ast>>, arguments: Vec<Box<AST<'ast>>> },
+    FunctionApplication { function: Box<AST>, arguments: Vec<Box<AST>> },
+    MethodCall { method_path: Box<AST>, arguments: Vec<Box<AST>> },
+    Print { format: Box<AST>, arguments: Vec<Box<AST>> },
 
-    FieldAccess { object: Box<AST<'ast>>, field: Box<AST<'ast>> },
-    OperatorAccess { object: Box<AST<'ast>>, operator: Operator },
-    ArrayAccess { array: Box<AST<'ast>>, index: Box<AST<'ast>> },
+    FieldAccess { object: Box<AST>, field: Box<AST> },
+    OperatorAccess { object: Box<AST>, operator: Operator },
+    ArrayAccess { array: Box<AST>, index: Box<AST> },
 
-    Block (Vec<Box<AST<'ast>>>),
-    Operation { operator: Operator, left: Box<AST<'ast>>, right: Box<AST<'ast>> },
-    Loop { condition: Box<AST<'ast>>, body: Box<AST<'ast>> },
-    Conditional { condition: Box<AST<'ast>>, consequent: Box<AST<'ast>>, alternative: Box<AST<'ast>> },
+    Block (Vec<Box<AST>>),
+    Operation { operator: Operator, left: Box<AST>, right: Box<AST> },
+    Loop { condition: Box<AST>, body: Box<AST> },
+    Conditional { condition: Box<AST>, consequent: Box<AST>, alternative: Box<AST> },
 }
 
 #[derive(PartialEq,Debug,Copy,Clone,Serialize,Deserialize)]

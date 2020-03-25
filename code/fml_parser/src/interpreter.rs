@@ -1,97 +1,127 @@
 use crate::ast::AST;
-use crate::environment::Environment;
-use crate::environment::Object;
+use crate::environment::EnvironmentStack;
+use crate::heap::{Memory, Function, Reference, FunctionReference};
 
 macro_rules! extract_identifier_token {
     ($ast:expr) => {
-        match $ast {
-            AST::Identifier(token) => token,
+        match &**($ast) {
+            AST::Identifier(token) => token.to_string(),
             ast => panic!("Expected AST::Identifier, but found {:?}", ast),
         }
     }
 }
 
-pub fn evaluate<'a>(environment: &'a mut Environment, expression: &'a AST) -> Object {
+//macro_rules! evaluate_in_new_frame {
+//    ($stack:expr, $memory:expr, $expression:expr) => {
+//        $stack.add_new_level();
+//        let object = evaluate($stack, $memory, $expression);
+//        $stack.remove_newest_level();
+//        object
+//    }
+//}
+
+pub fn evaluate<'forever> (stack: &'forever mut EnvironmentStack, memory: &'forever mut Memory<'forever>, expression: &'forever AST) -> Reference {
     match expression {
 
         AST::LocalDefinition {identifier, value} => {
-            let value = evaluate(&mut environment.child(), &*value);
-            let token = extract_identifier_token!(&**identifier);
-            environment.define_binding(token, value).unwrap();
-            Object::Unit
+            stack.add_new_level();
+            let value = evaluate(stack, memory, &*value);
+            stack.remove_newest_level();
+
+            let name = extract_identifier_token!(identifier);
+            stack.register_binding(name, value);
+
+            Reference::Unit
         },
 
         AST::LocalMutation {identifier, value} => {
-            let value = evaluate(&mut environment.child(), &*value);
-            let token = extract_identifier_token!(&**identifier);
-            environment.redefine_binding(token, value).unwrap(); //FIXME
-            Object::Unit
+            stack.add_new_level();
+            let value = evaluate(stack, memory, &*value);
+            stack.remove_newest_level();
+
+            let name = extract_identifier_token!(identifier);
+            stack.change_binding(name, value).unwrap();
+
+            Reference::Unit
         }
 
         AST::Identifier(token) => {
-            let result = environment.lookup_binding(token);
+            let result = stack.lookup_binding(token);
             match result {
-                Ok(object) => object,
+                Ok(object) => *object,
                 Err(e) => panic!("Cannot resolve identifier: {}", e),
             }
         },
 
-        AST::Number(n) => Object::Integer(*n),
+        AST::Number(n) => Reference::Integer(*n),
         //AST::String(s) => Object::String(s),
-        AST::Boolean(b) => Object::Boolean(*b),
-        AST::Unit => Object::Unit,
+        AST::Boolean(b) => Reference::Boolean(*b),
+        AST::Unit => Reference::Unit,
 
         AST::Block(expressions) => {
-            let mut object = Object::Unit;
+            let mut object = Reference::Unit;
             for expression in expressions {
-                object = evaluate(environment, &*expression)
+                object = evaluate(stack, memory, &*expression)
             }
             object
         },
 
         AST::Conditional { condition, consequent, alternative} => {
-            let value = evaluate(&mut environment.child(),&*condition);
-            let next_expression = if evaluate_to_boolean(value) { &*consequent }
-                                       else { &*alternative };
-            evaluate(&mut environment.child(), next_expression)
+            stack.add_new_level();
+            let object = evaluate(stack, memory, &*condition);
+            assert!(stack.remove_newest_level().is_ok());
+
+            let next_expression =
+                if evaluate_to_boolean(object) { &*consequent } else { &*alternative };
+
+            stack.add_new_level();
+            let result = evaluate(stack, memory, next_expression);
+            assert!(stack.remove_newest_level().is_ok());
+
+            result
         },
 
         AST::Loop { condition, body } => {
-            while evaluate_to_boolean(evaluate(&mut environment.child(),
-                                                     &*condition)) {
-                evaluate(&mut environment.child(), &*body);
+            stack.add_new_level();
+            let object = evaluate(stack, memory,&*condition);
+            assert!(stack.remove_newest_level().is_ok());
+
+            while evaluate_to_boolean(object) {
+                stack.add_new_level();
+                evaluate(stack, memory, &*body);
+                assert!(stack.remove_newest_level().is_ok());
             }
-            Object::Unit
+
+            Reference::Unit
         }
 
         AST::FunctionDefinition { name, body, parameters } => {
-            let name_token = extract_identifier_token!(&**name);
-            fn to_token<'p> (parameter: &Box<AST<'p>>) -> &'p str {
-                extract_identifier_token!(&**parameter)
-            }
-            let parameter_tokens: Vec<&str> = parameters
+            let name = extract_identifier_token!(name);
+            let params: Vec<String> = parameters
                 .iter()
-                .map (|parameter: &Box<AST>| to_token(parameter) )
+                .map (|parameter: &Box<AST>| extract_identifier_token!(parameter) )
                 .collect();
 
             // TODO put body on a heap
             // get reference to body from heap
             let body_reference = 0;
-            environment.define_function(name_token,
-                                        parameter_tokens,
-                                        body_reference).unwrap();
-            Object::Unit
+            let function = Function::new(name.to_string(),params, &**body);
+            let function_reference = memory.put_function(function);
+
+            stack.register_function(name, function_reference);
+
+            Reference::Unit
         }
 
         _ => panic!("Not implemented")
     }
 }
 
-fn evaluate_to_boolean(object: Object) -> bool {
+fn evaluate_to_boolean(object: Reference) -> bool {
     match object {
-        Object::Boolean(b) => b,
-        Object::Unit => false,
-        Object::Reference(_) => true,
-        Object::Integer(n) => n == 0,
+        Reference::Boolean(b) => b,
+        Reference::Unit => false,
+        Reference::Object(_) => true,
+        Reference::Integer(n) => n == 0,
     }
 }
