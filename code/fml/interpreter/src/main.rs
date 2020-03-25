@@ -9,6 +9,7 @@ extern crate serde_lexpr;
 extern crate serde_json;
 extern crate serde_yaml;
 
+
 #[test] fn memory_instance_test() {
     let mut memory = heap::Memory::new();
     let object = heap::Instance::empty();
@@ -254,6 +255,30 @@ extern crate serde_yaml;
                                      &mut memory,
                                      &ast),
                heap::Reference::Integer(2))
+}
+
+// function f(x) x
+#[test] fn interpreter_function_definition() {
+    let mut memory = heap::Memory::new();
+    let mut stack = environment::EnvironmentStack::new();
+    let expression = ast::AST::FunctionDefinition {
+        name: Box::new(ast::AST::Identifier("f".to_string())),
+        parameters: vec!(Box::new(ast::AST::Identifier("x".to_string()))),
+        body: Box::new(ast::AST::Identifier("x".to_string())),
+    };
+    assert_eq!(interpreter::evaluate(&mut stack, &mut memory, &expression),
+               heap::Reference::Unit);
+
+    let reference = *stack.lookup_function("f").unwrap();
+    assert!(memory.contains_function(reference));
+    let function = memory.get_function(reference).unwrap();
+
+    let name = "f".to_string();
+    let parameters = vec!("x".to_string());
+    let body = ast::AST::Identifier("x".to_string());
+    let expected = heap::Function::new(name, parameters, &body);
+
+    assert_eq!(function, &expected);
 }
 
 fn main() {

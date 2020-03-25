@@ -18,7 +18,7 @@ impl Instance {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Function<'ast> {
     name: String,
     parameters: Vec<String>,
