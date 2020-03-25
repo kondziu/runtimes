@@ -60,12 +60,12 @@ match {
 
 // Parser
 
-pub TopLevel: AST<'input> = {
+pub TopLevel: AST = {
     <expressions: Expressions> => expressions,
                                => AST::Unit,
 }
 
-Expressions: AST<'input> = {
+Expressions: AST = {
     <element: Expression<"open">> <elements: (SEMICOLON <Expression<"open">>)*> SEMICOLON? => {
         if elements.is_empty() {
             element
@@ -77,7 +77,7 @@ Expressions: AST<'input> = {
     }
 }
 
-Expression<openness>: AST<'input> = {
+Expression<openness>: AST = {
     FunctionDefinition<openness>      => <>, // Feeny-style function definition, returns unit?
     ObjectDefinition                  => <>, // prototype object definition
     Assignment<openness>              => <>, // Feenified variable definition
@@ -90,12 +90,12 @@ Expression<openness>: AST<'input> = {
 }
 
 
-Block: AST<'input> = {
+Block: AST = {
     BEGIN END                            => AST::Unit,
     BEGIN <expressions: Expressions> END => expressions
 }
 
-Accessible: AST<'input> = {
+Accessible: AST = {
     ParenthesizedExpression           => <>, // expression in parentheses
     Block                             => <>, // expression block
     Application                       => <>, // function application
@@ -105,31 +105,31 @@ Accessible: AST<'input> = {
     Literal                           => <>, // literal, duh
 }
 
-Operation: AST<'input> = {
+Operation: AST = {
     Disjunction             => <> // Let's climb the operator precedence!
 }
 
-Disjunction: AST<'input> = {
+Disjunction: AST = {
     <head: Conjunction> <tail: (<DisjunctionOperator> <Conjunction>)*> =>
         make_operator_ast!(head, tail)
 }
 
-Conjunction: AST<'input> = {
+Conjunction: AST = {
     <head: Comparison> <tail: (<ConjunctionOperator> <Comparison>)*> =>
         make_operator_ast!(head, tail)
 }
 
-Comparison: AST<'input> = {
+Comparison: AST = {
     <head: Additive> <tail: (<EqualityOperator> <Additive>)*> =>
         make_operator_ast!(head, tail)
 }
 
-Additive: AST<'input> = {
+Additive: AST = {
     <head: Factor> <tail: (<AdditiveOperator> <Factor>)*> =>
         make_operator_ast!(head, tail)
 }
 
-Factor: AST<'input> = {
+Factor: AST = {
     <head: Accessible> <tail: (<FactorOperator> <Accessible>)*> =>
         make_operator_ast!(head, tail),
     //<head: Field> <tail: (<FactorOperator> <Operand>)*> =>
@@ -172,23 +172,23 @@ FactorOperator: Operator = {
     MODULE => Operator::Module,
 }
 
-Literal: AST<'input> = {
+Literal: AST = {
     Number                  => <>,
     Boolean                 => <>,
     Unit                    => <>,
 }
 
-ParenthesizedExpression: AST<'input> = {
+ParenthesizedExpression: AST = {
     LPAREN <Expression<"open">> RPAREN    => <>
 }
 
-Member: AST<'input> = {
+Member: AST = {
     Assignment<"open">         => <>,
     FunctionDefinition<"open"> => <>,
     OperatorDefinition<"open"> => <>,
 }
 
-Conditional<openness>: AST<'input> = {
+Conditional<openness>: AST = {
     IF <condition: Expression<"open">> THEN <consequent: Expression<"closed">>
                                        ELSE <alternative: Expression<openness>> =>
         AST::Conditional{condition: Box::new(condition),
@@ -200,9 +200,9 @@ Conditional<openness>: AST<'input> = {
                          alternative: Box::new(AST::Unit)},
 }
 
-Print: AST<'input> = { // TODO format string check
+Print: AST = { // TODO format string check
     PRINT LPAREN <string: String> <arguments: (COMMA <Arguments>)?> RPAREN => {
-        let boxed_arguments: Vec<Box<AST<'input>>> = match arguments {
+        let boxed_arguments: Vec<Box<AST>> = match arguments {
             Some(arguments) => arguments.into_iter().map( | e | Box::new(e)).collect(),
             None => vec!(),
         };
@@ -210,21 +210,21 @@ Print: AST<'input> = { // TODO format string check
     }
 }
 
-ObjectDefinition: AST<'input> = {
+ObjectDefinition: AST = {
     OBJECT <parameters: Parameters> <extends: (EXTENDS <Expression<"open">>)?> <members: Members> =>
         AST::ObjectDefinition {extends: option_into_box!(extends),
                                parameters: put_into_boxes!(parameters),
                                members: put_into_boxes!(members)}
 }
 
-Members: Vec<AST<'input>> = {
+Members: Vec<AST> = {
     BEGIN <elements: (<Member> SEMICOLON)*> <element: Member?> END => match element {
         None => elements,
         Some(e) => { let mut elements = elements; elements.push(e); elements }
     }
 }
 
-Field: AST<'input> = {
+Field: AST = {
     <object: Accessible> DOT <objects: (<Identifier> DOT)*> <field: Identifier> => {
         let mut tail = Vec::from(objects);
         tail.push(field);
@@ -233,7 +233,7 @@ Field: AST<'input> = {
     }
 }
 
-Method: AST<'input> = {
+Method: AST = {
     Field => <>,
     <object: Accessible> DOT <objects: (<Identifier> DOT)*> <operator: Operator> => {
         let path = objects.into_iter().fold(object, |left, right|
@@ -242,38 +242,38 @@ Method: AST<'input> = {
     }
 }
 
-ArrayDefinition: AST<'input> = {
+ArrayDefinition: AST = {
     ARRAY LPAREN <size: Expression<"open">> COMMA <value: Expression<"open">> RPAREN =>
         AST::ArrayDefinition {size: Box::new(size), value: Box::new(value)}
 }
 
-ArrayAccess: AST<'input> = {
+ArrayAccess: AST = {
     <array: Accessible> LBRACKET <index: Expression<"open">> RBRACKET =>
         AST::ArrayAccess {array: Box::new(array), index: Box::new(index)},
     <array: Field> LBRACKET <index: Expression<"open">> RBRACKET =>
         AST::ArrayAccess {array: Box::new(array), index: Box::new(index)}
 }
 
-Loop<openness>: AST<'input> = {
+Loop<openness>: AST = {
     WHILE <condition: Expression<"open">> DO <body: Expression<openness>> =>
         AST::Loop{condition: Box::new(condition), body: Box::new(body)}
 }
 
-FunctionDefinition<openness>: AST<'input> = {
+FunctionDefinition<openness>: AST = {
     FUNCTION <id: Identifier> <parameters: Parameters> LARROW <body: Expression<openness>> =>
         AST::FunctionDefinition{name: Box::new(id),
                                 parameters: put_into_boxes!(parameters),
                                 body: Box::new(body)}
 }
 
-OperatorDefinition<openness>: AST<'input> = {
+OperatorDefinition<openness>: AST = {
     FUNCTION <operator: Operator> <parameters: Parameters> LARROW <body: Expression<openness>> =>
         AST::OperatorDefinition{operator: operator,
                                 parameters: put_into_boxes!(parameters),
                                 body: Box::new(body)}
 }
 
-Parameters: Vec<AST<'input>> = {
+Parameters: Vec<AST> = {
     LPAREN <elements: (<Identifier> COMMA)*> <element: Identifier?> RPAREN =>
         match element {
             None => elements,
@@ -281,37 +281,37 @@ Parameters: Vec<AST<'input>> = {
         }
 }
 
-Application: AST<'input> = {
+Application: AST = {
     <function: Identifier> LPAREN <arguments: Arguments> RPAREN => {
-        let boxed_arguments: Vec<Box<AST<'input>>> =
+        let boxed_arguments: Vec<Box<AST>> =
             arguments.into_iter().map(|e| Box::new(e)).collect();
         AST::FunctionApplication{function: Box::new(function), arguments: boxed_arguments}
     },
     <method: Method> LPAREN <arguments: Arguments> RPAREN => {
-        let boxed_arguments: Vec<Box<AST<'input>>> =
+        let boxed_arguments: Vec<Box<AST>> =
             arguments.into_iter().map(|e| Box::new(e)).collect();
         AST::MethodCall{method_path: Box::new(method), arguments: boxed_arguments}
     },
     <array: ArrayAccess> LPAREN <arguments: Arguments> RPAREN => {
-        let boxed_arguments: Vec<Box<AST<'input>>> =
+        let boxed_arguments: Vec<Box<AST>> =
             arguments.into_iter().map(|e| Box::new(e)).collect();
         AST::MethodCall{method_path: Box::new(array), arguments: boxed_arguments}
     }
 }
 
-Arguments: Vec<AST<'input>> = {
+Arguments: Vec<AST> = {
     <elements: (<Expression<"open">> COMMA)*> <element: Expression<"open">?> => match element {
         None => elements,
         Some(e) => { let mut elements = elements; elements.push(e); elements }
     }
 }
 
-Assignment<openness>: AST<'input> = {
+Assignment<openness>: AST = {
     LET <id: Identifier> BE <v: Expression<openness>> =>
         AST::LocalDefinition{identifier: Box::new(id), value: Box::new(v)},
 }
 
-Mutation<openness>: AST<'input> = {
+Mutation<openness>: AST = {
     <id: Identifier> LARROW <v: Expression<openness>> =>
         AST::LocalMutation{identifier: Box::new(id), value: Box::new(v)},
     <field: Field> LARROW <v: Expression<openness>> =>
@@ -320,24 +320,24 @@ Mutation<openness>: AST<'input> = {
         AST::ArrayMutation{array: Box::new(array), value: Box::new(v)},
 }
 
-Identifier: AST<'input> = {
-     IDENTIFIER                          => AST::Identifier(<>),
-     THIS                                => AST::Identifier(<>),
+Identifier: AST = {
+     IDENTIFIER                          => AST::Identifier(<>.to_string()),
+     THIS                                => AST::Identifier(<>.to_string()),
 }
 
-Number: AST<'input> = {
+Number: AST = {
      NUMBER                              => AST::Number(i32::from_str(<>).unwrap()),
 }
 
-String: AST<'input> = {
-    <s:STRING_LITERAL>                   => AST::String(&s[1..s.len()-1]),
+String: AST = {
+    <s:STRING_LITERAL>                   => AST::String(s[1..s.len()-1].to_string()),
 }
 
-Boolean: AST<'input> = {
+Boolean: AST = {
     TRUE                                 => AST::Boolean(true),
     FALSE                                => AST::Boolean(false),
 }
 
-Unit: AST<'input> = {
+Unit: AST = {
     UNIT                                 => AST::Unit,
 }

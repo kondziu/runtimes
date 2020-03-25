@@ -53,12 +53,12 @@ fn parse_err(input: &str) {
 #[test] fn test_negative_00()  { parse_ok("-00",  AST::Number(0));   }
 
 
-#[test] fn test_underscore()             { parse_ok("_",     AST::Identifier("_"));     }
-#[test] fn test_underscore_identifier()  { parse_ok("_x",    AST::Identifier("_x"));    }
-#[test] fn test_identifier()             { parse_ok("x",     AST::Identifier("x"));     }
-#[test] fn test_identifier_with_number() { parse_ok("x1",    AST::Identifier("x1"));    }
-#[test] fn test_multiple_underscores()   { parse_ok("___",   AST::Identifier("___"));   }
-#[test] fn test_long_identifier()        { parse_ok("stuff", AST::Identifier("stuff")); }
+#[test] fn test_underscore()             { parse_ok("_",     AST::Identifier("_".to_string()));     }
+#[test] fn test_underscore_identifier()  { parse_ok("_x",    AST::Identifier("_x".to_string()));    }
+#[test] fn test_identifier()             { parse_ok("x",     AST::Identifier("x".to_string()));     }
+#[test] fn test_identifier_with_number() { parse_ok("x1",    AST::Identifier("x1".to_string()));    }
+#[test] fn test_multiple_underscores()   { parse_ok("___",   AST::Identifier("___".to_string()));   }
+#[test] fn test_long_identifier()        { parse_ok("stuff", AST::Identifier("stuff".to_string())); }
 
 #[test] fn test_true()  { parse_ok("true", AST::Boolean(true));  }
 #[test] fn test_false() { parse_ok("false", AST::Boolean(false)); }
@@ -70,68 +70,68 @@ fn parse_err(input: &str) {
 #[test] fn test_local_definition() {
     parse_ok("let x = 1",
              AST::LocalDefinition {
-                 identifier: Box::new(AST::Identifier("x")),
+                 identifier: Box::new(AST::Identifier("x".to_string())),
                  value: Box::new(AST::Number(1))});
 }
 
 #[test] fn test_mutation()   {
     parse_ok("x <- 1", AST::LocalMutation {
-        identifier: Box::new(AST::Identifier("x")),
+        identifier: Box::new(AST::Identifier("x".to_string())),
         value: Box::new(AST::Number(1))});
 }
 
 #[test] fn test_function_no_args() {
     parse_ok("function f () <- 1",
              AST::FunctionDefinition {
-                 name: Box::new(AST::Identifier("f")),
+                 name: Box::new(AST::Identifier("f".to_string())),
                  parameters: vec!(),
                  body: Box::new(AST::Number(1))}); }
 
 #[test] fn test_function_one_arg() {
     parse_ok("function f (x) <- x",
              AST::FunctionDefinition {
-                 name: Box::new(AST::Identifier("f")),
-                 parameters: vec!(Box::new(AST::Identifier("x"))),
-                 body: Box::new(AST::Identifier("x"))});
+                 name: Box::new(AST::Identifier("f".to_string())),
+                 parameters: vec!(Box::new(AST::Identifier("x".to_string()))),
+                 body: Box::new(AST::Identifier("x".to_string()))});
 }
 
 #[test] fn test_function_many_args() {
     parse_ok("function f (x, y, z) <- x",
              AST::FunctionDefinition {
-                 name: Box::new(AST::Identifier("f")),
-                 parameters: vec!(Box::new(AST::Identifier("x")),
-                                  Box::new(AST::Identifier("y")),
-                                  Box::new(AST::Identifier("z"))),
-                 body: Box::new(AST::Identifier("x"))});
+                 name: Box::new(AST::Identifier("f".to_string())),
+                 parameters: vec!(Box::new(AST::Identifier("x".to_string())),
+                                  Box::new(AST::Identifier("y".to_string())),
+                                  Box::new(AST::Identifier("z".to_string()))),
+                 body: Box::new(AST::Identifier("x".to_string()))});
 }
 
 #[test] fn test_application_no_args() {
     parse_ok("f ()",
              AST::FunctionApplication {
-                 function: Box::new(AST::Identifier("f")),
+                 function: Box::new(AST::Identifier("f".to_string())),
                  arguments: vec!()});
 }
 
 #[test] fn test_application_one_arg() {
     parse_ok("f (0)",
              AST::FunctionApplication {
-                 function: Box::new(AST::Identifier("f")),
+                 function: Box::new(AST::Identifier("f".to_string())),
                  arguments: vec!(Box::new(AST::Number(0)))});
 }
 
 #[test] fn test_application_more_args() {
     parse_ok("f (1, x, true)",
              AST::FunctionApplication {
-                 function: Box::new(AST::Identifier("f")),
+                 function: Box::new(AST::Identifier("f".to_string())),
                  arguments: vec!(Box::new(AST::Number(1)),
-                                 Box::new(AST::Identifier("x")),
+                                 Box::new(AST::Identifier("x".to_string())),
                                  Box::new(AST::Boolean(true)))});
 }
 
 #[test] fn test_application_no_spaces() {
     parse_ok("f(0,-1)",
              AST::FunctionApplication {
-                 function: Box::new(AST::Identifier("f")),
+                 function: Box::new(AST::Identifier("f".to_string())),
                  arguments: vec!(Box::new(AST::Number(0)),
                                  Box::new(AST::Number(-1)))});
 }
@@ -139,7 +139,7 @@ fn parse_err(input: &str) {
 #[test] fn test_application_more_spaces() {
     parse_ok("f    (   0    , -1 )",
              AST::FunctionApplication {
-                 function: Box::new(AST::Identifier("f")),
+                 function: Box::new(AST::Identifier("f".to_string())),
                  arguments: vec!(Box::new(AST::Number(0)),
                                  Box::new(AST::Number(-1)))});
 }
@@ -147,7 +147,7 @@ fn parse_err(input: &str) {
 #[test] fn test_application_extra_comma() {
     parse_ok("f(0,-1,)",
              AST::FunctionApplication {
-                 function: Box::new(AST::Identifier("f")),
+                 function: Box::new(AST::Identifier("f".to_string())),
                  arguments: vec!(Box::new(AST::Number(0)),
                                  Box::new(AST::Number(-1)))});
 }
@@ -206,15 +206,15 @@ fn parse_err(input: &str) {
                     else \
                         if y then 1 else 0",
              AST::Conditional{
-                 condition: Box::new(AST::Identifier("x")),
+                 condition: Box::new(AST::Identifier("x".to_string())),
                  consequent: Box::new(
                      AST::Conditional{
-                         condition: Box::new(AST::Identifier("y")),
+                         condition: Box::new(AST::Identifier("y".to_string())),
                          consequent: Box::new(AST::Number(3)),
                          alternative: Box::new(AST::Number(2))}),
                  alternative: Box::new(
                      AST::Conditional{
-                         condition: Box::new(AST::Identifier("y")),
+                         condition: Box::new(AST::Identifier("y".to_string())),
                          consequent: Box::new(AST::Number(1)),
                          alternative: Box::new(AST::Number(0))})})
 }
@@ -249,7 +249,7 @@ fn test_empty_object_with_one_parameter() {
     parse_ok("object (x) begin end",
              AST::ObjectDefinition {
                  extends: None,
-                 parameters: vec!(Box::new(AST::Identifier("x"))),
+                 parameters: vec!(Box::new(AST::Identifier("x".to_string()))),
                  members: vec!()})
 }
 
@@ -257,8 +257,8 @@ fn test_empty_object_with_one_parameter() {
 fn test_empty_object_with_superobject() {
     parse_ok("object (x) extends y begin end",
              AST::ObjectDefinition {
-                 extends: Some(Box::new(AST::Identifier("y"))),
-                 parameters: vec!(Box::new(AST::Identifier("x"))),
+                 extends: Some(Box::new(AST::Identifier("y".to_string()))),
+                 parameters: vec!(Box::new(AST::Identifier("x".to_string()))),
                  members: vec!()})
 }
 
@@ -267,10 +267,10 @@ fn test_object_extending_expression() {
     parse_ok("object (x) extends if y then 1 else true begin end",
              AST::ObjectDefinition {
                  extends: Some(Box::new(AST::Conditional{
-                     condition: Box::new(AST::Identifier("y")),
+                     condition: Box::new(AST::Identifier("y".to_string())),
                      consequent: Box::new(AST::Number(1)),
                      alternative: Box::new(AST::Boolean(true))})),
-                 parameters: vec!(Box::new(AST::Identifier("x"))),
+                 parameters: vec!(Box::new(AST::Identifier("x".to_string()))),
                  members: vec!()})
 }
 
@@ -282,7 +282,7 @@ fn test_object_extending_ad_hoc_object() {
                      extends: None,
                      parameters: vec!(),
                      members: vec!()})),
-                 parameters: vec!(Box::new(AST::Identifier("x"))),
+                 parameters: vec!(Box::new(AST::Identifier("x".to_string()))),
                  members: vec!()})
 }
 
@@ -291,9 +291,9 @@ fn test_empty_object_with_many_parameters() {
     parse_ok("object (x, y, z) begin end",
              AST::ObjectDefinition {
                  extends: None,
-                 parameters: vec!(Box::new(AST::Identifier("x")),
-                                  Box::new(AST::Identifier("y")),
-                                  Box::new(AST::Identifier("z"))),
+                 parameters: vec!(Box::new(AST::Identifier("x".to_string())),
+                                  Box::new(AST::Identifier("y".to_string())),
+                                  Box::new(AST::Identifier("z".to_string()))),
                  members: vec!()})
 }
 
@@ -302,11 +302,11 @@ fn test_object_with_one_field() {
     parse_ok("object (x) begin let y = x; end",
              AST::ObjectDefinition {
                  extends: None,
-                 parameters: vec!(Box::new(AST::Identifier("x"))),
+                 parameters: vec!(Box::new(AST::Identifier("x".to_string()))),
                  members: vec!(Box::new(
                      AST::LocalDefinition {
-                        identifier: Box::new(AST::Identifier("y")),
-                        value: Box::new(AST::Identifier("x"))}))})
+                        identifier: Box::new(AST::Identifier("y".to_string())),
+                        value: Box::new(AST::Identifier("x".to_string()))}))})
 }
 
 #[test]
@@ -314,14 +314,14 @@ fn test_object_with_one_method() {
     parse_ok("object (x) begin function m (x, y, z) <- y; end",
              AST::ObjectDefinition {
                  extends: None,
-                 parameters: vec!(Box::new(AST::Identifier("x"))),
+                 parameters: vec!(Box::new(AST::Identifier("x".to_string()))),
                  members: vec!(Box::new(
                      AST::FunctionDefinition {
-                        name: Box::new(AST::Identifier("m")),
-                        parameters: vec!(Box::new(AST::Identifier("x")),
-                                        Box::new(AST::Identifier("y")),
-                                          Box::new(AST::Identifier("z"))),
-                        body: Box::new(AST::Identifier("y"))}))})
+                        name: Box::new(AST::Identifier("m".to_string())),
+                        parameters: vec!(Box::new(AST::Identifier("x".to_string())),
+                                        Box::new(AST::Identifier("y".to_string())),
+                                          Box::new(AST::Identifier("z".to_string()))),
+                        body: Box::new(AST::Identifier("y".to_string()))}))})
 }
 
 #[test]
@@ -333,8 +333,8 @@ fn test_object_with_an_operator() {
                  members: vec!(Box::new(
                      AST::OperatorDefinition {
                          operator: Operator::Addition,
-                         parameters: vec!(Box::new(AST::Identifier("y"))),
-                         body: Box::new(AST::Identifier("y"))}))})
+                         parameters: vec!(Box::new(AST::Identifier("y".to_string()))),
+                         body: Box::new(AST::Identifier("y".to_string()))}))})
 }
 
 #[test]
@@ -348,49 +348,49 @@ fn test_object_with_many_members() {
                 end",
              AST::ObjectDefinition {
                  extends: None,
-                 parameters: vec!(Box::new(AST::Identifier("x"))),
+                 parameters: vec!(Box::new(AST::Identifier("x".to_string()))),
                  members: vec!(
                      Box::new(AST::LocalDefinition {
-                        identifier: Box::new(AST::Identifier("a")),
-                        value: Box::new(AST::Identifier("x"))}),
+                        identifier: Box::new(AST::Identifier("a".to_string())),
+                        value: Box::new(AST::Identifier("x".to_string()))}),
                      Box::new(AST::LocalDefinition {
-                         identifier: Box::new(AST::Identifier("b")),
+                         identifier: Box::new(AST::Identifier("b".to_string())),
                          value: Box::new(AST::Boolean(true))}),
                      Box::new(AST::FunctionDefinition {
-                        name: Box::new(AST::Identifier("m")),
-                        parameters: vec!(Box::new(AST::Identifier("x")),
-                                      Box::new(AST::Identifier("y")),
-                                      Box::new(AST::Identifier("z"))),
-                        body: Box::new(AST::Identifier("y"))}),
+                        name: Box::new(AST::Identifier("m".to_string())),
+                        parameters: vec!(Box::new(AST::Identifier("x".to_string())),
+                                      Box::new(AST::Identifier("y".to_string())),
+                                      Box::new(AST::Identifier("z".to_string()))),
+                        body: Box::new(AST::Identifier("y".to_string()))}),
                      Box::new(AST::FunctionDefinition {
-                         name: Box::new(AST::Identifier("id")),
-                         parameters: vec!(Box::new(AST::Identifier("x"))),
-                         body: Box::new(AST::Identifier("x"))}),
+                         name: Box::new(AST::Identifier("id".to_string())),
+                         parameters: vec!(Box::new(AST::Identifier("x".to_string()))),
+                         body: Box::new(AST::Identifier("x".to_string()))}),
                      Box::new(AST::FunctionDefinition {
-                         name: Box::new(AST::Identifier("me")),
+                         name: Box::new(AST::Identifier("me".to_string())),
                          parameters: vec!(),
-                         body: Box::new(AST::Identifier("this"))}))})
+                         body: Box::new(AST::Identifier("this".to_string()))}))})
 }
 
 #[test] fn test_field_access_from_identifier () {
     parse_ok("a.b",
              AST::FieldAccess {
-                 object: Box::new(AST::Identifier("a")),
-                 field: Box::new(AST::Identifier("b"))});
+                 object: Box::new(AST::Identifier("a".to_string())),
+                 field: Box::new(AST::Identifier("b".to_string()))});
 }
 
 #[test] fn test_field_access_from_number () {
     parse_ok("1.b",
              AST::FieldAccess {
                  object: Box::new(AST::Number(1)),
-                 field: Box::new(AST::Identifier("b"))});
+                 field: Box::new(AST::Identifier("b".to_string()))});
 }
 
 #[test] fn test_field_access_from_boolean () {
     parse_ok("true.b",
              AST::FieldAccess {
                  object: Box::new(AST::Boolean(true)),
-                 field: Box::new(AST::Identifier("b"))});
+                 field: Box::new(AST::Identifier("b".to_string()))});
 }
 
 #[test] fn test_field_access_from_parenthesized_expression () {
@@ -398,10 +398,10 @@ fn test_object_with_many_members() {
              AST::FieldAccess {
                  object: Box::new(
                      AST::Conditional{
-                        condition: Box::new(AST::Identifier("x")),
+                        condition: Box::new(AST::Identifier("x".to_string())),
                         consequent: Box::new(AST::Number(1)),
                         alternative: Box::new(AST::Number(2))}),
-                 field: Box::new(AST::Identifier("b"))});
+                 field: Box::new(AST::Identifier("b".to_string()))});
 }
 
 #[test] fn test_field_chain_access () {
@@ -410,18 +410,18 @@ fn test_object_with_many_members() {
                  object: Box::new(
                      AST::FieldAccess {
                         object: Box::new(AST::FieldAccess {
-                            object: Box::new(AST::Identifier("a")),
-                            field: Box::new(AST::Identifier("b"))}),
-                        field: Box::new(AST::Identifier("c"))}),
-                 field: Box::new(AST::Identifier("d"))});
+                            object: Box::new(AST::Identifier("a".to_string())),
+                            field: Box::new(AST::Identifier("b".to_string()))}),
+                        field: Box::new(AST::Identifier("c".to_string()))}),
+                 field: Box::new(AST::Identifier("d".to_string()))});
 }
 
 #[test] fn test_field_mutation_from_identifier () {
     parse_ok("a.b <- 1",
              AST::FieldMutation {
                  field_path: Box::new(AST::FieldAccess {
-                    object: Box::new(AST::Identifier("a")),
-                    field: Box::new(AST::Identifier("b"))}),
+                    object: Box::new(AST::Identifier("a".to_string())),
+                    field: Box::new(AST::Identifier("b".to_string()))}),
                  value: Box::new(AST::Number(1))});
 }
 
@@ -429,8 +429,8 @@ fn test_object_with_many_members() {
     parse_ok("a.b (1)",
              AST::MethodCall {
                  method_path: Box::new(AST::FieldAccess {
-                     object: Box::new(AST::Identifier("a")),
-                     field: Box::new(AST::Identifier("b"))}),
+                     object: Box::new(AST::Identifier("a".to_string())),
+                     field: Box::new(AST::Identifier("b".to_string()))}),
                  arguments: vec!(Box::new(AST::Number(1)))});
 }
 
@@ -438,7 +438,7 @@ fn test_object_with_many_members() {
     parse_ok("a.+(1)",
              AST::MethodCall {
                  method_path: Box::new(AST::OperatorAccess {
-                     object: Box::new(AST::Identifier("a")),
+                     object: Box::new(AST::Identifier("a".to_string())),
                      operator: Operator::Addition}),
                  arguments: vec!(Box::new(AST::Number(1)))});
 }
@@ -446,7 +446,7 @@ fn test_object_with_many_members() {
 #[test] fn test_array_access () {
     parse_ok("a[1]",
              AST::ArrayAccess {
-                 array: Box::new(AST::Identifier("a")),
+                 array: Box::new(AST::Identifier("a".to_string())),
                  index: Box::new(AST::Number(1))});
 }
 
@@ -455,8 +455,8 @@ fn test_object_with_many_members() {
              AST::ArrayAccess {
                  array: Box::new(
                      AST::FieldAccess {
-                         object: Box::new(AST::Identifier("a")),
-                         field: Box::new(AST::Identifier("b"))}),
+                         object: Box::new(AST::Identifier("a".to_string())),
+                         field: Box::new(AST::Identifier("b".to_string()))}),
                  index: Box::new(AST::Number(1))});
 }
 
@@ -465,8 +465,8 @@ fn test_object_with_many_members() {
              AST::ArrayAccess {
                  array: Box::new(
                      AST::ArrayAccess {
-                         array: Box::new(AST::Identifier("a")),
-                         index: Box::new(AST::Identifier("b"))}),
+                         array: Box::new(AST::Identifier("a".to_string())),
+                         index: Box::new(AST::Identifier("b".to_string()))}),
                  index: Box::new(AST::Number(1))});
 }
 
@@ -476,8 +476,8 @@ fn test_object_with_many_members() {
                   AST::MethodCall {
                      method_path: Box::new(
                          AST::ArrayAccess {
-                             array: Box::new(AST::Identifier("a")),
-                             index: Box::new(AST::Identifier("b"))}),
+                             array: Box::new(AST::Identifier("a".to_string())),
+                             index: Box::new(AST::Identifier("b".to_string()))}),
                      arguments: vec!(Box::new(AST::Number(1)))}});
 }
 
@@ -487,19 +487,19 @@ fn test_object_with_many_members() {
                  AST::FieldAccess {
                      object: Box::new(
                          AST::ArrayAccess {
-                             array: Box::new(AST::Identifier("a")),
-                             index: Box::new(AST::Identifier("b"))}),
-                     field: Box::new(AST::Identifier("a"))}});
+                             array: Box::new(AST::Identifier("a".to_string())),
+                             index: Box::new(AST::Identifier("b".to_string()))}),
+                     field: Box::new(AST::Identifier("a".to_string()))}});
 }
 
 #[test] fn test_array_access_with_array_access_as_index () {
     parse_ok("a[b[c]]",
              AST::ArrayAccess {
-                 array: Box::new(AST::Identifier("a")),
+                 array: Box::new(AST::Identifier("a".to_string())),
                  index: Box::new(
                      AST::ArrayAccess {
-                         array: Box::new(AST::Identifier("b")),
-                         index: Box::new(AST::Identifier("c"))})});
+                         array: Box::new(AST::Identifier("b".to_string())),
+                         index: Box::new(AST::Identifier("c".to_string()))})});
 }
 
 #[test] fn test_array_access_from_function_call () {
@@ -507,76 +507,76 @@ fn test_object_with_many_members() {
              AST::ArrayAccess {
                  array: Box::new(
                      AST::FunctionApplication {
-                        function: Box::new(AST::Identifier("f")),
+                        function: Box::new(AST::Identifier("f".to_string())),
                         arguments: vec!(Box::new(AST::Number(0)),
                                          Box::new(AST::Number(0)))}),
                  index: Box::new(
-                     AST::Identifier("x"))});
+                     AST::Identifier("x".to_string()))});
 }
 
 #[test] fn test_print_call_with_arguments() {
     parse_ok("print(\"~ ~ ~\", 1, true, x)",
              AST::Print {
-                 format: Box::new(AST::String("~ ~ ~")),
+                 format: Box::new(AST::String("~ ~ ~".to_string())),
                  arguments: vec!(
                      Box::new(AST::Number(1)),
                      Box::new(AST::Boolean(true)),
-                     Box::new(AST::Identifier("x")))});
+                     Box::new(AST::Identifier("x".to_string())))});
 }
 
 #[test] fn test_print_call_without_arguments() {
     parse_ok("print(\"~ ~ ~\")",
              AST::Print {
-                 format: Box::new(AST::String("~ ~ ~")),
+                 format: Box::new(AST::String("~ ~ ~".to_string())),
                  arguments: vec!()});
 }
 
 #[test] fn test_print_call_string() {
         parse_ok("print(\"hello world\")",
                  AST::Print {
-                     format: Box::new(AST::String("hello world")),
+                     format: Box::new(AST::String("hello world".to_string())),
                      arguments: vec!()});
 }
 
 #[test] fn test_print_call_empty_string() {
         parse_ok("print(\"\")",
                  AST::Print {
-                     format: Box::new(AST::String("")),
+                     format: Box::new(AST::String("".to_string())),
                      arguments: vec!()});
 }
 
 #[test] fn test_print_call_escape_newline() {
         parse_ok("print(\"\\n\")",
                  AST::Print {
-                     format: Box::new(AST::String("\\n")),
+                     format: Box::new(AST::String("\\n".to_string())),
                      arguments: vec!()});
 }
 
 #[test] fn test_print_call_escape_tab() {
         parse_ok("print(\"\\t\")",
                  AST::Print {
-                     format: Box::new(AST::String("\\t")),
+                     format: Box::new(AST::String("\\t".to_string())),
                      arguments: vec!()});
 }
 
 #[test] fn test_print_call_escape_backspace() {
         parse_ok("print(\"\\b\")",
                  AST::Print {
-                     format: Box::new(AST::String("\\b")),
+                     format: Box::new(AST::String("\\b".to_string())),
                      arguments: vec!()});
 }
 
 #[test] fn test_print_call_escape_return() {
     parse_ok("print(\"\\r\")",
              AST::Print {
-                 format: Box::new(AST::String("\\r")),
+                 format: Box::new(AST::String("\\r".to_string())),
                  arguments: vec!()});
 }
 
 #[test] fn test_print_call_escape_backslash() {
     parse_ok("print(\"\\\\\")",
              AST::Print {
-                 format: Box::new(AST::String("\\\\")),
+                 format: Box::new(AST::String("\\\\".to_string())),
                  arguments: vec!()});
 }
 
@@ -748,8 +748,8 @@ fn test_object_with_many_members() {
              AST::Operation {
                  operator: Operator::Addition,
                  left: Box::new(AST::FieldAccess {
-                     field: Box::new(AST::Identifier("x")),
-                     object: Box::new(AST::Identifier("a"))}),
+                     field: Box::new(AST::Identifier("x".to_string())),
+                     object: Box::new(AST::Identifier("a".to_string()))}),
                  right: Box::new(AST::Number(2))});
 }
 
