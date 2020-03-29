@@ -72,7 +72,6 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
         },
 
         AST::Number(n) => Reference::Integer(*n),
-        //AST::String(s) => Object::String(s),
         AST::Boolean(b) => Reference::Boolean(*b),
         AST::Unit => Reference::Unit,
 
@@ -221,11 +220,17 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
             Reference::Unit
         }
 
-//        AST::ObjectDefinition {extends, members} => {
-//
-//        }
+        AST::ObjectDefinition {extends:_, members:_} => panic!("Not implemented"),
+        AST::FieldMutation {field_path:_, value:_} => panic!("Not implemented"),
+        AST::MethodCall {method_path:_, arguments:_} => panic!("Not implemented"),
+        AST::FieldAccess {object:_, field:_} => panic!("Not implemented"),
 
-        _ => panic!("Not implemented")
+        AST::OperatorDefinition { operator:_, parameters:_, body:_} => panic!("Not implemented"),
+        AST::OperatorAccess {object:_, operator:_} => panic!("Not implemented"),
+        AST::Operation {operator:_, left:_, right:_} => panic!("Not implemented"),
+
+        AST::String(_) => panic!("Not implemented"),
+        AST::Print {format:_, arguments:_} => panic!("Not implemented"),
     }
 }
 
