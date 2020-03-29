@@ -5,19 +5,28 @@ use crate::ast::AST;
 // https://github.com/kenpratt/rusty_scheme
 
 #[derive(Debug)]
-pub struct Instance {
-    extends: Option<Reference>,
-    fields: HashMap<String, Reference>,
-    methods: HashMap<String, FunctionReference>
+pub enum Instance {
+    Object {
+        extends: Option<Reference>,
+        fields: HashMap<String, Reference>,
+        methods: HashMap<String, FunctionReference>
+    },
+    Array {
+        size: usize,
+        values: Vec<Reference>,
+    },
 }
 
 impl Instance {
-    pub fn empty() -> Instance {
-        Instance {
+    pub fn object() -> Instance {
+        Instance::Object {
             extends: None,
             fields: HashMap::new(),
             methods: HashMap::new(),
         }
+    }
+    pub fn array(elements: Vec<Reference>) -> Instance {
+        Instance::Array {size: elements.len(), values: elements}
     }
 }
 
@@ -46,6 +55,7 @@ pub enum Reference {
     Integer(i32),
     Boolean(bool),
     //String(&'obj str),
+    Array {reference: u64, size: usize}
 }
 
 pub struct Memory {
@@ -65,6 +75,11 @@ impl ReferenceSequence {
         let n = self.0;
         self.0 += 1;
         FunctionReference::Function(n)
+    }
+    fn next_array(&mut self, size: usize) -> Reference {
+        let n = self.0;
+        self.0 += 1;
+        Reference::Array {reference: n, size}
     }
 }
 
@@ -102,9 +117,20 @@ impl Memory {
     }
 
     pub fn put_object(&mut self, object: Instance) -> Reference {
-        let reference = self.sequence.next_object();
-        self.objects.insert(reference, object);
-        reference
+        match object {
+            Instance::Array {size, values:_} => {
+                let reference = {
+                    self.sequence.next_array(size)
+                };
+                self.objects.insert(reference, object);
+                reference
+            },
+            Instance::Object {extends:_, fields:_, methods:_} => {
+                let reference = self.sequence.next_object();
+                self.objects.insert(reference, object);
+                reference
+            },
+        }
     }
 
     pub fn put_function(&mut self, function: Function) -> FunctionReference {
@@ -112,5 +138,7 @@ impl Memory {
         self.functions.insert(reference, function);
         reference
     }
+
+
 }
 

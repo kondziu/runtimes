@@ -16,7 +16,7 @@ pub enum AST {
 
     LocalDefinition { identifier: Box<AST>, value: Box<AST> },
     ArrayDefinition { size: Box<AST>, value: Box<AST> },
-    ObjectDefinition { extends: Option<Box<AST>>, parameters: Vec<Box<AST>>, members: Vec<Box<AST>> },
+    ObjectDefinition { extends: Option<Box<AST>>, members: Vec<Box<AST>> },
 
     LocalMutation { identifier: Box<AST>, value: Box<AST> },
     FieldMutation { field_path: Box<AST>, value: Box<AST> },
