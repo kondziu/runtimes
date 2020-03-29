@@ -145,6 +145,13 @@ impl EnvironmentStack {
         id
     }
 
+    pub fn reclaim_id(&mut self, id: usize) {
+        if id != self.id_sequence - 1 {
+            panic!("Attempt to reclaim non-consecutive id");
+        }
+        self.id_sequence = id;
+    }
+
     pub fn lookup_binding<'a> (&'a self, name: &'a str) -> Result<&'a Reference, EnvironmentError> {
         let mut cursor = self.frames.last().expect("Invalid stack: empty").id;
         let mut result = not_found_error!(name);
@@ -208,7 +215,9 @@ impl EnvironmentStack {
             panic!("Attempt to pop from stack without pushing")
         }
 
-        let result = self.frames.pop();
-        assert!(result.is_some());
+        match self.frames.pop() {
+            Some(frame) => self.reclaim_id(frame.id),
+            None => panic!("Attempt to pop from empty stack")
+        }
     }
 }

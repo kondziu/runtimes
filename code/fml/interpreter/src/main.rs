@@ -338,6 +338,26 @@ extern crate serde_yaml;
     assert_eq!(function, &expected);
 }
 
+// function f(x) x; f(1)
+#[test] fn interpreter_function_call() {
+    let mut memory = heap::Memory::new();
+    let mut stack = environment::EnvironmentStack::new();
+    let expression =
+        ast::AST::Block(vec!(
+            Box::new(ast::AST::FunctionDefinition {
+                name: Box::new(ast::AST::Identifier("f".to_string())),
+                parameters: vec!(Box::new(ast::AST::Identifier("x".to_string()))),
+                body: Box::new(ast::AST::Identifier("x".to_string()))
+            }),
+            Box::new(ast::AST::FunctionApplication {
+                function: Box::new(ast::AST::Identifier("f".to_string())),
+                arguments: vec!(Box::new(ast::AST::Number(1))),
+            }),
+        ));
+    assert_eq!(interpreter::evaluate(&mut stack, &mut memory, &expression),
+               heap::Reference::Integer(1));
+}
+
 fn main() {
     println!("Hello, world!");
 }
