@@ -16,7 +16,7 @@ pub enum EnvironmentError {
 macro_rules! undefined_error {($name:expr) => { Err(EnvironmentError::Undefined($name)) }}
 macro_rules! already_defined_error {($name:expr) => { Err(EnvironmentError::AlreadyDefined($name)) }}
 macro_rules! not_found_error {($name:expr) => { Err(EnvironmentError::NotFound($name.to_string())) }}
-macro_rules! last_environment_error {() => { Err(EnvironmentError::LastEnvironment) }}
+//macro_rules! last_environment_error {() => { Err(EnvironmentError::LastEnvironment) }}
 //macro_rules! impossible_error {() => { Err(EnvironmentError::Impossible) }}
 macro_rules! all_good{() => { Ok(()) }}
 
@@ -43,14 +43,19 @@ impl error::Error for EnvironmentError {
 
 #[derive(Debug)]
 struct Frame {
-    id: u32,
+    id: usize,
+    parent: Option<usize>,
     bindings: HashMap<String, Reference>,
     functions: HashMap<String, FunctionReference>,
 }
 
 impl Frame {
-    fn new(id: u32) -> Frame {
-        Frame { id, bindings: HashMap::new(), functions: HashMap::new() }
+    fn top() -> Frame {
+        Frame { id: 0, bindings: HashMap::new(), functions: HashMap::new(), parent: None }
+    }
+
+    fn new(id: usize, parent: usize) -> Frame {
+        Frame { id, bindings: HashMap::new(), functions: HashMap::new(), parent: Some(parent) }
     }
 
     fn contains_binding(&self, name: &str) -> bool {
@@ -61,12 +66,26 @@ impl Frame {
         self.functions.contains_key(name)
     }
 
-    fn lookup_binding<'a>(&'a self, name: &'a str) -> Option<&'a Reference> {
-        self.bindings.get(name)
+    fn lookup_binding(&self, name: &str) -> LookupResult {
+        let result = self.bindings.get(name);
+        match result {
+            Some(reference) => LookupResult::Found(reference),
+            None => match self.parent {
+                Some(id) => LookupResult::KeepLooking(id),
+                None => LookupResult::NotFound,
+            }
+        }
     }
 
-    fn lookup_function<'a>(&'a self, name: &'a str) -> Option<&'a FunctionReference> {
-        self.functions.get(name)
+    fn lookup_function<'a>(&'a self, name: &'a str) -> LookupFunctionResult {
+        let result = self.functions.get(name);
+        match result {
+            Some(reference) => LookupFunctionResult::Found(reference),
+            None => match self.parent {
+                Some(id) => LookupFunctionResult::KeepLooking(id),
+                None => LookupFunctionResult::NotFound,
+            }
+        }
     }
 
     fn register_binding(&mut self, name: String, object: Reference) -> Result<(), EnvironmentError> {
@@ -97,49 +116,67 @@ impl Frame {
     }
 }
 
+enum LookupResult<'a> {
+    Found(&'a Reference),
+    KeepLooking(usize),
+    NotFound
+}
+
+enum LookupFunctionResult<'a> {
+    Found(&'a FunctionReference),
+    KeepLooking(usize),
+    NotFound
+}
+
 #[derive(Debug)]
 pub struct EnvironmentStack {
-    id_sequence: u32,
+    id_sequence: usize,
     frames: Vec<Frame>,
 }
 
 impl EnvironmentStack {
     pub fn new() -> EnvironmentStack {
-        let mut stack = EnvironmentStack { id_sequence: 0, frames: Vec::new() };
-        stack.add_new_level();
-        stack
+        EnvironmentStack { id_sequence: 1, frames: vec!(Frame::top()) }
     }
 
-    pub fn contains_binding(&self, name: &str) -> bool {
-        self.frames
-            .iter().rev()
-            .any(|e| e.contains_binding(name))
-    }
-
-    pub fn contains_function(&self, name: &str) -> bool {
-        self.frames
-            .iter().rev()
-            .any(|e| e.contains_function(name))
+    pub fn next_id(&mut self) -> usize {
+        let id = self.id_sequence;
+        self.id_sequence += 1;
+        id
     }
 
     pub fn lookup_binding<'a> (&'a self, name: &'a str) -> Result<&'a Reference, EnvironmentError> {
-        let result = self.frames
-            .iter().rev()
-            .find_map(|e| e.lookup_binding(name));
-        match result {
-            None => not_found_error!(name),
-            Some(object) => Ok(object)
-        }
+        let mut cursor = self.frames.last().expect("Invalid stack: empty").id;
+        let mut result = not_found_error!(name);
+
+        loop {
+            let frame = self.frames.get(cursor)
+                                   .expect(&format!("Invalid stack frame: {}", cursor));
+
+            match frame.lookup_binding(name) {
+                LookupResult::Found(reference) => { result = Ok(reference); break    },
+                LookupResult::KeepLooking(id) =>  { cursor = id;            continue },
+                LookupResult::NotFound =>         {                         break    },
+            }
+        };
+        result
     }
 
     pub fn lookup_function<'a> (&'a self, name: &'a str) -> Result<&'a FunctionReference, EnvironmentError> {
-        let result = self.frames
-            .iter().rev()
-            .find_map(|e| e.lookup_function(name));
-        match result {
-            None => not_found_error!(name),
-            Some(object) => Ok(object)
-        }
+        let mut cursor = self.frames.last().expect("Invalid stack: empty").id;
+        let mut result = not_found_error!(name);
+
+        loop {
+            let frame = self.frames.get(cursor)
+                .expect(&format!("Invalid stack frame: {}", cursor));
+
+            match frame.lookup_function(name) {
+                LookupFunctionResult::Found(reference) => { result = Ok(reference); break    },
+                LookupFunctionResult::KeepLooking(id) =>  { cursor = id;            continue },
+                LookupFunctionResult::NotFound =>         {                         break    },
+            }
+        };
+        result
     }
 
     pub fn register_binding(&mut self, name: String, object: Reference) -> Result<(), EnvironmentError>  {
@@ -154,139 +191,24 @@ impl EnvironmentStack {
         self.frames.last_mut().unwrap().change_binding(name, object)
     }
 
-    pub fn add_new_level(&mut self) {
-        let id = self.id_sequence;
-        self.id_sequence += 1;
-        self.frames.push(Frame::new(id));
+    pub fn add_soft_frame(&mut self) {
+        let parent = self.frames.last().expect("Invalid stack: empty").id;
+        let id = self.next_id();
+        self.frames.push(Frame::new(id, parent));
     }
 
-    pub fn remove_newest_level(&mut self) -> Result<(), EnvironmentError> {
-        if self.frames.len() == 1 { return last_environment_error!() }
+    pub fn add_hard_frame(&mut self) {
+        let parent = self.frames.first().expect("Invalid stack: empty").id;
+        let id = self.next_id();
+        self.frames.push(Frame::new(id, parent));
+    }
+
+    pub fn remove_frame(&mut self) {
+        if self.frames.len() == 1 {
+            panic!("Attempt to pop from stack without pushing")
+        }
 
         let result = self.frames.pop();
         assert!(result.is_some());
-
-        all_good!()
     }
 }
-
-
-
-
-
-
-
-
-
-
-//type ObjectInstances = HashMap<u64, ObjectInstance>;
-
-//#[derive(Debug)]
-//struct FunctionDefinition<'ast> {
-//    name: &'ast str,
-//    parameters: Vec<&'ast str>,
-//    body: u64,
-//}
-
-
-
-
-//
-//#[derive(Debug)]
-//pub struct Environment<'me, 'parent> //where 'parent: 'me
-//{
-//    parent: Option<&'parent Environment<'parent: 'me, 'parent>>,
-//    bindings: HashMap<String, Object>,
-//    //functions: HashMap<String, FunctionDefinition<>>,
-//}
-//
-//#[derive(Debug, Clone, PartialEq)]
-//pub enum BindingError {
-//    BindingUndefined (String),
-//    BindingAlreadyDefined (String),
-//    BindingNotFound (String),
-//}
-//
-//type BindingResult<'env> = Result<(), BindingError>;
-//type Binding<'env> = Result<Object, BindingError>;
-//
-//impl BindingError {
-//    fn undefined(binding: &str) -> BindingResult {
-//        Err(BindingError::BindingUndefined(binding.to_string()))
-//    }
-//
-//    fn already_defined(binding: &str) -> BindingResult {
-//        Err(BindingError::BindingAlreadyDefined(binding.to_string()))
-//    }
-//
-//    fn not_found(binding: &str) -> Binding {
-//        Err(BindingError::BindingNotFound(binding.to_string()))
-//    }
-//}
-//
-
-//
-//impl Environment<'_> {
-//    pub fn child(self) -> Environment {
-//        Environment {
-//            parent: Some(Box::new(self)),
-//            bindings: HashMap::new(),
-//            //functions: HashMap::new(),
-//        }
-//    }
-//
-//    pub fn new() -> Environment {
-//        Environment {
-//            parent: None,
-//            bindings: HashMap::new(),
-//            //functions: HashMap::new(),
-//        }
-//    }
-//
-//    pub fn binding_is_defined(&self, name: &str) -> bool {
-//        self.bindings.contains_key(name)
-//    }
-//
-//    pub fn define_binding(&mut self, name: &str, value: Object) -> BindingResult {
-//        if self.binding_is_defined(name) {
-//            return BindingError::already_defined(name);
-//        }
-//
-//        self.bindings.insert(name.to_string(), value);
-//        Ok(())
-//    }
-//
-//    pub fn redefine_binding(&mut self, name: &str, value: Object) -> BindingResult {
-//        if !self.binding_is_defined(name) {
-//            return BindingError::undefined(name);
-//        }
-//
-//        self.bindings.insert(name.to_string(), value);
-//        Ok(())
-//    }
-//
-//    pub fn lookup_binding(&self, name: &str) -> Binding {
-//        if self.binding_is_defined(name) {
-//            return Ok(self.bindings.get(name).unwrap().to_owned())
-//        }
-//
-//        match &self.parent {
-//            Some(parent) => (*parent).lookup_binding(name),
-//            None => BindingError::not_found(name)
-//        }
-//    }
-//
-////    pub fn function_is_defined(&self, name: &str) -> bool {
-////        self.functions.contains_key(name)
-////    }
-//
-//    pub fn define_function<'ast> (&mut self, name: &'ast str, parameters: Vec<&'ast str>, body_reference: u64) -> BindingResult {
-////        if self.function_is_defined(name) {
-////            return BindingError::already_defined(name);
-////        }
-//
-//        let definition = FunctionDefinition { name, parameters, body: body_reference };
-//        //self.functions.insert(name.to_string(), definition);
-//        Ok(())
-//    }
-//}

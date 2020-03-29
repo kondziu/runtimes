@@ -23,9 +23,9 @@ extern crate serde_yaml;
     let object = heap::Function::new(
         "f".to_string(),
         vec!("x".to_string()),
-        &function_body);
+        Box::new(function_body));
     let reference = memory.put_function(object);
-    assert!(memory.get_function(reference).is_some())
+    assert!(memory.get_function(&reference).is_some())
 }
 
 #[test] fn environment_basic_test() {
@@ -44,24 +44,82 @@ extern crate serde_yaml;
                Ok(&heap::FunctionReference::Function(0)));
 }
 
-#[test] fn environment_parent_test() {
+#[test] fn environment_soft_frame_test() {
     let mut gamma = environment::EnvironmentStack::new();
     assert!(gamma.register_binding("x".to_string(),
                                    heap::Reference::Object(0)).is_ok());
 
-    gamma.add_new_level();
+    gamma.add_soft_frame();
+    assert!(gamma.register_binding("x".to_string(),
+                                   heap::Reference::Object(1)).is_ok());
+
+    gamma.add_soft_frame();
+    assert_eq!(gamma.lookup_binding("x"),
+               Ok(&heap::Reference::Object(1)));
+}
+
+#[test] fn environment_hard_frame_test() {
+    let mut gamma = environment::EnvironmentStack::new();
+    assert!(gamma.register_binding("x".to_string(),
+                                   heap::Reference::Object(0)).is_ok());
+
+    gamma.add_soft_frame();
+    assert!(gamma.register_binding("x".to_string(),
+                                   heap::Reference::Object(1)).is_ok());
+
+    gamma.add_hard_frame();
     assert_eq!(gamma.lookup_binding("x"),
                Ok(&heap::Reference::Object(0)));
 }
 
-#[test] fn environment_parent_function_test() {
+#[test] fn environment_hard_frame_exclusion_test() {
+    let mut gamma = environment::EnvironmentStack::new();
+
+    gamma.add_soft_frame();
+    assert!(gamma.register_binding("x".to_string(),
+                                   heap::Reference::Object(0)).is_ok());
+
+    gamma.add_hard_frame();
+    assert!(gamma.lookup_binding("x").is_err());
+}
+
+#[test] fn environment_soft_frame_function_test() {
     let mut gamma = environment::EnvironmentStack::new();
     assert!(gamma.register_function("f".to_string(),
                                     heap::FunctionReference::Function(0)).is_ok());
 
-    gamma.add_new_level();
+    gamma.add_soft_frame();
+    assert!(gamma.register_function("f".to_string(),
+                                    heap::FunctionReference::Function(1)).is_ok());
+
+    gamma.add_soft_frame();
+    assert_eq!(gamma.lookup_function("f"),
+               Ok(&heap::FunctionReference::Function(1)));
+}
+
+#[test] fn environment_hard_frame_function_test() {
+    let mut gamma = environment::EnvironmentStack::new();
+    assert!(gamma.register_function("f".to_string(),
+                                    heap::FunctionReference::Function(0)).is_ok());
+
+    gamma.add_soft_frame();
+    assert!(gamma.register_function("f".to_string(),
+                                    heap::FunctionReference::Function(1)).is_ok());
+
+    gamma.add_hard_frame();
     assert_eq!(gamma.lookup_function("f"),
                Ok(&heap::FunctionReference::Function(0)));
+}
+
+#[test] fn environment_hard_frame_function_exclusion_test() {
+    let mut gamma = environment::EnvironmentStack::new();
+
+    gamma.add_soft_frame();
+    assert!(gamma.register_function("f".to_string(),
+                                    heap::FunctionReference::Function(0)).is_ok());
+
+    gamma.add_hard_frame();
+    assert!(gamma.lookup_function("f").is_err());
 }
 
 #[test] fn environment_shadowing_test() {
@@ -69,13 +127,13 @@ extern crate serde_yaml;
     assert!(gamma.register_binding("x".to_string(),
                                    heap::Reference::Object(0)).is_ok());
 
-    gamma.add_new_level();
+    gamma.add_soft_frame();
     assert!(gamma.register_binding("x".to_string(),
                                    heap::Reference::Object(1)).is_ok());
     assert_eq!(gamma.lookup_binding("x"),
                Ok(&heap::Reference::Object(1)));
 
-    gamma.remove_newest_level();
+    gamma.remove_frame();
     assert_eq!(gamma.lookup_binding("x"),
                Ok(&heap::Reference::Object(0)));
 }
@@ -85,13 +143,13 @@ extern crate serde_yaml;
     assert!(gamma.register_function("f".to_string(),
                                     heap::FunctionReference::Function(0)).is_ok());
 
-    gamma.add_new_level();
+    gamma.add_soft_frame();
     assert!(gamma.register_function("f".to_string(),
                                     heap::FunctionReference::Function(1)).is_ok());
     assert_eq!(gamma.lookup_function("f"),
                Ok(&heap::FunctionReference::Function(1)));
 
-    gamma.remove_newest_level();
+    gamma.remove_frame();
     assert_eq!(gamma.lookup_function("f"),
                Ok(&heap::FunctionReference::Function(0)));
 }
@@ -269,14 +327,14 @@ extern crate serde_yaml;
     assert_eq!(interpreter::evaluate(&mut stack, &mut memory, &expression),
                heap::Reference::Unit);
 
-    let reference = *stack.lookup_function("f").unwrap();
+    let reference = stack.lookup_function("f").unwrap();
     assert!(memory.contains_function(reference));
     let function = memory.get_function(reference).unwrap();
 
     let name = "f".to_string();
     let parameters = vec!("x".to_string());
     let body = ast::AST::Identifier("x".to_string());
-    let expected = heap::Function::new(name, parameters, &body);
+    let expected = heap::Function::new(name, parameters, Box::new(body));
     assert_eq!(function, &expected);
 }
 

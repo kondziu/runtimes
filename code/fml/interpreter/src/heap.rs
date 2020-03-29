@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use crate::ast::AST;
-use std::cell::RefCell;
 
 // https://dev.to/deciduously/rust-your-own-lisp-50an
 // https://github.com/kenpratt/rusty_scheme
