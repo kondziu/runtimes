@@ -332,7 +332,7 @@ Represents a function application with a list of arguments.
 
 Type: `FunctionApplication { function: AST, arguments: Vec<AST> }`  
 Arguments:
-  - `function` an `AST` that evaluates to a function object
+  - `function` is an `Identifier`
   - `arguments` a list of `AST`s representing expressions
     
 FML: `f(1)`  

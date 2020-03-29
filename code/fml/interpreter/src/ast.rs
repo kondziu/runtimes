@@ -6,7 +6,7 @@ pub trait Portable {
   fn to_string(&self) -> String;
 }
 
-#[derive(PartialEq,Debug,Serialize,Deserialize)]
+#[derive(PartialEq,Debug,Serialize,Deserialize,Clone)]
 pub enum AST {
     String(String),
     Number(i32),

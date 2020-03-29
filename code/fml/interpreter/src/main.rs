@@ -14,7 +14,7 @@ extern crate serde_yaml;
     let mut memory = heap::Memory::new();
     let object = heap::Instance::empty();
     let reference = memory.put_object(object);
-    assert!(memory.get_object(reference).is_some())
+    assert!(memory.get_object(&reference).is_some())
 }
 
 #[test] fn memory_function_test() {
@@ -277,7 +277,6 @@ extern crate serde_yaml;
     let parameters = vec!("x".to_string());
     let body = ast::AST::Identifier("x".to_string());
     let expected = heap::Function::new(name, parameters, &body);
-
     assert_eq!(function, &expected);
 }
 

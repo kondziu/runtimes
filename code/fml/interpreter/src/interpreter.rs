@@ -1,6 +1,6 @@
 use crate::ast::AST;
 use crate::environment::EnvironmentStack;
-use crate::heap::{Memory, Function, Reference};
+use crate::heap::{Memory, Function, Reference, FunctionReference};
 
 macro_rules! extract_identifier_token {
     ($ast:expr) => {
@@ -20,7 +20,12 @@ macro_rules! extract_identifier_token {
 //    }
 //}
 
-pub fn evaluate<'forever> (stack: &mut EnvironmentStack, memory: &mut Memory<'forever>, expression: &'forever AST) -> Reference {
+pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: &AST) -> Reference {
+    // 1. 'forever is at least as long as 'here
+    // 2. Memory cannot exceed 'forever
+    // 3. memory must live at least as long as 'here
+    // 4. stack must live at least as long as 'here
+    // 5. expression must live at least as long as 'forever
 //pub fn evaluate(stack: &mut EnvironmentStack, memory: &mut Memory, expression: &AST) -> Reference {
     match expression {
 
@@ -103,13 +108,66 @@ pub fn evaluate<'forever> (stack: &mut EnvironmentStack, memory: &mut Memory<'fo
                 .map (|parameter: &Box<AST>| extract_identifier_token!(parameter) )
                 .collect();
 
-            let function = Function::new(name.to_string(),params, &**body);
+            let function = Function::new(name.to_string(),params, body.clone());
             let function_reference = memory.put_function(function);
 
             stack.register_function(name, function_reference);
 
             Reference::Unit
         }
+
+        AST::FunctionApplication {function, arguments} => {
+            let name = extract_identifier_token!(function);
+            let function_reference = stack.lookup_function(&name).unwrap();         // TODO error handling
+            let mut function: Function = (*memory.get_function(function_reference).unwrap()).clone();               // TODO error handling
+
+            let bindings = {
+                let mut bindings: Vec<(String, Reference)> = Vec::new();
+                for (parameter, expression) in function.parameters.iter().zip(arguments.iter()) {
+                    stack.add_new_level();
+                    let object = evaluate(stack, memory, &(**expression).clone());
+                    assert!(stack.remove_newest_level().is_ok());
+                    bindings.push((parameter.to_string(), object))
+                }
+                bindings
+            };
+
+            stack.add_new_level();
+            bindings.into_iter().for_each(|binding| {
+               let (name, object) = binding;
+               stack.register_binding(name, object);
+            });
+            let object = evaluate(stack, memory, &*function.body);
+            stack.remove_newest_level();
+            object
+        }
+
+            //let function = &Function::new("f".to_string(), vec!("x".to_string()), &AST::Unit);
+
+//            let bindings: Vec<(String, Reference)> =
+//                function.parameters.iter()
+//                    .zip(arguments.iter())
+//                    .map(|e| {
+//                        let parameter = e.0.to_string();
+//                        let expression = &**(e.1);
+//                        stack.add_new_level();
+//                        let object = evaluate(stack, memory, expression);
+//                        assert!(stack.remove_newest_level().is_ok());
+//                        (parameter, object)
+//                    }).collect();
+//
+//            stack.add_new_level();
+//            bindings.into_iter().for_each(|binding| {
+//                let (name, object) = binding;
+//               stack.register_binding(name, object);
+//            });
+//            assert!(stack.remove_newest_level().is_ok());
+
+            //let m: &'forever mut Memory<'forever> = memory;
+
+
+            //Reference::Unit
+
 
         _ => panic!("Not implemented")
     }

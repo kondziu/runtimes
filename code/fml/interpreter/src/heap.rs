@@ -1,5 +1,9 @@
 use std::collections::HashMap;
 use crate::ast::AST;
+use std::cell::RefCell;
+
+// https://dev.to/deciduously/rust-your-own-lisp-50an
+// https://github.com/kenpratt/rusty_scheme
 
 #[derive(Debug)]
 pub struct Instance {
@@ -18,15 +22,15 @@ impl Instance {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Function<'ast> {
-    name: String,
-    parameters: Vec<String>,
-    body: &'ast AST,
+#[derive(Debug, PartialEq, Clone)]
+pub struct Function {
+    pub name: String,
+    pub parameters: Vec<String>,
+    pub body: Box<AST>,
 }
 
-impl<'ast> Function<'ast> {
-    pub fn new(name: String, parameters: Vec<String>, body: &'ast AST) -> Function<'ast> {
+impl Function {
+    pub fn new(name: String, parameters: Vec<String>, body: Box<AST>) -> Function {
         Function { name, parameters, body }
     }
 }
@@ -45,10 +49,10 @@ pub enum Reference {
     //String(&'obj str),
 }
 
-pub struct Memory<'ast> {
+pub struct Memory {
     sequence: ReferenceSequence,
     objects: HashMap<Reference, Instance>,
-    functions: HashMap<FunctionReference, Function<'ast>>,
+    functions: HashMap<FunctionReference, Function>,
 }
 
 struct ReferenceSequence(u64);
@@ -65,8 +69,8 @@ impl ReferenceSequence {
     }
 }
 
-impl<'ast> Memory<'ast> {
-    pub fn new() -> Memory<'ast> {
+impl Memory {
+    pub fn new() -> Memory {
         Memory {
             sequence: ReferenceSequence(0),
             objects: HashMap::new(),
@@ -74,28 +78,28 @@ impl<'ast> Memory<'ast> {
         }
     }
 
-    pub fn contains_object(&self, reference: Reference) -> bool {
-        self.objects.contains_key(&reference)
+    pub fn contains_object(&self, reference: &Reference) -> bool {
+        self.objects.contains_key(reference)
     }
 
-    pub fn contains_function(&self, reference: FunctionReference) -> bool {
-        self.functions.contains_key(&reference)
+    pub fn contains_function(&self, reference: &FunctionReference) -> bool {
+        self.functions.contains_key(reference)
     }
 
-    pub fn get_object(&self, reference: Reference) -> Option<&Instance> {
-        self.objects.get(&reference)
+    pub fn get_object(&self, reference: &Reference) -> Option<&Instance> {
+        self.objects.get(reference)
     }
 
-    pub fn get_function(&self, reference: FunctionReference) -> Option<&Function> {
-        self.functions.get(&reference)
+    pub fn get_function(&self, reference: &FunctionReference) -> Option<&Function> {
+        self.functions.get(reference)
     }
 
-    pub fn get_object_mut(&mut self, reference: Reference) -> Option<&mut Instance> {
-        self.objects.get_mut(&reference)
+    pub fn get_object_mut(&mut self, reference: &Reference) -> Option<&mut Instance> {
+        self.objects.get_mut(reference)
     }
 
-    pub fn get_function_mut(&'ast mut self, reference: FunctionReference) -> Option<&'ast mut Function<'ast>> {
-        self.functions.get_mut(&reference)
+    pub fn get_function_mut(&mut self, reference: &FunctionReference) -> Option<&mut Function> {
+        self.functions.get_mut(reference)
     }
 
     pub fn put_object(&mut self, object: Instance) -> Reference {
@@ -104,7 +108,7 @@ impl<'ast> Memory<'ast> {
         reference
     }
 
-    pub fn put_function(&mut self, function: Function<'ast>) -> FunctionReference {
+    pub fn put_function(&mut self, function: Function) -> FunctionReference {
         let reference = self.sequence.next_function();
         self.functions.insert(reference, function);
         reference
