@@ -37,18 +37,6 @@ mod environment_tests {
     use crate::heap::Reference;
     use crate::heap::FunctionReference;
 
-    macro_rules! make_function {
-        ($name:expr, $body:expr, $( $parameter:expr ),*) => {
-            Function::new($name.to_string(), {
-                let mut parameters: Vec<String> = Vec::new();
-                $(
-                    parameters.push($parameter.to_string());
-                )*
-                parameters
-            }, Box::new($body));
-        }
-    }
-
     #[test]
     fn basic () {
         let mut gamma = EnvironmentStack::new();
@@ -244,6 +232,35 @@ mod interpreter_tests {
     use crate::environment::EnvironmentStack;
     use crate::interpreter::evaluate;
     use fml_parser::parse;
+    use crate::heap::Instance::Object;
+    use std::collections::HashMap;
+
+    macro_rules! make_function {
+        ($name:expr, $body:expr, $( $parameter:expr ),*) => {
+            Function::new($name.to_string(), {
+                let mut parameters: Vec<String> = Vec::new();
+                $(
+                    parameters.push($parameter.to_string());
+                )*
+                parameters
+            }, Box::new($body));
+        }
+    }
+
+    macro_rules! make_array {
+        ($size:expr, $value:expr) => {
+            Instance::Array {
+                size: $size,
+                values: {
+                    let mut values = Vec::new();
+                    for _ in 0..$size {
+                        values.push($value.clone())
+                    }
+                    values
+                }
+            }
+        }
+    }
 
     // let x = 1
     #[test]
@@ -378,15 +395,120 @@ mod interpreter_tests {
 
         let function = make_function!("f", parse("x"), "x");
         let reference = memory.put_function(function);
-        gamma.register_function("f".to_string(), reference)
-            .expect("Could not register function in test header");
+        assert!(gamma.register_function("f".to_string(), reference).is_ok());
 
         let ast = parse("f(1)");
 
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(1));
     }
 
+    // array(10, 1)
+    #[test]
+    fn array_definition() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
 
+        let ast = parse("array(10, 1)");
+
+        let expected_reference = Reference::Array {reference: 0, size: 10};
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), expected_reference);
+
+        assert!(memory.contains_object(&expected_reference));
+        assert_eq!(memory.get_object(&expected_reference),
+                   Some(&make_array!(10, Reference::Integer(1))));
+    }
+
+    // a[1]
+    #[test]
+    fn array_access() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+
+        let expected_reference = memory.put_object(make_array!(10, Reference::Integer(1)));
+        assert!(gamma.register_binding("a".to_string(), expected_reference).is_ok());
+
+        let ast = parse("a[1]");
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(1));
+    }
+
+    // object begin end
+    #[test]
+    fn empty_object_definition() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+
+        let ast = parse("object begin end");
+
+        let expected_reference = Reference::Object(0);
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), expected_reference);
+
+        assert!(memory.contains_object(&expected_reference));
+        assert_eq!(memory.get_object(&expected_reference),
+                   Some(&Instance::empty()));
+    }
+
+    // object begin let x = 1; function add(x) <- (this.x) + x; end
+    #[test]
+    fn object_definition() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+
+        let ast = parse("object begin let x = 1; function add(x) <- (this.x) + x; end");
+
+        let expected_reference = Reference::Object(1);
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), expected_reference);
+
+        let method = make_function!("add", parse("(this.x) + x"), "x");
+
+        assert!(memory.contains_function(&FunctionReference::Function(0)));
+        assert_eq!(memory.get_function(&FunctionReference::Function(0)), Some(&method));
+
+        let mut fields = HashMap::new();
+        fields.insert("x".to_string(), Reference::Integer(1));
+
+        let mut methods = HashMap::new();
+        methods.insert("add".to_string(), FunctionReference::Function(0));
+
+        assert!(memory.contains_object(&expected_reference));
+        assert_eq!(memory.get_object(&expected_reference),
+                Some(&Instance::Object{extends: None, fields, methods}));
+    }
+
+    // obj.x
+    #[test]
+    fn field_access() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+
+        let mut fields = HashMap::new();
+        fields.insert("x".to_string(), Reference::Integer(42));
+
+        let object_instance = Instance::Object{extends: None, fields, methods: HashMap::new()};
+        let object_reference = memory.put_object(object_instance);
+        assert!(gamma.register_binding("obj".to_string(), object_reference).is_ok());
+
+        let ast = parse("obj.x");
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42));
+    }
+
+    // obj.x
+    #[test]
+    fn field_access() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+
+        let mut fields = HashMap::new();
+        fields.insert("x".to_string(), Reference::Integer(42));
+
+        let object_instance = Instance::Object{extends: None, fields, methods: HashMap::new()};
+        let object_reference = memory.put_object(object_instance);
+        assert!(gamma.register_binding("obj".to_string(), object_reference).is_ok());
+
+        let ast = parse("obj.x");
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42));
+    }
 }
 
 fn main() {

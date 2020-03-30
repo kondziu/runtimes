@@ -234,9 +234,9 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
             let mut methods: HashMap<String, FunctionReference> = HashMap::new();
             for member in members.iter() {
                 match &**member {
-                    AST::LocalDefinition {identifier, value:_} => {
+                    AST::LocalDefinition {identifier, value} => {
                         let definition_identifier = extract_identifier_token!(identifier);
-                        let definition_reference = soft_evaluate(stack, memory, &**member);
+                        let definition_reference = soft_evaluate(stack, memory, &*value);
                         fields.insert(definition_identifier, definition_reference);
                     },
                     AST::FunctionDefinition {name, parameters, body} => {

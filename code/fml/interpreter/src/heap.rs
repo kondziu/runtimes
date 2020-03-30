@@ -4,7 +4,7 @@ use fml_ast::AST;
 // https://dev.to/deciduously/rust-your-own-lisp-50an
 // https://github.com/kenpratt/rusty_scheme
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Instance {
     Object {
         extends: Option<Reference>,
@@ -59,12 +59,14 @@ pub enum Reference {
     Array {reference: u64, size: usize}
 }
 
+#[derive(Debug)]
 pub struct Memory {
     sequence: ReferenceSequence,
     objects: HashMap<Reference, Instance>,
     functions: HashMap<FunctionReference, Function>,
 }
 
+#[derive(Debug)]
 struct ReferenceSequence(u64);
 impl ReferenceSequence {
     fn next_object(&mut self) -> Reference {
