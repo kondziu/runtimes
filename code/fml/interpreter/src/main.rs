@@ -517,30 +517,72 @@ mod interpreter_tests {
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42));
     }
 
-    // obj.id(1)
+    // fortytwo + 1
     #[test]
-    fn method_ident_call() {
+    fn operator_call() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
 
         let mut fields = HashMap::new();
-        fields.insert("x".to_string(), Reference::Integer(42));
+        fields.insert("value".to_string(), Reference::Integer(42));
 
         let mut methods = HashMap::new();
-        let method_instance = make_function!("id", parse("x"), "x");
+        let method_instance = make_function!("+", parse("(this.value) + x"), "x");
         let method_reference = memory.put_function(method_instance);
-        methods.insert("id".to_string(), method_reference);
+        methods.insert("+".to_string(), method_reference);
 
         let object_instance = Instance::Object{extends: None, fields, methods};
         let object_reference = memory.put_object(object_instance);
-        assert!(gamma.register_binding("obj".to_string(), object_reference).is_ok());
+        assert!(gamma.register_binding("fortytwo".to_string(), object_reference).is_ok());
 
-        let ast = parse("obj.id(42)");
+        let ast = parse("fortytwo + 1");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42));
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(43));
     }
 
+    #[test]
+    fn object_equality() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
 
+        let mut fields = HashMap::new();
+        fields.insert("value".to_string(), Reference::Integer(42));
+
+        let mut methods = HashMap::new();
+        let method_instance = make_function!("+", parse("(this.value) + x"), "x");
+        let method_reference = memory.put_function(method_instance);
+        methods.insert("+".to_string(), method_reference);
+
+        let object_instance = Instance::Object{extends: None, fields, methods};
+        let object_reference = memory.put_object(object_instance);
+        assert!(gamma.register_binding("fortytwo".to_string(), object_reference).is_ok());
+
+        let ast = parse("fortytwo == fortytwo");
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Boolean(true));
+    }
+
+    #[test]
+    fn object_inequality() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+
+        let mut fields = HashMap::new();
+        fields.insert("value".to_string(), Reference::Integer(42));
+
+        let mut methods = HashMap::new();
+        let method_instance = make_function!("+", parse("(this.value) + x"), "x");
+        let method_reference = memory.put_function(method_instance);
+        methods.insert("+".to_string(), method_reference);
+
+        let object_instance = Instance::Object{extends: None, fields, methods};
+        let object_reference = memory.put_object(object_instance);
+        assert!(gamma.register_binding("fortytwo".to_string(), object_reference).is_ok());
+
+        let ast = parse("fortytwo != fortytwo");
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Boolean(false));
+    }
 }
 
 fn main() {

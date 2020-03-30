@@ -357,43 +357,51 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
             };
 
             let object_reference = soft_evaluate(stack, memory, &*object);
-            let actual_reference = find_actual_host_object_for_method!(memory, object_reference, method_name);
-            let function_reference = match memory.get_object(&actual_reference) {
-                Some(Instance::Object{extends:_, methods, fields:_}) => methods.get(&method_name).unwrap(),
-                Some(instance) => panic!("Invalid instance type {:?}.", instance),
-                None => panic!("Fatal inconsistency in instance store."),
-            };
+            let argument_references: Vec<Reference> = arguments.iter().map(|expression| {
+                soft_evaluate(stack, memory, &(**expression).clone())
+            }).collect();
 
-            let function_definition: Function = {
-                let function_definition = memory.get_function(function_reference)
-                    .expect(&format!("Function {:?} not found in memory", function_reference));
-                function_definition.clone()
-            };
-
-            let bindings = {
-                let mut bindings: Vec<(String, Reference)> = Vec::new();
-                let iterator = function_definition.parameters.iter().zip(arguments.iter());
-                for (parameter, expression) in iterator {
-                    let reference = soft_evaluate(stack, memory, &(**expression).clone());
-                    bindings.push((parameter.to_string(), reference))
-                }
-                bindings.push(("this".to_string(), object_reference));
-                bindings
-            };
-
-            hard_evaluate(stack, memory, bindings, &*function_definition.body)
+            evaluate_method_call(stack, memory, object_reference, method_name, argument_references)
         }
 
-        AST::OperatorAccess {object:_, operator:_} => {
-            panic!("Operator access is not allowed, we don't have first class functions and junk")
-        },
+        AST::Operation {operator, left, right} => {
+            use fml_ast::Operator::*;
 
-        AST::OperatorDefinition { operator:_, parameters:_, body:_} => {
-            panic!("Operators can only be defined within bodies of objects")
-        },
+            let left_reference = soft_evaluate(stack, memory, &**left);
+            let right_reference = soft_evaluate(stack, memory, &**right);
 
-        AST::Operation {operator:_, left:_, right:_} => {
-            panic!("Not implemented")
+            let result = match (left_reference, operator, right_reference) {
+                (left_reference, Equality, right_reference) => Reference::Boolean(left_reference == right_reference),
+                (left_reference, Inequality, right_reference) => Reference::Boolean(left_reference != right_reference),
+
+                (Reference::Integer(left_value), Multiplication, Reference::Integer(right_value)) => Reference::Integer(left_value * right_value),
+                (Reference::Integer(left_value), Division, Reference::Integer(right_value)) => Reference::Integer(left_value / right_value),
+                (Reference::Integer(left_value), Module, Reference::Integer(right_value)) => Reference::Integer(left_value % right_value),
+                (Reference::Integer(left_value), Addition, Reference::Integer(right_value)) => Reference::Integer(left_value + right_value),
+                (Reference::Integer(left_value), Subtraction, Reference::Integer(right_value)) => Reference::Integer(left_value - right_value),
+                //(Reference::Integer(left_value), Inequality, Reference::Integer(right_value)) => Reference::Boolean(left_value != right_value),
+                //(Reference::Integer(left_value), Equality, Reference::Integer(right_value)) => Reference::Boolean(left_value == right_value),
+                (Reference::Integer(left_value), Less, Reference::Integer(right_value)) => Reference::Boolean(left_value < right_value),
+                (Reference::Integer(left_value), LessEqual, Reference::Integer(right_value)) => Reference::Boolean(left_value <= right_value),
+                (Reference::Integer(left_value), Greater, Reference::Integer(right_value)) => Reference::Boolean(left_value > right_value),
+                (Reference::Integer(left_value), GreaterEqual, Reference::Integer(right_value)) => Reference::Boolean(left_value >= right_value),
+
+                //(Reference::Boolean(left_value), Inequality, Reference::Boolean(right_value)) => Reference::Boolean(left_value != right_value),
+                //(Reference::Boolean(left_value), Equality, Reference::Boolean(right_value)) => Reference::Boolean(left_value == right_value),
+                (Reference::Boolean(left_value), Conjunction, Reference::Boolean(right_value)) => Reference::Boolean(left_value && right_value),
+                (Reference::Boolean(left_value), Disjunction, Reference::Boolean(right_value)) => Reference::Boolean(left_value || right_value),
+
+                //(Reference::Unit, Inequality, right_reference) => Reference::Boolean(Reference::Unit != right_reference),
+                //(Reference::Unit, Equality, right_reference) => Reference::Boolean(Reference::Unit == right_reference),
+
+                (Reference::Object(_), operator, right_reference) =>
+                    evaluate_method_call(stack, memory, left_reference, operator.to_string(), vec!(right_reference)),
+
+                _ => panic!("Operator {} is not implemented for operands {:?} and {:?}",
+                            operator.to_string(), left_reference, right_reference)
+            };
+
+            result
         },
 
         AST::String(_) => {
@@ -403,10 +411,46 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
         AST::Print {format:_, arguments:_} => {
             panic!("Not implemented")
         },
+
+        AST::OperatorAccess {object:_, operator:_} => {
+            panic!("Operator access is not allowed, we don't have first class functions and junk")
+        },
+
+        AST::OperatorDefinition { operator:_, parameters:_, body:_} => {
+            panic!("Operators can only be defined within bodies of objects")
+        },
     }
 }
 
+fn evaluate_method_call(stack: &mut EnvironmentStack, memory: &mut Memory,
+                        object_reference: Reference,  method_name: String,
+                        arguments: Vec<Reference>) -> Reference {
 
+    let actual_reference = find_actual_host_object_for_method!(memory, object_reference, method_name);
+    let function_reference = match memory.get_object(&actual_reference) {
+        Some(Instance::Object{extends:_, methods, fields:_}) => methods.get(&method_name).unwrap(),
+        Some(instance) => panic!("Invalid instance type {:?}.", instance),
+        None => panic!("Fatal inconsistency in instance store."),
+    };
+
+    let function_definition: Function = {
+        let function_definition = memory.get_function(function_reference)
+            .expect(&format!("Function {:?} not found in memory", function_reference));
+        function_definition.clone()
+    };
+
+    let bindings = {
+        let mut bindings: Vec<(String, Reference)> = Vec::new();
+        let iterator = function_definition.parameters.iter().zip(arguments.iter());
+        for (parameter, reference) in iterator {
+            bindings.push((parameter.to_string(), *reference))
+        }
+        bindings.push(("this".to_string(), object_reference));
+        bindings
+    };
+
+    hard_evaluate(stack, memory, bindings, &*function_definition.body)
+}
 
 fn evaluate_to_boolean(reference: Reference) -> bool {
     match reference {
