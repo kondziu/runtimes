@@ -36,6 +36,32 @@ macro_rules! extract_array_offset {
     }
 }
 
+macro_rules! find_actual_host_object {
+    ($memory:expr, $object_reference:expr, $field_name:expr) => {
+        {
+            let mut cursor = $object_reference;
+            loop {
+                let object_instance: &Instance =
+                    $memory.get_object(&cursor).expect("Could not find object instance");
+                match object_instance {
+                    Instance::Object { extends, fields, methods: _ } => {
+                        if fields.contains_key(&$field_name) {
+                            break;
+                        }
+                        if let Some(parent_reference) = extends {
+                            cursor = *parent_reference;
+                            continue;
+                        }
+                        panic!("Cannot find field {} in object {:?}", $field_name, object_instance)
+                    },
+                    _ => panic!("Cannot find field {} in object {:?}", $field_name, object_instance)
+                }
+            }
+            cursor
+        }
+    }
+}
+
 pub fn soft_evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: &AST) -> Reference {
     stack.add_soft_frame();
     let value = evaluate(stack, memory, expression);
@@ -263,20 +289,38 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
             let field_name = extract_identifier_token!(field);
 
             let object_reference = soft_evaluate(stack, memory, &*object);
-            let object_instance: &Instance =
-                memory.get_object(&object_reference).expect("Could not find object instance");
+            let actual_reference = find_actual_host_object!(memory, object_reference, field_name);
 
-            let result: &Reference = match object_instance {
-                Instance::Object {extends:_, fields, methods:_}
-                    if fields.contains_key(&field_name) => fields.get(&field_name).unwrap(),
-                _ => panic!("Could not find field {} in object {:?}", field_name, object_instance)
-            };
+            let actual_instance = memory.get_object(&actual_reference).expect("Could not find object instance");
 
-            *result
+            match actual_instance {
+                Instance::Object { extends:_, fields, methods:_ } => *fields.get(&field_name).unwrap(),
+                _ => panic!("Fatal inconsistency in instance store.")
+            }
         }
 
         AST::FieldMutation {field_path, value} => {
-            panic!("Not implemented")
+            let (object, field) = match &**field_path {
+                AST::FieldAccess {object, field} => (object, field),
+                _ => panic!("Cannot mutate non-array object"),
+            };
+
+            let field_name = extract_identifier_token!(&*field);
+            let value_reference = soft_evaluate(stack, memory, &**value);
+
+            let object_reference = soft_evaluate(stack, memory, &*object);
+            let actual_reference = find_actual_host_object!(memory, object_reference, field_name);
+
+            let actual_instance = memory.get_object_mut(&actual_reference).expect("Could not find object instance");
+
+            match actual_instance {
+                Instance::Object { extends:_, fields, methods: _ } => {
+                    fields.insert(field_name, value_reference);
+                },
+                _ => panic!("Fatal inconsistency in instance store.")
+            }
+
+            Reference::Unit
         },
 
         AST::MethodCall {method_path:_, arguments:_} => panic!("Not implemented"),

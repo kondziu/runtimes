@@ -232,7 +232,6 @@ mod interpreter_tests {
     use crate::environment::EnvironmentStack;
     use crate::interpreter::evaluate;
     use fml_parser::parse;
-    use crate::heap::Instance::Object;
     use std::collections::HashMap;
 
     macro_rules! make_function {
@@ -492,22 +491,27 @@ mod interpreter_tests {
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42));
     }
 
-    // obj.x
+    // obj.add(1)
     #[test]
-    fn field_access() {
+    fn method_call() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
 
         let mut fields = HashMap::new();
         fields.insert("x".to_string(), Reference::Integer(42));
 
-        let object_instance = Instance::Object{extends: None, fields, methods: HashMap::new()};
+        let mut methods = HashMap::new();
+        let method_instance = make_function!("add", parse("(this.x) + x"), "x");
+        let method_reference = memory.put_function(method_instance);
+        methods.insert("add".to_string(), method_reference);
+
+        let object_instance = Instance::Object{extends: None, fields, methods};
         let object_reference = memory.put_object(object_instance);
         assert!(gamma.register_binding("obj".to_string(), object_reference).is_ok());
 
-        let ast = parse("obj.x");
+        let ast = parse("obj.add(1)");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42));
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(43));
     }
 }
 
