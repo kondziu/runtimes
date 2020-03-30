@@ -4,355 +4,403 @@ pub mod interpreter;
 
 #[macro_use]
 extern crate fml_ast;
+extern crate fml_parser;
 
-#[test] fn memory_instance_test() {
-    let mut memory = heap::Memory::new();
-    let object = heap::Instance::empty();
-    let reference = memory.put_object(object);
-    assert!(memory.get_object(&reference).is_some())
+#[cfg(test)]
+mod memory_tests {
+    use crate::heap::Memory;
+    use crate::heap::Instance;
+    use crate::heap::Function;
+
+    #[test] fn instance () {
+        let mut memory = Memory::new();
+        let object = Instance::empty();
+        let reference = memory.put_object(object);
+        assert!(memory.get_object(&reference).is_some())
+    }
+
+    #[test] fn function () {
+        let mut memory = Memory::new();
+        let function_body = fml_ast::AST::Identifier("x".to_string());
+        let object = Function::new(
+            "f".to_string(),
+            vec!("x".to_string()),
+            Box::new(function_body));
+        let reference = memory.put_function(object);
+        assert!(memory.get_function(&reference).is_some())
+    }
 }
 
-#[test] fn memory_function_test() {
-    let mut memory = heap::Memory::new();
-    let function_body = fml_ast::AST::Identifier("x".to_string());
-    let object = heap::Function::new(
-        "f".to_string(),
-        vec!("x".to_string()),
-        Box::new(function_body));
-    let reference = memory.put_function(object);
-    assert!(memory.get_function(&reference).is_some())
+#[cfg(test)]
+mod environment_tests {
+    use crate::environment::EnvironmentStack;
+    use crate::heap::Reference;
+    use crate::heap::FunctionReference;
+
+    #[test]
+    fn basic () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Object(0)).is_ok());
+        assert_eq!(gamma.lookup_binding("x"),
+                   Ok(&Reference::Object(0)));
+    }
+
+    #[test]
+    fn basic_function () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_function("f".to_string(),
+                                        FunctionReference::Function(0)).is_ok());
+        assert_eq!(gamma.lookup_function("f"),
+                   Ok(&FunctionReference::Function(0)));
+    }
+
+    #[test]
+    fn soft_frame () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Object(0)).is_ok());
+
+        gamma.add_soft_frame();
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Object(1)).is_ok());
+
+        gamma.add_soft_frame();
+        assert_eq!(gamma.lookup_binding("x"),
+                   Ok(&Reference::Object(1)));
+    }
+
+    #[test]
+    fn hard_frame () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Object(0)).is_ok());
+
+        gamma.add_soft_frame();
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Object(1)).is_ok());
+
+        gamma.add_hard_frame();
+        assert_eq!(gamma.lookup_binding("x"),
+                   Ok(&Reference::Object(0)));
+    }
+
+    #[test]
+    fn hard_frame_exclusion () {
+        let mut gamma = EnvironmentStack::new();
+
+        gamma.add_soft_frame();
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Object(0)).is_ok());
+
+        gamma.add_hard_frame();
+        assert!(gamma.lookup_binding("x").is_err());
+    }
+
+    #[test]
+    fn soft_frame_function () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_function("f".to_string(),
+                                        FunctionReference::Function(0)).is_ok());
+
+        gamma.add_soft_frame();
+        assert!(gamma.register_function("f".to_string(),
+                                        FunctionReference::Function(1)).is_ok());
+
+        gamma.add_soft_frame();
+        assert_eq!(gamma.lookup_function("f"),
+                   Ok(&FunctionReference::Function(1)));
+    }
+
+    #[test]
+    fn hard_frame_function () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_function("f".to_string(),
+                                        FunctionReference::Function(0)).is_ok());
+
+        gamma.add_soft_frame();
+        assert!(gamma.register_function("f".to_string(),
+                                        FunctionReference::Function(1)).is_ok());
+
+        gamma.add_hard_frame();
+        assert_eq!(gamma.lookup_function("f"),
+                   Ok(&FunctionReference::Function(0)));
+    }
+
+    #[test]
+    fn hard_frame_function_exclusion () {
+        let mut gamma = EnvironmentStack::new();
+
+        gamma.add_soft_frame();
+        assert!(gamma.register_function("f".to_string(),
+                                        FunctionReference::Function(0)).is_ok());
+
+        gamma.add_hard_frame();
+        assert!(gamma.lookup_function("f").is_err());
+    }
+
+    #[test]
+    fn shadowing () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Object(0)).is_ok());
+
+        gamma.add_soft_frame();
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Object(1)).is_ok());
+        assert_eq!(gamma.lookup_binding("x"),
+                   Ok(&Reference::Object(1)));
+
+        gamma.remove_frame();
+        assert_eq!(gamma.lookup_binding("x"),
+                   Ok(&Reference::Object(0)));
+    }
+
+    #[test]
+    fn shadowing_function () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_function("f".to_string(),
+                                        FunctionReference::Function(0)).is_ok());
+
+        gamma.add_soft_frame();
+        assert!(gamma.register_function("f".to_string(),
+                                        FunctionReference::Function(1)).is_ok());
+        assert_eq!(gamma.lookup_function("f"),
+                   Ok(&FunctionReference::Function(1)));
+
+        gamma.remove_frame();
+        assert_eq!(gamma.lookup_function("f"),
+                   Ok(&FunctionReference::Function(0)));
+    }
+
+    #[test]
+    fn undefined_lookup () {
+        let gamma = EnvironmentStack::new();
+        assert!(gamma.lookup_binding("x").is_err());
+    }
+
+    #[test]
+    fn undefined_function () {
+        let gamma = EnvironmentStack::new();
+        assert!(gamma.lookup_binding("f").is_err());
+    }
+
+    #[test]
+    fn define_redefine_error () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Object(0)).is_ok());
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Object(1)).is_err());
+    }
+
+    #[test]
+    fn function_redefine_error () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_function("f".to_string(),
+                                        FunctionReference::Function(0)).is_ok());
+        assert!(gamma.register_function("f".to_string(),
+                                        FunctionReference::Function(1)).is_err());
+    }
+
+    #[test]
+    fn redefine () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Object(0)).is_ok());
+        assert!(gamma.change_binding("x".to_string(),
+                                     Reference::Object(1)).is_ok());
+        assert_eq!(gamma.lookup_binding("x"),
+                   Ok(&Reference::Object(1)));
+    }
+
+    #[test]
+    fn redefine_undefined_error () {
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.change_binding("x".to_string(),
+                                     Reference::Object(1)).is_err());
+    }
 }
 
-#[test] fn environment_basic_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Object(0)).is_ok());
-    assert_eq!(gamma.lookup_binding("x"),
-               Ok(&heap::Reference::Object(0)));
-}
+#[cfg(test)]
+mod interpreter_tests {
+    use crate::heap::Memory;
+    use crate::heap::Instance;
+    use crate::heap::Function;
+    use crate::heap::Reference;
+    use crate::heap::FunctionReference;
+    use crate::environment::EnvironmentStack;
+    use crate::interpreter::evaluate;
 
-#[test] fn environment_basic_function_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_function("f".to_string(),
-                                   heap::FunctionReference::Function(0)).is_ok());
-    assert_eq!(gamma.lookup_function("f"),
-               Ok(&heap::FunctionReference::Function(0)));
-}
+    // let x <- 1
+    #[test]
+    fn define_local () {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
 
-#[test] fn environment_soft_frame_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Object(0)).is_ok());
+        let ast = fml_ast::AST::LocalDefinition {
+            identifier: Box::new(fml_ast::AST::Identifier("x".to_string())),
+            value: Box::new(fml_ast::AST::Number(1))
+        };
 
-    gamma.add_soft_frame();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Object(1)).is_ok());
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit);
+        assert_eq!(gamma.lookup_binding("x"), Ok(&Reference::Integer(1)))
+    }
 
-    gamma.add_soft_frame();
-    assert_eq!(gamma.lookup_binding("x"),
-               Ok(&heap::Reference::Object(1)));
-}
+    // x = 1
+    #[test]
+    fn redefine_local() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_binding("x".to_string(), Reference::Integer(0)).is_ok());
 
-#[test] fn environment_hard_frame_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Object(0)).is_ok());
+        let ast = fml_ast::AST::LocalMutation {
+            identifier: Box::new(fml_ast::AST::Identifier("x".to_string())),
+            value: Box::new(fml_ast::AST::Number(1))
+        };
 
-    gamma.add_soft_frame();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Object(1)).is_ok());
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit);
+        assert_eq!(gamma.lookup_binding("x"), Ok(&Reference::Integer(1)))
+    }
 
-    gamma.add_hard_frame();
-    assert_eq!(gamma.lookup_binding("x"),
-               Ok(&heap::Reference::Object(0)));
-}
+    // x
+    #[test]
+    fn identifier_local_lookup() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+        assert!(gamma.register_binding("x".to_string(),
+                                       Reference::Integer(1)).is_ok());
 
-#[test] fn environment_hard_frame_exclusion_test() {
-    let mut gamma = environment::EnvironmentStack::new();
+        let ast = fml_ast::AST::Identifier("x".to_string());
 
-    gamma.add_soft_frame();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Object(0)).is_ok());
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(1))
+    }
 
-    gamma.add_hard_frame();
-    assert!(gamma.lookup_binding("x").is_err());
-}
+    // 42
+    #[test]
+    fn number() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
 
-#[test] fn environment_soft_frame_function_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_function("f".to_string(),
-                                    heap::FunctionReference::Function(0)).is_ok());
+        let ast = fml_ast::AST::Number(42);
 
-    gamma.add_soft_frame();
-    assert!(gamma.register_function("f".to_string(),
-                                    heap::FunctionReference::Function(1)).is_ok());
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42))
+    }
 
-    gamma.add_soft_frame();
-    assert_eq!(gamma.lookup_function("f"),
-               Ok(&heap::FunctionReference::Function(1)));
-}
+    // null
+    #[test]
+    fn unit() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
 
-#[test] fn environment_hard_frame_function_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_function("f".to_string(),
-                                    heap::FunctionReference::Function(0)).is_ok());
+        let ast = fml_ast::AST::Unit;
 
-    gamma.add_soft_frame();
-    assert!(gamma.register_function("f".to_string(),
-                                    heap::FunctionReference::Function(1)).is_ok());
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit)
+    }
 
-    gamma.add_hard_frame();
-    assert_eq!(gamma.lookup_function("f"),
-               Ok(&heap::FunctionReference::Function(0)));
-}
+    // true
+    #[test]
+    fn boolean() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
 
-#[test] fn environment_hard_frame_function_exclusion_test() {
-    let mut gamma = environment::EnvironmentStack::new();
+        let ast = fml_ast::AST::Boolean(true);
 
-    gamma.add_soft_frame();
-    assert!(gamma.register_function("f".to_string(),
-                                    heap::FunctionReference::Function(0)).is_ok());
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast),
+                   Reference::Boolean(true))
+    }
 
-    gamma.add_hard_frame();
-    assert!(gamma.lookup_function("f").is_err());
-}
+    // begin 1; 2; 3; end
+    #[test]
+    fn block() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
 
-#[test] fn environment_shadowing_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Object(0)).is_ok());
-
-    gamma.add_soft_frame();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Object(1)).is_ok());
-    assert_eq!(gamma.lookup_binding("x"),
-               Ok(&heap::Reference::Object(1)));
-
-    gamma.remove_frame();
-    assert_eq!(gamma.lookup_binding("x"),
-               Ok(&heap::Reference::Object(0)));
-}
-
-#[test] fn environment_shadowing_function_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_function("f".to_string(),
-                                    heap::FunctionReference::Function(0)).is_ok());
-
-    gamma.add_soft_frame();
-    assert!(gamma.register_function("f".to_string(),
-                                    heap::FunctionReference::Function(1)).is_ok());
-    assert_eq!(gamma.lookup_function("f"),
-               Ok(&heap::FunctionReference::Function(1)));
-
-    gamma.remove_frame();
-    assert_eq!(gamma.lookup_function("f"),
-               Ok(&heap::FunctionReference::Function(0)));
-}
-
-#[test] fn environment_undefined_lookup_test() {
-    let gamma = environment::EnvironmentStack::new();
-    assert!(gamma.lookup_binding("x").is_err());
-}
-
-#[test] fn environment_undefined_function_test() {
-    let gamma = environment::EnvironmentStack::new();
-    assert!(gamma.lookup_binding("f").is_err());
-}
-
-#[test] fn environment_define_redefine_error_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Object(0)).is_ok());
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Object(1)).is_err());
-}
-
-#[test] fn environment_function_redefine_error_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_function("f".to_string(),
-                                    heap::FunctionReference::Function(0)).is_ok());
-    assert!(gamma.register_function("f".to_string(),
-                                    heap::FunctionReference::Function(1)).is_err());
-}
-
-#[test] fn environment_redefine_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Object(0)).is_ok());
-    assert!(gamma.change_binding("x".to_string(),
-                                 heap::Reference::Object(1)).is_ok());
-    assert_eq!(gamma.lookup_binding("x"),
-               Ok(&heap::Reference::Object(1)));
-}
-
-#[test] fn environment_redefine_undefined_error_test() {
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.change_binding("x".to_string(),
-                                 heap::Reference::Object(1)).is_err());
-}
-
-// let x <- 1
-#[test] fn interpreter_define_local_test() {
-    let mut memory = heap::Memory::new();
-    let mut gamma = environment::EnvironmentStack::new();
-
-    let ast = fml_ast::AST::LocalDefinition {
-        identifier: Box::new(fml_ast::AST::Identifier("x".to_string())),
-        value: Box::new(fml_ast::AST::Number(1))
-    };
-
-    assert_eq!(interpreter::evaluate(&mut gamma, &mut memory,&ast),
-               heap::Reference::Unit);
-    assert_eq!(gamma.lookup_binding("x"),
-               Ok(&heap::Reference::Integer(1)))
-}
-
-// x = 1
-#[test] fn interpreter_redefine_local_test() {
-    let mut memory = heap::Memory::new();
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Integer(0)).is_ok());
-
-    let ast = fml_ast::AST::LocalMutation {
-        identifier: Box::new(fml_ast::AST::Identifier("x".to_string())),
-        value: Box::new(fml_ast::AST::Number(1))
-    };
-
-    assert_eq!(interpreter::evaluate(&mut gamma, &mut memory, &ast),
-               heap::Reference::Unit);
-    assert_eq!(gamma.lookup_binding("x"),
-               Ok(&heap::Reference::Integer(1)))
-}
-
-// x
-#[test] fn interpreter_identifier_local_lookup_test() {
-    let mut memory = heap::Memory::new();
-    let mut gamma = environment::EnvironmentStack::new();
-    assert!(gamma.register_binding("x".to_string(),
-                                   heap::Reference::Integer(1)).is_ok());
-
-    let ast = fml_ast::AST::Identifier("x".to_string());
-
-    assert_eq!(interpreter::evaluate(&mut gamma, &mut memory, &ast),
-               heap::Reference::Integer(1))
-}
-
-// 42
-#[test] fn interpreter_number_test() {
-    let mut memory = heap::Memory::new();
-    let ast = fml_ast::AST::Number(42);
-    assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
-                                     &mut memory,
-                                     &ast),
-               heap::Reference::Integer(42))
-}
-
-// null
-#[test] fn interpreter_unit_test() {
-    let mut memory = heap::Memory::new();
-    let ast = fml_ast::AST::Unit;
-    assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
-                                     &mut memory,
-                                     &ast),
-               heap::Reference::Unit)
-}
-
-// true
-#[test] fn interpreter_boolean_test() {
-    let mut memory = heap::Memory::new();
-    let ast = fml_ast::AST::Boolean(true);
-    assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
-                                     &mut memory,
-                                     &ast),
-               heap::Reference::Boolean(true))
-}
-
-// begin 1; 2; 3; end
-#[test] fn interpreter_block_test() {
-    let mut memory = heap::Memory::new();
-    let ast = fml_ast::AST::Block(vec!(
-        Box::new(fml_ast::AST::Number(1)),
-        Box::new(fml_ast::AST::Number(2)),
-        Box::new(fml_ast::AST::Number(3)),
-    ));
-    assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
-                                     &mut memory,
-                                     &ast),
-               heap::Reference::Integer(3))
-}
-
-// if true then 1 else 2
-#[test] fn interpreter_conditional_consequent() {
-    let mut memory = heap::Memory::new();
-    let ast = fml_ast::AST::Conditional {
-        condition: Box::new(fml_ast::AST::Boolean(true)),
-        consequent: Box::new(fml_ast::AST::Number(1)),
-        alternative: Box::new(fml_ast::AST::Number(2)),
-    };
-    assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
-                                     &mut memory,
-                                     &ast),
-               heap::Reference::Integer(1))
-}
-
-// if false then 1 else 2
-#[test] fn interpreter_conditional_alternative() {
-    let mut memory = heap::Memory::new();
-    let ast = fml_ast::AST::Conditional {
-        condition: Box::new(fml_ast::AST::Unit),
-        consequent: Box::new(fml_ast::AST::Number(1)),
-        alternative: Box::new(fml_ast::AST::Number(2)),
-    };
-    assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
-                                     &mut memory,
-                                     &ast),
-               heap::Reference::Integer(2))
-}
-
-// function f(x) x
-#[test] fn interpreter_function_definition() {
-    let mut memory = heap::Memory::new();
-    let mut stack = environment::EnvironmentStack::new();
-    let expression = fml_ast::AST::FunctionDefinition {
-        name: Box::new(fml_ast::AST::Identifier("f".to_string())),
-        parameters: vec!(Box::new(fml_ast::AST::Identifier("x".to_string()))),
-        body: Box::new(fml_ast::AST::Identifier("x".to_string())),
-    };
-    assert_eq!(interpreter::evaluate(&mut stack, &mut memory, &expression),
-               heap::Reference::Unit);
-
-    let reference = stack.lookup_function("f").unwrap();
-    assert!(memory.contains_function(reference));
-    let function = memory.get_function(reference).unwrap();
-
-    let name = "f".to_string();
-    let parameters = vec!("x".to_string());
-    let body = fml_ast::AST::Identifier("x".to_string());
-    let expected = heap::Function::new(name, parameters, Box::new(body));
-    assert_eq!(function, &expected);
-}
-
-// function f(x) x; f(1)
-#[test] fn interpreter_function_call() {
-    let mut memory = heap::Memory::new();
-    let mut stack = environment::EnvironmentStack::new();
-    let expression =
-        fml_ast::AST::Block(vec!(
-            Box::new(fml_ast::AST::FunctionDefinition {
-                name: Box::new(fml_ast::AST::Identifier("f".to_string())),
-                parameters: vec!(Box::new(fml_ast::AST::Identifier("x".to_string()))),
-                body: Box::new(fml_ast::AST::Identifier("x".to_string()))
-            }),
-            Box::new(fml_ast::AST::FunctionApplication {
-                function: Box::new(fml_ast::AST::Identifier("f".to_string())),
-                arguments: vec!(Box::new(fml_ast::AST::Number(1))),
-            }),
+        let ast = fml_ast::AST::Block(vec!(
+            Box::new(fml_ast::AST::Number(1)),
+            Box::new(fml_ast::AST::Number(2)),
+            Box::new(fml_ast::AST::Number(3)),
         ));
-    assert_eq!(interpreter::evaluate(&mut stack, &mut memory, &expression),
-               heap::Reference::Integer(1));
-}
 
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(3))
+    }
+
+    // if true then 1 else 2
+    #[test]
+    fn conditional_consequent() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+
+        let ast = fml_ast::AST::Conditional {
+            condition: Box::new(fml_ast::AST::Boolean(true)),
+            consequent: Box::new(fml_ast::AST::Number(1)),
+            alternative: Box::new(fml_ast::AST::Number(2)),
+        };
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(1))
+    }
+
+    // if false then 1 else 2
+    #[test]
+    fn conditional_alternative() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+
+        let ast = fml_ast::AST::Conditional {
+            condition: Box::new(fml_ast::AST::Unit),
+            consequent: Box::new(fml_ast::AST::Number(1)),
+            alternative: Box::new(fml_ast::AST::Number(2)),
+        };
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(2))
+    }
+
+    // function f(x) x
+    #[test]
+    fn function_definition() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+
+        let ast = fml_ast::AST::FunctionDefinition {
+            name: Box::new(fml_ast::AST::Identifier("f".to_string())),
+            parameters: vec!(Box::new(fml_ast::AST::Identifier("x".to_string()))),
+            body: Box::new(fml_ast::AST::Identifier("x".to_string())),
+        };
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit);
+
+        let reference = gamma.lookup_function("f").unwrap();
+        assert!(memory.contains_function(reference));
+        let function = memory.get_function(reference).unwrap();
+
+        let name = "f".to_string();
+        let parameters = vec!("x".to_string());
+        let body = fml_ast::AST::Identifier("x".to_string());
+        let expected = Function::new(name, parameters, Box::new(body));
+        assert_eq!(function, &expected);
+    }
+
+    // function f(x) x; f(1)
+    #[test]
+    fn function_call() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+        let expression =
+            fml_ast::AST::Block(vec!(
+                Box::new(fml_ast::AST::FunctionDefinition {
+                    name: Box::new(fml_ast::AST::Identifier("f".to_string())),
+                    parameters: vec!(Box::new(fml_ast::AST::Identifier("x".to_string()))),
+                    body: Box::new(fml_ast::AST::Identifier("x".to_string()))
+                }),
+                Box::new(fml_ast::AST::FunctionApplication {
+                    function: Box::new(fml_ast::AST::Identifier("f".to_string())),
+                    arguments: vec!(Box::new(fml_ast::AST::Number(1))),
+                }),
+            ));
+        assert_eq!(evaluate(&mut gamma, &mut memory, &expression),
+                   Reference::Integer(1));
+    }
+}
 
 
 fn main() {

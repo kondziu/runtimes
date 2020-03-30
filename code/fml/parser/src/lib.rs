@@ -8,6 +8,10 @@ extern crate fml_ast;
 
 lalrpop_mod!(pub fml); // synthesized by LALRPOP
 
+pub fn parse(input: &str) -> fml_ast::AST {
+    fml::TopLevelParser::new().parse(input).unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::fml::TopLevelParser;
