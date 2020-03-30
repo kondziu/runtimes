@@ -1,6 +1,7 @@
 use crate::ast::AST;
 use crate::environment::EnvironmentStack;
-use crate::heap::{Memory, Function, Reference, Instance};
+use crate::heap::{Memory, Function, Reference, Instance, FunctionReference};
+use std::collections::HashMap;
 
 macro_rules! extract_identifier_token {
     ($ast:expr) => {
@@ -8,6 +9,16 @@ macro_rules! extract_identifier_token {
             AST::Identifier(token) => token.to_string(),
             ast => panic!("Expected AST::Identifier, but found {:?}", ast),
         }
+    }
+}
+
+macro_rules! construct_function_definition {
+    ($name:expr, $parameters:ident, $body:ident) => {
+            Function::new($name.to_string(),
+                          $parameters.iter()
+                                .map (|parameter: &Box<AST>| extract_identifier_token!(parameter))
+                                .collect(),
+                          $body.clone())
     }
 }
 
@@ -96,6 +107,14 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
             soft_evaluate(stack, memory, &*next_expression)
         },
 
+        AST::FunctionDefinition { name, body, parameters } => {
+            let name = extract_identifier_token!(name);
+            let function_definition = construct_function_definition!(name, parameters, body);
+            let function_reference = memory.put_function(function_definition);
+            stack.register_function(name, function_reference).expect("Cannot bind function");
+            Reference::Unit
+        }
+
         AST::Loop { condition, body } => {
             let condition_reference = soft_evaluate(stack, memory, &*condition);
 
@@ -103,21 +122,6 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
                 let _ = soft_evaluate(stack, memory, &*body);
             }
 
-            Reference::Unit
-        }
-
-        AST::FunctionDefinition { name, body, parameters } => {
-            let name = extract_identifier_token!(name);
-            let params: Vec<String> = parameters.iter()
-                .map (|parameter: &Box<AST>| extract_identifier_token!(parameter) ).collect();
-
-            let function_definition = Function::new(name.to_string(),
-                                                    params,
-                                                    body.clone());
-
-            let function_reference = memory.put_function(function_definition);
-
-            stack.register_function(name, function_reference).expect("Cannot bind function");
             Reference::Unit
         }
 
@@ -220,13 +224,69 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
             Reference::Unit
         }
 
-        AST::ObjectDefinition {extends:_, members:_} => panic!("Not implemented"),
-        AST::FieldMutation {field_path:_, value:_} => panic!("Not implemented"),
-        AST::MethodCall {method_path:_, arguments:_} => panic!("Not implemented"),
-        AST::FieldAccess {object:_, field:_} => panic!("Not implemented"),
+        AST::ObjectDefinition {extends, members} => {
+            let super_object_reference: Option<Reference> = match extends {
+                Some(e) => Some(soft_evaluate(stack, memory, &*e)),
+                None => None,
+            };
 
-        AST::OperatorDefinition { operator:_, parameters:_, body:_} => panic!("Not implemented"),
+            let mut fields: HashMap<String, Reference> = HashMap::new();
+            let mut methods: HashMap<String, FunctionReference> = HashMap::new();
+            for member in members.iter() {
+                match &**member {
+                    AST::LocalDefinition {identifier, value:_} => {
+                        let definition_identifier = extract_identifier_token!(identifier);
+                        let definition_reference = soft_evaluate(stack, memory, &**member);
+                        fields.insert(definition_identifier, definition_reference);
+                    },
+                    AST::FunctionDefinition {name, parameters, body} => {
+                        let definition_identifier = extract_identifier_token!(name);
+                        let function_definition = construct_function_definition!(definition_identifier, parameters, body);
+                        let function_reference = memory.put_function(function_definition);
+                        methods.insert(definition_identifier, function_reference);
+                    },
+                    AST::OperatorDefinition {operator, parameters, body} => {
+                        let definition_identifier = operator.to_str();
+                        let function_definition = construct_function_definition!(definition_identifier, parameters, body);
+                        let function_reference = memory.put_function(function_definition);
+                        methods.insert(definition_identifier.to_string(), function_reference);
+                    },
+                    _ => panic!("Only local, function, and operator definitions can be object members. Not this: {:?}", *member)
+                }
+            }
+
+            let object_instance = Instance::object(super_object_reference, fields, methods);
+            memory.put_object(object_instance)
+        },
+
+        AST::FieldAccess {object, field} => {
+            let field_name = extract_identifier_token!(field);
+
+            let object_reference = soft_evaluate(stack, memory, &*object);
+            let object_instance: &Instance =
+                memory.get_object(&object_reference).expect("Could not find object instance");
+
+            let result: &Reference = match object_instance {
+                Instance::Object {extends:_, fields, methods:_}
+                    if fields.contains_key(&field_name) => fields.get(&field_name).unwrap(),
+                _ => panic!("Could not find field {} in object {:?}", field_name, object_instance)
+            };
+
+            *result
+        }
+
+        AST::FieldMutation {field_path, value} => {
+            panic!("Not implemented")
+        },
+
+        AST::MethodCall {method_path:_, arguments:_} => panic!("Not implemented"),
+
+        AST::OperatorDefinition { operator:_, parameters:_, body:_} => {
+            panic!("Operators can only be defined within bodies of objects")
+        },
+
         AST::OperatorAccess {object:_, operator:_} => panic!("Not implemented"),
+
         AST::Operation {operator:_, left:_, right:_} => panic!("Not implemented"),
 
         AST::String(_) => panic!("Not implemented"),

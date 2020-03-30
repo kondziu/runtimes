@@ -108,10 +108,9 @@ JSON: `{"ArrayDefinition":{"size":{"Number":100},"value":{"Number":42}}}`
 
 Represents the definition of an object instance.
 
-Type: `ObjectDefinition { extends: Option<AST>, parameters: Vec<AST>, members: Vec<AST> }`
+Type: `ObjectDefinition { extends: Option<AST>, members: Vec<AST> }`
 Arguments:
    - `extends` is any `Some(AST)` or nothing
-   - `parameters` is a list of `Identifiers`
    - `members` is a list of elements of types 
         - `LocalDefinition`, 
         - `FunctionDefinition`, 

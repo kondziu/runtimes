@@ -18,12 +18,10 @@ pub enum Instance {
 }
 
 impl Instance {
-    pub fn object() -> Instance {
-        Instance::Object {
-            extends: None,
-            fields: HashMap::new(),
-            methods: HashMap::new(),
-        }
+    pub fn object(extends: Option<Reference>,
+                  fields: HashMap<String, Reference>,
+                  methods: HashMap<String, FunctionReference>) -> Instance {
+        Instance::Object {extends, fields, methods}
     }
     pub fn array(elements: Vec<Reference>) -> Instance {
         Instance::Array {size: elements.len(), values: elements}

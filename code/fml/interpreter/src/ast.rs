@@ -56,6 +56,30 @@ pub enum Operator {
     Conjunction,
 }
 
+impl Operator {
+    pub fn to_str(&self) -> &str {
+        match self {
+            Operator::Multiplication => "*",
+            Operator::Division => "/",
+            Operator::Module => "%",
+            Operator::Addition => "+",
+            Operator::Subtraction => "-",
+            Operator::Inequality => "!=",
+            Operator::Equality => "==",
+            Operator::Less => "<",
+            Operator::LessEqual => "<=",
+            Operator::Greater => ">",
+            Operator::GreaterEqual => ">=",
+            Operator::Disjunction => "&",
+            Operator::Conjunction => "|",
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        self.to_str().to_string()
+    }
+}
+
 #[macro_export]
 macro_rules! make_operator_ast {
     ( $head:expr, $tail:expr ) => {
