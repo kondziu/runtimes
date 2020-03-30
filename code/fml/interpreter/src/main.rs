@@ -243,6 +243,9 @@ mod interpreter_tests {
                 )*
                 parameters
             }, Box::new($body));
+        };
+        ($name:expr, $body:expr) => {
+            Function::new($name.to_string(), Vec::new(), Box::new($body));
         }
     }
 
@@ -491,9 +494,9 @@ mod interpreter_tests {
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42));
     }
 
-    // obj.add(1)
+    // obj.get()
     #[test]
-    fn method_call() {
+    fn method_getter_call() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
 
@@ -501,18 +504,43 @@ mod interpreter_tests {
         fields.insert("x".to_string(), Reference::Integer(42));
 
         let mut methods = HashMap::new();
-        let method_instance = make_function!("add", parse("(this.x) + x"), "x");
+        let method_instance = make_function!("get", parse("(this.x)"));
         let method_reference = memory.put_function(method_instance);
-        methods.insert("add".to_string(), method_reference);
+        methods.insert("get".to_string(), method_reference);
 
         let object_instance = Instance::Object{extends: None, fields, methods};
         let object_reference = memory.put_object(object_instance);
         assert!(gamma.register_binding("obj".to_string(), object_reference).is_ok());
 
-        let ast = parse("obj.add(1)");
+        let ast = parse("obj.get()");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(43));
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42));
     }
+
+    // obj.id(1)
+    #[test]
+    fn method_ident_call() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+
+        let mut fields = HashMap::new();
+        fields.insert("x".to_string(), Reference::Integer(42));
+
+        let mut methods = HashMap::new();
+        let method_instance = make_function!("id", parse("x"), "x");
+        let method_reference = memory.put_function(method_instance);
+        methods.insert("id".to_string(), method_reference);
+
+        let object_instance = Instance::Object{extends: None, fields, methods};
+        let object_reference = memory.put_object(object_instance);
+        assert!(gamma.register_binding("obj".to_string(), object_reference).is_ok());
+
+        let ast = parse("obj.id(42)");
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42));
+    }
+
+
 }
 
 fn main() {

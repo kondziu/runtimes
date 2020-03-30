@@ -44,7 +44,7 @@ macro_rules! find_actual_host_object {
                 let object_instance: &Instance =
                     $memory.get_object(&cursor).expect("Could not find object instance");
                 match object_instance {
-                    Instance::Object { extends, fields, methods: _ } => {
+                    Instance::Object { extends, fields, methods:_} => {
                         if fields.contains_key(&$field_name) {
                             break;
                         }
@@ -55,6 +55,32 @@ macro_rules! find_actual_host_object {
                         panic!("Cannot find field {} in object {:?}", $field_name, object_instance)
                     },
                     _ => panic!("Cannot find field {} in object {:?}", $field_name, object_instance)
+                }
+            }
+            cursor
+        }
+    }
+}
+
+macro_rules! find_actual_host_object_for_method {
+    ($memory:expr, $object_reference:expr, $method_name:expr) => {
+        {
+            let mut cursor = $object_reference;
+            loop {
+                let object_instance: &Instance =
+                    $memory.get_object(&cursor).expect("Could not find object instance");
+                match object_instance {
+                    Instance::Object { extends, fields:_, methods} => {
+                        if methods.contains_key(&$method_name) {
+                            break;
+                        }
+                        if let Some(parent_reference) = extends {
+                            cursor = *parent_reference;
+                            continue;
+                        }
+                        panic!("Cannot find method {} in object {:?}", $method_name, object_instance)
+                    },
+                    _ => panic!("Cannot find method {} in object {:?}", $method_name, object_instance)
                 }
             }
             cursor
@@ -323,18 +349,60 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
             Reference::Unit
         },
 
-        AST::MethodCall {method_path:_, arguments:_} => panic!("Not implemented"),
+        AST::MethodCall {method_path, arguments} => {
+            let (object, method_name) = match &**method_path {
+                AST::FieldAccess {object, field} => (object, extract_identifier_token!(&*field)),
+                AST::OperatorAccess {object, operator} => (object, operator.to_string()),
+                _ => panic!("Cannot call method on a non-object"),
+            };
+
+            let object_reference = soft_evaluate(stack, memory, &*object);
+            let actual_reference = find_actual_host_object_for_method!(memory, object_reference, method_name);
+            let function_reference = match memory.get_object(&actual_reference) {
+                Some(Instance::Object{extends:_, methods, fields:_}) => methods.get(&method_name).unwrap(),
+                Some(instance) => panic!("Invalid instance type {:?}.", instance),
+                None => panic!("Fatal inconsistency in instance store."),
+            };
+
+            let function_definition: Function = {
+                let function_definition = memory.get_function(function_reference)
+                    .expect(&format!("Function {:?} not found in memory", function_reference));
+                function_definition.clone()
+            };
+
+            let bindings = {
+                let mut bindings: Vec<(String, Reference)> = Vec::new();
+                let iterator = function_definition.parameters.iter().zip(arguments.iter());
+                for (parameter, expression) in iterator {
+                    let reference = soft_evaluate(stack, memory, &(**expression).clone());
+                    bindings.push((parameter.to_string(), reference))
+                }
+                bindings.push(("this".to_string(), object_reference));
+                bindings
+            };
+
+            hard_evaluate(stack, memory, bindings, &*function_definition.body)
+        }
+
+        AST::OperatorAccess {object:_, operator:_} => {
+            panic!("Operator access is not allowed, we don't have first class functions and junk")
+        },
 
         AST::OperatorDefinition { operator:_, parameters:_, body:_} => {
             panic!("Operators can only be defined within bodies of objects")
         },
 
-        AST::OperatorAccess {object:_, operator:_} => panic!("Not implemented"),
+        AST::Operation {operator:_, left:_, right:_} => {
+            panic!("Not implemented")
+        },
 
-        AST::Operation {operator:_, left:_, right:_} => panic!("Not implemented"),
+        AST::String(_) => {
+            panic!("Not implemented")
+        },
 
-        AST::String(_) => panic!("Not implemented"),
-        AST::Print {format:_, arguments:_} => panic!("Not implemented"),
+        AST::Print {format:_, arguments:_} => {
+            panic!("Not implemented")
+        },
     }
 }
 
