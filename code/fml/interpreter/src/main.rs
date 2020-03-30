@@ -37,6 +37,18 @@ mod environment_tests {
     use crate::heap::Reference;
     use crate::heap::FunctionReference;
 
+    macro_rules! make_function {
+        ($name:expr, $body:expr, $( $parameter:expr ),*) => {
+            Function::new($name.to_string(), {
+                let mut parameters: Vec<String> = Vec::new();
+                $(
+                    parameters.push($parameter.to_string());
+                )*
+                parameters
+            }, Box::new($body));
+        }
+    }
+
     #[test]
     fn basic () {
         let mut gamma = EnvironmentStack::new();
@@ -231,17 +243,15 @@ mod interpreter_tests {
     use crate::heap::FunctionReference;
     use crate::environment::EnvironmentStack;
     use crate::interpreter::evaluate;
+    use fml_parser::parse;
 
-    // let x <- 1
+    // let x = 1
     #[test]
     fn define_local () {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
 
-        let ast = fml_ast::AST::LocalDefinition {
-            identifier: Box::new(fml_ast::AST::Identifier("x".to_string())),
-            value: Box::new(fml_ast::AST::Number(1))
-        };
+        let ast = parse("let x = 1");
 
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit);
         assert_eq!(gamma.lookup_binding("x"), Ok(&Reference::Integer(1)))
@@ -254,10 +264,7 @@ mod interpreter_tests {
         let mut gamma = EnvironmentStack::new();
         assert!(gamma.register_binding("x".to_string(), Reference::Integer(0)).is_ok());
 
-        let ast = fml_ast::AST::LocalMutation {
-            identifier: Box::new(fml_ast::AST::Identifier("x".to_string())),
-            value: Box::new(fml_ast::AST::Number(1))
-        };
+        let ast = parse("x <- 1");
 
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit);
         assert_eq!(gamma.lookup_binding("x"), Ok(&Reference::Integer(1)))
@@ -271,7 +278,7 @@ mod interpreter_tests {
         assert!(gamma.register_binding("x".to_string(),
                                        Reference::Integer(1)).is_ok());
 
-        let ast = fml_ast::AST::Identifier("x".to_string());
+        let ast = parse("x");
 
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(1))
     }
@@ -282,7 +289,7 @@ mod interpreter_tests {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
 
-        let ast = fml_ast::AST::Number(42);
+        let ast = parse("42");
 
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42))
     }
@@ -293,7 +300,7 @@ mod interpreter_tests {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
 
-        let ast = fml_ast::AST::Unit;
+        let ast = parse("null");
 
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit)
     }
@@ -304,7 +311,7 @@ mod interpreter_tests {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
 
-        let ast = fml_ast::AST::Boolean(true);
+        let ast = parse("true");
 
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast),
                    Reference::Boolean(true))
@@ -316,11 +323,7 @@ mod interpreter_tests {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
 
-        let ast = fml_ast::AST::Block(vec!(
-            Box::new(fml_ast::AST::Number(1)),
-            Box::new(fml_ast::AST::Number(2)),
-            Box::new(fml_ast::AST::Number(3)),
-        ));
+        let ast = parse("begin 1; 2; 3; end");
 
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(3))
     }
@@ -331,11 +334,7 @@ mod interpreter_tests {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
 
-        let ast = fml_ast::AST::Conditional {
-            condition: Box::new(fml_ast::AST::Boolean(true)),
-            consequent: Box::new(fml_ast::AST::Number(1)),
-            alternative: Box::new(fml_ast::AST::Number(2)),
-        };
+        let ast = parse("if true then 1 else 2");
 
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(1))
     }
@@ -346,11 +345,7 @@ mod interpreter_tests {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
 
-        let ast = fml_ast::AST::Conditional {
-            condition: Box::new(fml_ast::AST::Unit),
-            consequent: Box::new(fml_ast::AST::Number(1)),
-            alternative: Box::new(fml_ast::AST::Number(2)),
-        };
+        let ast = parse("if false then 1 else 2");
 
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(2))
     }
@@ -361,11 +356,9 @@ mod interpreter_tests {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
 
-        let ast = fml_ast::AST::FunctionDefinition {
-            name: Box::new(fml_ast::AST::Identifier("f".to_string())),
-            parameters: vec!(Box::new(fml_ast::AST::Identifier("x".to_string()))),
-            body: Box::new(fml_ast::AST::Identifier("x".to_string())),
-        };
+        let ast = parse("function f(x) <- x");
+
+        println!("{:?}", ast);
 
         assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit);
 
@@ -373,35 +366,28 @@ mod interpreter_tests {
         assert!(memory.contains_function(reference));
         let function = memory.get_function(reference).unwrap();
 
-        let name = "f".to_string();
-        let parameters = vec!("x".to_string());
-        let body = fml_ast::AST::Identifier("x".to_string());
-        let expected = Function::new(name, parameters, Box::new(body));
+        let expected = make_function!("f", parse("x"), "x");
         assert_eq!(function, &expected);
     }
 
-    // function f(x) x; f(1)
+    // f(1)
     #[test]
     fn function_call() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
-        let expression =
-            fml_ast::AST::Block(vec!(
-                Box::new(fml_ast::AST::FunctionDefinition {
-                    name: Box::new(fml_ast::AST::Identifier("f".to_string())),
-                    parameters: vec!(Box::new(fml_ast::AST::Identifier("x".to_string()))),
-                    body: Box::new(fml_ast::AST::Identifier("x".to_string()))
-                }),
-                Box::new(fml_ast::AST::FunctionApplication {
-                    function: Box::new(fml_ast::AST::Identifier("f".to_string())),
-                    arguments: vec!(Box::new(fml_ast::AST::Number(1))),
-                }),
-            ));
-        assert_eq!(evaluate(&mut gamma, &mut memory, &expression),
-                   Reference::Integer(1));
-    }
-}
 
+        let function = make_function!("f", parse("x"), "x");
+        let reference = memory.put_function(function);
+        gamma.register_function("f".to_string(), reference)
+            .expect("Could not register function in test header");
+
+        let ast = parse("f(1)");
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(1));
+    }
+
+
+}
 
 fn main() {
     println!("Hello, world!");
