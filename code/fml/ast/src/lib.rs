@@ -3,10 +3,10 @@ use std::cmp::PartialEq;
 use serde::{Serialize, Deserialize};
 
 pub trait Portable {
-  fn to_string(&self) -> String;
+    fn to_string(&self) -> String;
 }
 
-#[derive(PartialEq,Debug,Serialize,Deserialize)]
+#[derive(PartialEq,Debug,Serialize,Deserialize,Clone)]
 pub enum AST {
     String(String),
     Number(i32),
@@ -16,7 +16,7 @@ pub enum AST {
 
     LocalDefinition { identifier: Box<AST>, value: Box<AST> },
     ArrayDefinition { size: Box<AST>, value: Box<AST> },
-    ObjectDefinition { extends: Option<Box<AST>>, parameters: Vec<Box<AST>>, members: Vec<Box<AST>> },
+    ObjectDefinition { extends: Option<Box<AST>>, members: Vec<Box<AST>> },
 
     LocalMutation { identifier: Box<AST>, value: Box<AST> },
     FieldMutation { field_path: Box<AST>, value: Box<AST> },
@@ -56,6 +56,30 @@ pub enum Operator {
     Conjunction,
 }
 
+impl Operator {
+    pub fn to_str(&self) -> &str {
+        match self {
+            Operator::Multiplication => "*",
+            Operator::Division => "/",
+            Operator::Module => "%",
+            Operator::Addition => "+",
+            Operator::Subtraction => "-",
+            Operator::Inequality => "!=",
+            Operator::Equality => "==",
+            Operator::Less => "<",
+            Operator::LessEqual => "<=",
+            Operator::Greater => ">",
+            Operator::GreaterEqual => ">=",
+            Operator::Disjunction => "&",
+            Operator::Conjunction => "|",
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        self.to_str().to_string()
+    }
+}
+
 #[macro_export]
 macro_rules! make_operator_ast {
     ( $head:expr, $tail:expr ) => {
@@ -85,3 +109,11 @@ macro_rules! option_into_box {
         }
     }
 }
+
+//#[cfg(test)]
+//mod tests {
+//    #[test]
+//    fn it_works() {
+//        assert_eq!(2 + 2, 4);
+//    }
+//}

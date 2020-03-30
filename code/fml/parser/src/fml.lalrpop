@@ -1,7 +1,6 @@
 use std::str::FromStr;
 use std::collections::VecDeque;
-use crate::ast::AST;
-use crate::ast::Operator;
+use fml_ast::{AST, Operator};
 
 grammar;
 
@@ -211,9 +210,8 @@ Print: AST = { // TODO format string check
 }
 
 ObjectDefinition: AST = {
-    OBJECT <parameters: Parameters> <extends: (EXTENDS <Expression<"open">>)?> <members: Members> =>
+    OBJECT <extends: (EXTENDS <Expression<"open">>)?> <members: Members> =>
         AST::ObjectDefinition {extends: option_into_box!(extends),
-                               parameters: put_into_boxes!(parameters),
                                members: put_into_boxes!(members)}
 }
 

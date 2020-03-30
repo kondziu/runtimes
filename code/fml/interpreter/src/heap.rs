@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::ast::AST;
+use fml_ast::AST;
 
 // https://dev.to/deciduously/rust-your-own-lisp-50an
 // https://github.com/kenpratt/rusty_scheme
@@ -18,6 +18,9 @@ pub enum Instance {
 }
 
 impl Instance {
+    pub fn empty() -> Instance {
+        Instance::Object {extends: None, fields: HashMap::new(), methods: HashMap::new()}
+    }
     pub fn object(extends: Option<Reference>,
                   fields: HashMap<String, Reference>,
                   methods: HashMap<String, FunctionReference>) -> Instance {

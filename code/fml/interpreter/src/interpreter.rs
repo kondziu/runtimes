@@ -1,4 +1,4 @@
-use crate::ast::AST;
+use fml_ast::AST;
 use crate::environment::EnvironmentStack;
 use crate::heap::{Memory, Function, Reference, Instance, FunctionReference};
 use std::collections::HashMap;

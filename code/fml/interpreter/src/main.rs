@@ -1,14 +1,9 @@
-#[macro_use]
-pub mod ast;
 pub mod environment;
 pub mod heap;
 pub mod interpreter;
 
-extern crate serde;
-extern crate serde_lexpr;
-extern crate serde_json;
-extern crate serde_yaml;
-
+#[macro_use]
+extern crate fml_ast;
 
 #[test] fn memory_instance_test() {
     let mut memory = heap::Memory::new();
@@ -19,7 +14,7 @@ extern crate serde_yaml;
 
 #[test] fn memory_function_test() {
     let mut memory = heap::Memory::new();
-    let function_body = ast::AST::Identifier("x".to_string());
+    let function_body = fml_ast::AST::Identifier("x".to_string());
     let object = heap::Function::new(
         "f".to_string(),
         vec!("x".to_string()),
@@ -201,9 +196,9 @@ extern crate serde_yaml;
     let mut memory = heap::Memory::new();
     let mut gamma = environment::EnvironmentStack::new();
 
-    let ast = ast::AST::LocalDefinition {
-        identifier: Box::new(ast::AST::Identifier("x".to_string())),
-        value: Box::new(ast::AST::Number(1))
+    let ast = fml_ast::AST::LocalDefinition {
+        identifier: Box::new(fml_ast::AST::Identifier("x".to_string())),
+        value: Box::new(fml_ast::AST::Number(1))
     };
 
     assert_eq!(interpreter::evaluate(&mut gamma, &mut memory,&ast),
@@ -219,9 +214,9 @@ extern crate serde_yaml;
     assert!(gamma.register_binding("x".to_string(),
                                    heap::Reference::Integer(0)).is_ok());
 
-    let ast = ast::AST::LocalMutation {
-        identifier: Box::new(ast::AST::Identifier("x".to_string())),
-        value: Box::new(ast::AST::Number(1))
+    let ast = fml_ast::AST::LocalMutation {
+        identifier: Box::new(fml_ast::AST::Identifier("x".to_string())),
+        value: Box::new(fml_ast::AST::Number(1))
     };
 
     assert_eq!(interpreter::evaluate(&mut gamma, &mut memory, &ast),
@@ -237,7 +232,7 @@ extern crate serde_yaml;
     assert!(gamma.register_binding("x".to_string(),
                                    heap::Reference::Integer(1)).is_ok());
 
-    let ast = ast::AST::Identifier("x".to_string());
+    let ast = fml_ast::AST::Identifier("x".to_string());
 
     assert_eq!(interpreter::evaluate(&mut gamma, &mut memory, &ast),
                heap::Reference::Integer(1))
@@ -246,7 +241,7 @@ extern crate serde_yaml;
 // 42
 #[test] fn interpreter_number_test() {
     let mut memory = heap::Memory::new();
-    let ast = ast::AST::Number(42);
+    let ast = fml_ast::AST::Number(42);
     assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
                                      &mut memory,
                                      &ast),
@@ -256,7 +251,7 @@ extern crate serde_yaml;
 // null
 #[test] fn interpreter_unit_test() {
     let mut memory = heap::Memory::new();
-    let ast = ast::AST::Unit;
+    let ast = fml_ast::AST::Unit;
     assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
                                      &mut memory,
                                      &ast),
@@ -266,7 +261,7 @@ extern crate serde_yaml;
 // true
 #[test] fn interpreter_boolean_test() {
     let mut memory = heap::Memory::new();
-    let ast = ast::AST::Boolean(true);
+    let ast = fml_ast::AST::Boolean(true);
     assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
                                      &mut memory,
                                      &ast),
@@ -276,10 +271,10 @@ extern crate serde_yaml;
 // begin 1; 2; 3; end
 #[test] fn interpreter_block_test() {
     let mut memory = heap::Memory::new();
-    let ast = ast::AST::Block(vec!(
-        Box::new(ast::AST::Number(1)),
-        Box::new(ast::AST::Number(2)),
-        Box::new(ast::AST::Number(3)),
+    let ast = fml_ast::AST::Block(vec!(
+        Box::new(fml_ast::AST::Number(1)),
+        Box::new(fml_ast::AST::Number(2)),
+        Box::new(fml_ast::AST::Number(3)),
     ));
     assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
                                      &mut memory,
@@ -290,10 +285,10 @@ extern crate serde_yaml;
 // if true then 1 else 2
 #[test] fn interpreter_conditional_consequent() {
     let mut memory = heap::Memory::new();
-    let ast = ast::AST::Conditional {
-        condition: Box::new(ast::AST::Boolean(true)),
-        consequent: Box::new(ast::AST::Number(1)),
-        alternative: Box::new(ast::AST::Number(2)),
+    let ast = fml_ast::AST::Conditional {
+        condition: Box::new(fml_ast::AST::Boolean(true)),
+        consequent: Box::new(fml_ast::AST::Number(1)),
+        alternative: Box::new(fml_ast::AST::Number(2)),
     };
     assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
                                      &mut memory,
@@ -304,10 +299,10 @@ extern crate serde_yaml;
 // if false then 1 else 2
 #[test] fn interpreter_conditional_alternative() {
     let mut memory = heap::Memory::new();
-    let ast = ast::AST::Conditional {
-        condition: Box::new(ast::AST::Unit),
-        consequent: Box::new(ast::AST::Number(1)),
-        alternative: Box::new(ast::AST::Number(2)),
+    let ast = fml_ast::AST::Conditional {
+        condition: Box::new(fml_ast::AST::Unit),
+        consequent: Box::new(fml_ast::AST::Number(1)),
+        alternative: Box::new(fml_ast::AST::Number(2)),
     };
     assert_eq!(interpreter::evaluate(&mut environment::EnvironmentStack::new(),
                                      &mut memory,
@@ -319,10 +314,10 @@ extern crate serde_yaml;
 #[test] fn interpreter_function_definition() {
     let mut memory = heap::Memory::new();
     let mut stack = environment::EnvironmentStack::new();
-    let expression = ast::AST::FunctionDefinition {
-        name: Box::new(ast::AST::Identifier("f".to_string())),
-        parameters: vec!(Box::new(ast::AST::Identifier("x".to_string()))),
-        body: Box::new(ast::AST::Identifier("x".to_string())),
+    let expression = fml_ast::AST::FunctionDefinition {
+        name: Box::new(fml_ast::AST::Identifier("f".to_string())),
+        parameters: vec!(Box::new(fml_ast::AST::Identifier("x".to_string()))),
+        body: Box::new(fml_ast::AST::Identifier("x".to_string())),
     };
     assert_eq!(interpreter::evaluate(&mut stack, &mut memory, &expression),
                heap::Reference::Unit);
@@ -333,7 +328,7 @@ extern crate serde_yaml;
 
     let name = "f".to_string();
     let parameters = vec!("x".to_string());
-    let body = ast::AST::Identifier("x".to_string());
+    let body = fml_ast::AST::Identifier("x".to_string());
     let expected = heap::Function::new(name, parameters, Box::new(body));
     assert_eq!(function, &expected);
 }
@@ -343,15 +338,15 @@ extern crate serde_yaml;
     let mut memory = heap::Memory::new();
     let mut stack = environment::EnvironmentStack::new();
     let expression =
-        ast::AST::Block(vec!(
-            Box::new(ast::AST::FunctionDefinition {
-                name: Box::new(ast::AST::Identifier("f".to_string())),
-                parameters: vec!(Box::new(ast::AST::Identifier("x".to_string()))),
-                body: Box::new(ast::AST::Identifier("x".to_string()))
+        fml_ast::AST::Block(vec!(
+            Box::new(fml_ast::AST::FunctionDefinition {
+                name: Box::new(fml_ast::AST::Identifier("f".to_string())),
+                parameters: vec!(Box::new(fml_ast::AST::Identifier("x".to_string()))),
+                body: Box::new(fml_ast::AST::Identifier("x".to_string()))
             }),
-            Box::new(ast::AST::FunctionApplication {
-                function: Box::new(ast::AST::Identifier("f".to_string())),
-                arguments: vec!(Box::new(ast::AST::Number(1))),
+            Box::new(fml_ast::AST::FunctionApplication {
+                function: Box::new(fml_ast::AST::Identifier("f".to_string())),
+                arguments: vec!(Box::new(fml_ast::AST::Number(1))),
             }),
         ));
     assert_eq!(interpreter::evaluate(&mut stack, &mut memory, &expression),
