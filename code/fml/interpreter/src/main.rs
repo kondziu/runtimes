@@ -1,10 +1,12 @@
 pub mod environment;
 pub mod heap;
 pub mod interpreter;
+pub mod world;
 
 #[macro_use]
 extern crate fml_ast;
 extern crate fml_parser;
+extern crate regex;
 
 #[cfg(test)]
 mod memory_tests {
@@ -230,6 +232,7 @@ mod interpreter_tests {
     use crate::heap::Reference;
     use crate::heap::FunctionReference;
     use crate::environment::EnvironmentStack;
+    use crate::world::BufferedIO;
     use crate::interpreter::evaluate;
     use fml_parser::parse;
     use std::collections::HashMap;
@@ -269,10 +272,11 @@ mod interpreter_tests {
     fn define_local () {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let ast = parse("let x = 1");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit);
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Unit);
         assert_eq!(gamma.lookup_binding("x"), Ok(&Reference::Integer(1)))
     }
 
@@ -281,11 +285,13 @@ mod interpreter_tests {
     fn redefine_local() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
+
         assert!(gamma.register_binding("x".to_string(), Reference::Integer(0)).is_ok());
 
         let ast = parse("x <- 1");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit);
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Unit);
         assert_eq!(gamma.lookup_binding("x"), Ok(&Reference::Integer(1)))
     }
 
@@ -294,12 +300,14 @@ mod interpreter_tests {
     fn identifier_local_lookup() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
+
         assert!(gamma.register_binding("x".to_string(),
                                        Reference::Integer(1)).is_ok());
 
         let ast = parse("x");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(1))
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Integer(1))
     }
 
     // 42
@@ -307,10 +315,11 @@ mod interpreter_tests {
     fn number() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let ast = parse("42");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42))
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Integer(42))
     }
 
     // null
@@ -318,10 +327,11 @@ mod interpreter_tests {
     fn unit() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let ast = parse("null");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit)
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Unit)
     }
 
     // true
@@ -329,10 +339,11 @@ mod interpreter_tests {
     fn boolean() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let ast = parse("true");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast),
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast),
                    Reference::Boolean(true))
     }
 
@@ -341,10 +352,11 @@ mod interpreter_tests {
     fn block() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let ast = parse("begin 1; 2; 3; end");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(3))
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Integer(3))
     }
 
     // if true then 1 else 2
@@ -352,10 +364,11 @@ mod interpreter_tests {
     fn conditional_consequent() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let ast = parse("if true then 1 else 2");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(1))
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Integer(1))
     }
 
     // if false then 1 else 2
@@ -363,10 +376,11 @@ mod interpreter_tests {
     fn conditional_alternative() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let ast = parse("if false then 1 else 2");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(2))
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Integer(2))
     }
 
     // function f(x) x
@@ -374,12 +388,13 @@ mod interpreter_tests {
     fn function_definition() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let ast = parse("function f(x) <- x");
 
         println!("{:?}", ast);
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Unit);
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Unit);
 
         let reference = gamma.lookup_function("f").unwrap();
         assert!(memory.contains_function(reference));
@@ -394,6 +409,7 @@ mod interpreter_tests {
     fn function_call() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let function = make_function!("f", parse("x"), "x");
         let reference = memory.put_function(function);
@@ -401,7 +417,7 @@ mod interpreter_tests {
 
         let ast = parse("f(1)");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(1));
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Integer(1));
     }
 
     // array(10, 1)
@@ -409,11 +425,12 @@ mod interpreter_tests {
     fn array_definition() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let ast = parse("array(10, 1)");
 
         let expected_reference = Reference::Array {reference: 0, size: 10};
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), expected_reference);
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), expected_reference);
 
         assert!(memory.contains_object(&expected_reference));
         assert_eq!(memory.get_object(&expected_reference),
@@ -425,12 +442,13 @@ mod interpreter_tests {
     fn array_access() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let expected_reference = memory.put_object(make_array!(10, Reference::Integer(1)));
         assert!(gamma.register_binding("a".to_string(), expected_reference).is_ok());
 
         let ast = parse("a[1]");
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(1));
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Integer(1));
     }
 
     // object begin end
@@ -438,11 +456,12 @@ mod interpreter_tests {
     fn empty_object_definition() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let ast = parse("object begin end");
 
         let expected_reference = Reference::Object(0);
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), expected_reference);
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), expected_reference);
 
         assert!(memory.contains_object(&expected_reference));
         assert_eq!(memory.get_object(&expected_reference),
@@ -454,11 +473,12 @@ mod interpreter_tests {
     fn object_definition() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let ast = parse("object begin let x = 1; function add(x) <- (this.x) + x; end");
 
         let expected_reference = Reference::Object(1);
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), expected_reference);
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), expected_reference);
 
         let method = make_function!("add", parse("(this.x) + x"), "x");
 
@@ -481,6 +501,7 @@ mod interpreter_tests {
     fn field_access() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let mut fields = HashMap::new();
         fields.insert("x".to_string(), Reference::Integer(42));
@@ -491,7 +512,7 @@ mod interpreter_tests {
 
         let ast = parse("obj.x");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42));
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Integer(42));
     }
 
     // obj.get()
@@ -499,6 +520,7 @@ mod interpreter_tests {
     fn method_getter_call() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let mut fields = HashMap::new();
         fields.insert("x".to_string(), Reference::Integer(42));
@@ -514,7 +536,7 @@ mod interpreter_tests {
 
         let ast = parse("obj.get()");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(42));
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Integer(42));
     }
 
     // fortytwo + 1
@@ -522,6 +544,7 @@ mod interpreter_tests {
     fn operator_call() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let mut fields = HashMap::new();
         fields.insert("value".to_string(), Reference::Integer(42));
@@ -537,13 +560,14 @@ mod interpreter_tests {
 
         let ast = parse("fortytwo + 1");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Integer(43));
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Integer(43));
     }
 
     #[test]
     fn object_equality() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let mut fields = HashMap::new();
         fields.insert("value".to_string(), Reference::Integer(42));
@@ -559,13 +583,14 @@ mod interpreter_tests {
 
         let ast = parse("fortytwo == fortytwo");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Boolean(true));
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Boolean(true));
     }
 
     #[test]
     fn object_inequality() {
         let mut memory = Memory::new();
         let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
 
         let mut fields = HashMap::new();
         fields.insert("value".to_string(), Reference::Integer(42));
@@ -581,7 +606,35 @@ mod interpreter_tests {
 
         let ast = parse("fortytwo != fortytwo");
 
-        assert_eq!(evaluate(&mut gamma, &mut memory, &ast), Reference::Boolean(false));
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Boolean(false));
+    }
+
+    #[test]
+    fn print_simple() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
+
+        let ast = parse("print(\"a\")");
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Unit);
+
+        let expected_output = BufferedIO::from(vec!("a"));
+        assert_eq!(expected_output, world);
+    }
+
+    #[test]
+    fn print_complicated() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
+
+        let ast = parse("print(\"~.~~.~\", 1, 2, 3, 4)");
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Unit);
+
+        let expected_output = BufferedIO::from(vec!("1.23.4"));
+        assert_eq!(expected_output, world);
     }
 }
 

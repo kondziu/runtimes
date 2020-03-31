@@ -1,7 +1,10 @@
 use fml_ast::AST;
+use crate::world::World;
 use crate::environment::EnvironmentStack;
 use crate::heap::{Memory, Function, Reference, Instance, FunctionReference};
+
 use std::collections::HashMap;
+use regex::Regex;
 
 macro_rules! extract_identifier_token {
     ($ast:expr) => {
@@ -88,25 +91,27 @@ macro_rules! find_actual_host_object_for_method {
     }
 }
 
-pub fn soft_evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: &AST) -> Reference {
+pub fn soft_evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, world: &mut impl World, expression: &AST) -> Reference {
     stack.add_soft_frame();
-    let value = evaluate(stack, memory, expression);
+    let value = evaluate(stack, memory, world, expression);
     stack.remove_frame();
     value
 }
 
-pub fn hard_evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, bindings: Vec<(String, Reference)>, expression: &AST) -> Reference {
+pub fn hard_evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, world: &mut impl World, bindings: Vec<(String, Reference)>, expression: &AST) -> Reference {
     stack.add_hard_frame();
     bindings.into_iter().for_each(|binding| {
         let (name, object) = binding;
         stack.register_binding(name, object).expect("Cannot register binding for argument");
     });
-    let value = evaluate(stack, memory, expression);
+    let value = evaluate(stack, memory, world, expression);
     stack.remove_frame();
     value
 }
 
-pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: &AST) -> Reference {
+pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
+                 world: &mut impl World, expression: &AST) -> Reference {
+
     // Rules of Acquisition
     // 1. 'forever is at least as long as 'here
     // 2. Memory cannot exceed 'forever
@@ -117,14 +122,14 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
     match expression {
 
         AST::LocalDefinition {identifier, value} => {
-            let reference = soft_evaluate(stack, memory, &*value);
+            let reference = soft_evaluate(stack, memory, world, &*value);
             let name = extract_identifier_token!(identifier);
             stack.register_binding(name, reference).expect("Cannot register binding");
             Reference::Unit
         },
 
         AST::LocalMutation {identifier, value} => {
-            let reference = soft_evaluate(stack, memory, &*value);
+            let reference = soft_evaluate(stack, memory, world, &*value);
             let name = extract_identifier_token!(identifier);
             stack.change_binding(name, reference).expect("Cannot modify binding");
             Reference::Unit
@@ -141,13 +146,13 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
         AST::Block(expressions) => {
             let mut reference = Reference::Unit;
             for expression in expressions {
-                reference = evaluate(stack, memory, &*expression)
+                reference = evaluate(stack, memory, world, &*expression)
             }
             reference
         },
 
         AST::Conditional { condition, consequent, alternative} => {
-            let condition_reference = soft_evaluate(stack, memory, &*condition);
+            let condition_reference = soft_evaluate(stack, memory, world, &*condition);
 
             let next_expression =
                 if evaluate_to_boolean(condition_reference) {
@@ -156,7 +161,7 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
                     alternative
                 };
 
-            soft_evaluate(stack, memory, &*next_expression)
+            soft_evaluate(stack, memory, world, &*next_expression)
         },
 
         AST::FunctionDefinition { name, body, parameters } => {
@@ -168,10 +173,10 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
         }
 
         AST::Loop { condition, body } => {
-            let condition_reference = soft_evaluate(stack, memory, &*condition);
+            let condition_reference = soft_evaluate(stack, memory, world, &*condition);
 
             while evaluate_to_boolean(condition_reference) {
-                let _ = soft_evaluate(stack, memory, &*body);
+                let _ = soft_evaluate(stack, memory, world, &*body);
             }
 
             Reference::Unit
@@ -193,17 +198,17 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
                 let mut bindings: Vec<(String, Reference)> = Vec::new();
                 let iterator = function_definition.parameters.iter().zip(arguments.iter());
                 for (parameter, expression) in iterator {
-                    let reference = soft_evaluate(stack, memory, &(**expression).clone());
+                    let reference = soft_evaluate(stack, memory, world, &(**expression).clone());
                     bindings.push((parameter.to_string(), reference))
                 }
                 bindings
             };
 
-            hard_evaluate(stack, memory, bindings, &*function_definition.body)
+            hard_evaluate(stack, memory, world, bindings, &*function_definition.body)
         }
 
         AST::ArrayDefinition {size, value} => {
-            let size_reference = soft_evaluate(stack, memory, &*size);
+            let size_reference = soft_evaluate(stack, memory, world, &*size);
             let size_value = match size_reference {
                 Reference::Integer(n) if n >= 0 => n as usize,
                 Reference::Integer(n) if n <  0 => panic!("Array cannot have negative size"),
@@ -213,7 +218,7 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
             let mut elements: Vec<Reference> = Vec::new();
             stack.add_soft_frame();
             for _ in 0..size_value {
-                elements.push(soft_evaluate(stack, memory, &*value))
+                elements.push(soft_evaluate(stack, memory, world, &*value))
             }
             stack.remove_frame();
 
@@ -221,13 +226,13 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
         }
 
         AST::ArrayAccess {array, index} => {
-            let index_reference = soft_evaluate(stack, memory, &*index);
+            let index_reference = soft_evaluate(stack, memory, world, &*index);
             let index_value = match index_reference {
                 Reference::Integer(n) => n,
                 _ => panic!("Cannot convert {:?} to integer", index_reference),
             };
 
-            let array_reference = soft_evaluate(stack, memory, &*array);
+            let array_reference = soft_evaluate(stack, memory, world, &*array);
             let array_instance: &Instance =
                 memory.get_object(&array_reference).expect("Could not find array instance");
 
@@ -249,15 +254,15 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
                 _ => panic!("Cannot mutate non-array object"),
             };
 
-            let index_reference = soft_evaluate(stack, memory, &*index);
+            let index_reference = soft_evaluate(stack, memory, world, &*index);
             let index_value = match index_reference {
                 Reference::Integer(n) => n,
                 _ => panic!("Cannot convert {:?} to integer", index_reference),
             };
 
-            let value_reference = soft_evaluate(stack, memory, &*value);
+            let value_reference = soft_evaluate(stack, memory, world, &*value);
 
-            let array_reference = soft_evaluate(stack, memory, &*array);
+            let array_reference = soft_evaluate(stack, memory, world, &*array);
             let array_instance: &Instance =
                 memory.get_object(&array_reference).expect("Could not find array instance");
 
@@ -278,7 +283,7 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
 
         AST::ObjectDefinition {extends, members} => {
             let super_object_reference: Option<Reference> = match extends {
-                Some(e) => Some(soft_evaluate(stack, memory, &*e)),
+                Some(e) => Some(soft_evaluate(stack, memory, world, &*e)),
                 None => None,
             };
 
@@ -288,7 +293,7 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
                 match &**member {
                     AST::LocalDefinition {identifier, value} => {
                         let definition_identifier = extract_identifier_token!(identifier);
-                        let definition_reference = soft_evaluate(stack, memory, &*value);
+                        let definition_reference = soft_evaluate(stack, memory, world, &*value);
                         fields.insert(definition_identifier, definition_reference);
                     },
                     AST::FunctionDefinition {name, parameters, body} => {
@@ -314,7 +319,7 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
         AST::FieldAccess {object, field} => {
             let field_name = extract_identifier_token!(field);
 
-            let object_reference = soft_evaluate(stack, memory, &*object);
+            let object_reference = soft_evaluate(stack, memory, world, &*object);
             let actual_reference = find_actual_host_object!(memory, object_reference, field_name);
 
             let actual_instance = memory.get_object(&actual_reference).expect("Could not find object instance");
@@ -332,9 +337,9 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
             };
 
             let field_name = extract_identifier_token!(&*field);
-            let value_reference = soft_evaluate(stack, memory, &**value);
+            let value_reference = soft_evaluate(stack, memory, world, &**value);
 
-            let object_reference = soft_evaluate(stack, memory, &*object);
+            let object_reference = soft_evaluate(stack, memory, world, &*object);
             let actual_reference = find_actual_host_object!(memory, object_reference, field_name);
 
             let actual_instance = memory.get_object_mut(&actual_reference).expect("Could not find object instance");
@@ -356,19 +361,19 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
                 _ => panic!("Cannot call method on a non-object"),
             };
 
-            let object_reference = soft_evaluate(stack, memory, &*object);
+            let object_reference = soft_evaluate(stack, memory, world, &*object);
             let argument_references: Vec<Reference> = arguments.iter().map(|expression| {
-                soft_evaluate(stack, memory, &(**expression).clone())
+                soft_evaluate(stack, memory, world, &(**expression).clone())
             }).collect();
 
-            evaluate_method_call(stack, memory, object_reference, method_name, argument_references)
+            evaluate_method_call(stack, memory, world, object_reference, method_name, argument_references)
         }
 
         AST::Operation {operator, left, right} => {
             use fml_ast::Operator::*;
 
-            let left_reference = soft_evaluate(stack, memory, &**left);
-            let right_reference = soft_evaluate(stack, memory, &**right);
+            let left_reference = soft_evaluate(stack, memory, world, &**left);
+            let right_reference = soft_evaluate(stack, memory, world, &**right);
 
             let result = match (left_reference, operator, right_reference) {
                 (left_reference, Equality, right_reference) => Reference::Boolean(left_reference == right_reference),
@@ -395,7 +400,7 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
                 //(Reference::Unit, Equality, right_reference) => Reference::Boolean(Reference::Unit == right_reference),
 
                 (Reference::Object(_), operator, right_reference) =>
-                    evaluate_method_call(stack, memory, left_reference, operator.to_string(), vec!(right_reference)),
+                    evaluate_method_call(stack, memory, world, left_reference, operator.to_string(), vec!(right_reference)),
 
                 _ => panic!("Operator {} is not implemented for operands {:?} and {:?}",
                             operator.to_string(), left_reference, right_reference)
@@ -404,12 +409,53 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
             result
         },
 
-        AST::String(_) => {
-            panic!("Not implemented")
+        AST::Print {format, arguments} => {
+            let format_string = match &**format {
+                AST::String(string) => string,
+                _ => panic!("Format string must be a string, but it is this: {:?}", format),
+            };
+
+            if arguments.is_empty() {
+                world.output(format_string.to_string());
+            } else {
+                let mut values: Vec<String> = arguments.iter().map(|argument| {
+                    evaluate_to_string(soft_evaluate(stack, memory, world, &*argument))
+                }).rev().collect();
+
+                let mut escape = false;
+                let mut result = String::new();
+
+                for character in format_string.chars() {
+                    if character == '\\' {
+                        escape = true;
+                        result.push(character);
+                        continue;
+                    }
+
+                    if !escape && (character == '~') {
+                        match values.pop() {
+                            Some(value) => result.push_str(&value),
+                            None => panic!("Missing argument for placeholder in {}", format_string),
+                        }
+                        continue;
+                    }
+
+                    escape = false;
+                    result.push(character);
+                }
+
+                if !values.is_empty() {
+                    panic!("Too many arguments for format string {}", format_string)
+                }
+
+                world.output(result);
+            }
+
+            Reference::Unit
         },
 
-        AST::Print {format:_, arguments:_} => {
-            panic!("Not implemented")
+        AST::String(_) => {
+            panic!("String literals cannot occur outside of print.")
         },
 
         AST::OperatorAccess {object:_, operator:_} => {
@@ -423,8 +469,8 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory, expression: 
 }
 
 fn evaluate_method_call(stack: &mut EnvironmentStack, memory: &mut Memory,
-                        object_reference: Reference,  method_name: String,
-                        arguments: Vec<Reference>) -> Reference {
+                        world: &mut impl World, object_reference: Reference,
+                        method_name: String, arguments: Vec<Reference>) -> Reference {
 
     let actual_reference = find_actual_host_object_for_method!(memory, object_reference, method_name);
     let function_reference = match memory.get_object(&actual_reference) {
@@ -449,7 +495,7 @@ fn evaluate_method_call(stack: &mut EnvironmentStack, memory: &mut Memory,
         bindings
     };
 
-    hard_evaluate(stack, memory, bindings, &*function_definition.body)
+    hard_evaluate(stack, memory, world, bindings, &*function_definition.body)
 }
 
 fn evaluate_to_boolean(reference: Reference) -> bool {
@@ -459,5 +505,15 @@ fn evaluate_to_boolean(reference: Reference) -> bool {
         Reference::Object(_) => true,
         Reference::Integer(n) => n == 0,
         Reference::Array {reference: _, size: _} => true,
+    }
+}
+
+fn evaluate_to_string(reference: Reference) -> String {
+    match reference {
+        Reference::Boolean(b) => format!("{}", b),
+        Reference::Unit => "null".to_string(),
+        Reference::Object(reference) => format!("<ref:{}>", reference),
+        Reference::Integer(n) => format!("{}", n),
+        Reference::Array {reference, size} => format!("<ref:{}, size:{}>", reference, size),
     }
 }

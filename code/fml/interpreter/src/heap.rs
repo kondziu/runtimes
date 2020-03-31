@@ -50,12 +50,15 @@ pub enum FunctionReference { // i guess I'll split it off?
 }
 
 #[derive(Copy, Clone, Debug, PartialOrd, PartialEq, Eq, Hash)]
+pub struct StringReference(u64);
+
+
+#[derive(Copy, Clone, Debug, PartialOrd, PartialEq, Eq, Hash)]
 pub enum Reference {
     Unit,
     Object(u64),
     Integer(i32),
     Boolean(bool),
-    //String(&'obj str),
     Array {reference: u64, size: usize}
 }
 
@@ -64,6 +67,7 @@ pub struct Memory {
     sequence: ReferenceSequence,
     objects: HashMap<Reference, Instance>,
     functions: HashMap<FunctionReference, Function>,
+    //strings: HashMap<StringReference, String>
 }
 
 #[derive(Debug)]

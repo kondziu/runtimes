@@ -240,6 +240,7 @@ version = "0.1.0"
 dependencies = [
  "fml_ast",
  "fml_parser",
+ "regex",
  "serde",
  "serde-lexpr",
  "serde_json",
