@@ -12,24 +12,24 @@ pub enum AST {
     Number(i32),
     Boolean(bool),
     Unit,
-    Identifier(String),
 
-    LocalDefinition { identifier: Box<AST>, value: Box<AST> },
+    LocalDefinition { local: Identifier, value: Box<AST> },
     ArrayDefinition { size: Box<AST>, value: Box<AST> },
     ObjectDefinition { extends: Option<Box<AST>>, members: Vec<Box<AST>> },
 
-    LocalMutation { identifier: Box<AST>, value: Box<AST> },
+    LocalMutation { local: Identifier, value: Box<AST> },
     FieldMutation { field_path: Box<AST>, value: Box<AST> },
     ArrayMutation { array: Box<AST>, value: Box<AST> },
 
-    FunctionDefinition { name: Box<AST>, parameters: Vec<Box<AST>>, body: Box<AST> },
-    OperatorDefinition { operator: Operator, parameters: Vec<Box<AST>>, body: Box<AST> },
+    FunctionDefinition { function: Identifier, parameters: Vec<Identifier>, body: Box<AST> },
+    OperatorDefinition { operator: Operator, parameters: Vec<Identifier>, body: Box<AST> },
 
-    FunctionApplication { function: Box<AST>, arguments: Vec<Box<AST>> },
+    FunctionApplication { function: Identifier, arguments: Vec<Box<AST>> },
     MethodCall { method_path: Box<AST>, arguments: Vec<Box<AST>> },
     Print { format: Box<AST>, arguments: Vec<Box<AST>> },
 
-    FieldAccess { object: Box<AST>, field: Box<AST> },
+    LocalAccess { local: Identifier },
+    FieldAccess { object: Box<AST>, field: Identifier },
     OperatorAccess { object: Box<AST>, operator: Operator },
     ArrayAccess { array: Box<AST>, index: Box<AST> },
 
@@ -37,6 +37,18 @@ pub enum AST {
     Operation { operator: Operator, left: Box<AST>, right: Box<AST> },
     Loop { condition: Box<AST>, body: Box<AST> },
     Conditional { condition: Box<AST>, consequent: Box<AST>, alternative: Box<AST> },
+}
+
+#[derive(PartialEq,Debug,Clone,Serialize,Deserialize)]
+pub struct Identifier { pub token: String }
+
+impl Identifier {
+    pub fn from(str: &str) -> Identifier {
+        Identifier { token: str.to_string() }
+    }
+    pub fn to_string(&self) -> String {
+        self.token.to_string()
+    }
 }
 
 #[derive(PartialEq,Debug,Copy,Clone,Serialize,Deserialize)]

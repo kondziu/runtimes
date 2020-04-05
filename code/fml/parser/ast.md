@@ -64,20 +64,6 @@ FML: `null`
 LISP: `Unit`  
 JSON: `"Unit"`
 
-## Identifier
-    
-A node that represents a simple identifier, carries the identifier token. 
-Identifiers start with a letter and contain letters, digits and underscore. 
-This specifically does not include operators.
-
-Type: `Identifier(&str)`    
-Arguments:
-   - (anonymous) string
-
-FML: `x`  
-LISP: `(Identifier . "x")`  
-JSON: `{"Identifier":"x"}`  
-
 ## Variable definition
 
 Represents a definition of a local variable: an assignment of a value to an identifier.
@@ -364,6 +350,20 @@ FML: `print("x = ~", x)`
 LISP: `(Print (format String . "x = ~") (arguments (Identifier . "x")))`  
 JSON: `{"Print":{"format":{"String":"x = ~"},"arguments":[{"Identifier":"x"}]}}`    
 
+## Local access
+    
+A node that represents access to a local variable, carries the identifier token. 
+Identifiers start with a letter and contain letters, digits and underscore. 
+This specifically does not include operators.
+
+Type: `LocalAccess{ local: Identifier }`    
+Arguments:
+   - (anonymous) string
+
+FML: `x`  
+LISP: `(LocalAccess (local . "x"))`  
+JSON: `{"LocalAccess":{"local":"x"}}`  
+
 ## Field access
 
 Represents an access to an object's field.
@@ -374,8 +374,8 @@ Arguments:
     - `field` is an `Identifier`
     
 FML: `obj.a`  
-LISP: `(FieldAccess (object Identifier . "obj") (field Identifier . "a"))`  
-JSON: `{"FieldAccess":{"object":{"Identifier":"obj"},"field":{"Identifier":"a"}}}`
+LISP: `(FieldAccess (object LocalAccess (local . "obj")) (field . "a"))`  
+JSON: `{"FieldAccess":{"object":{"LocalAccess":{"local":"obj"}},"field":"a"}}`
     
 ## Operator access
 

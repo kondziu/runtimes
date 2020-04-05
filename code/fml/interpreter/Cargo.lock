@@ -229,14 +229,14 @@ checksum = "86d4de0081402f5e88cdac65c8dcdcc73118c1a7a465e2a05f0da05843a8ea33"
 
 [[package]]
 name = "fml_ast"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "fml_interpreter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "fml_ast",
  "fml_parser",
@@ -249,7 +249,7 @@ dependencies = [
 
 [[package]]
 name = "fml_parser"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "fml_ast",
  "lalrpop",

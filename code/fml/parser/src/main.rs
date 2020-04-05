@@ -13,7 +13,7 @@ extern crate fml_ast;
 lalrpop_mod!(pub fml); // synthesized by LALRPOP
 
 use crate::fml::TopLevelParser;
-use fml_ast::{AST, Operator};
+use fml_ast::{AST};
 
 #[cfg(not(test))]
 fn main() {

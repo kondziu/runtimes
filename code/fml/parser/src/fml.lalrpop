@@ -1,6 +1,6 @@
 use std::str::FromStr;
 use std::collections::VecDeque;
-use fml_ast::{AST, Operator};
+use fml_ast::{AST, Operator,Identifier};
 
 grammar;
 
@@ -54,7 +54,7 @@ match {
     // all fungible tokens
     r"[_A-Za-z][_A-Za-z0-9]*" => IDENTIFIER,
     r"[-]?[0-9]+" => NUMBER,
-    r#""([^\\]|\\[ntbr\\])*""# => STRING_LITERAL,
+    r#""([^\\]|\\[~ntr\\])*""# => STRING_LITERAL,
 }
 
 // Parser
@@ -100,7 +100,7 @@ Accessible: AST = {
     Application                       => <>, // function application
     ArrayDefinition                   => <>, // array definition
     ArrayAccess                       => <>, // array access
-    Identifier                        => <>, // variable access
+    LocalAccess                       => <>, // variable access
     Literal                           => <>, // literal, duh
 }
 
@@ -223,19 +223,19 @@ Members: Vec<AST> = {
 }
 
 Field: AST = {
-    <object: Accessible> DOT <objects: (<Identifier> DOT)*> <field: Identifier> => {
+    <object: Accessible> DOT <objects: (<Ident> DOT)*> <field: Ident> => {
         let mut tail = Vec::from(objects);
         tail.push(field);
         tail.into_iter().fold(object, |left, right|
-            AST::FieldAccess {object: Box::new(left), field: Box::new(right)})
+            AST::FieldAccess {object: Box::new(left), field: right})
     }
 }
 
 Method: AST = {
     Field => <>,
-    <object: Accessible> DOT <objects: (<Identifier> DOT)*> <operator: Operator> => {
+    <object: Accessible> DOT <objects: (<Ident> DOT)*> <operator: Operator> => {
         let path = objects.into_iter().fold(object, |left, right|
-            AST::FieldAccess {object: Box::new(left), field: Box::new(right)});
+            AST::FieldAccess {object: Box::new(left), field: right});
         AST::OperatorAccess {object: Box::new(path), operator}
     }
 }
@@ -258,21 +258,21 @@ Loop<openness>: AST = {
 }
 
 FunctionDefinition<openness>: AST = {
-    FUNCTION <id: Identifier> <parameters: Parameters> LARROW <body: Expression<openness>> =>
-        AST::FunctionDefinition{name: Box::new(id),
-                                parameters: put_into_boxes!(parameters),
+    FUNCTION <id: Ident> <parameters: Parameters> LARROW <body: Expression<openness>> =>
+        AST::FunctionDefinition{function: id,
+                                parameters: parameters,
                                 body: Box::new(body)}
 }
 
 OperatorDefinition<openness>: AST = {
     FUNCTION <operator: Operator> <parameters: Parameters> LARROW <body: Expression<openness>> =>
         AST::OperatorDefinition{operator: operator,
-                                parameters: put_into_boxes!(parameters),
+                                parameters: parameters,
                                 body: Box::new(body)}
 }
 
-Parameters: Vec<AST> = {
-    LPAREN <elements: (<Identifier> COMMA)*> <element: Identifier?> RPAREN =>
+Parameters: Vec<Identifier> = {
+    LPAREN <elements: (<Ident> COMMA)*> <element: Ident?> RPAREN =>
         match element {
             None => elements,
             Some(e) => { let mut elements = elements; elements.push(e); elements }
@@ -280,10 +280,10 @@ Parameters: Vec<AST> = {
 }
 
 Application: AST = {
-    <function: Identifier> LPAREN <arguments: Arguments> RPAREN => {
+    <function: Ident> LPAREN <arguments: Arguments> RPAREN => {
         let boxed_arguments: Vec<Box<AST>> =
             arguments.into_iter().map(|e| Box::new(e)).collect();
-        AST::FunctionApplication{function: Box::new(function), arguments: boxed_arguments}
+        AST::FunctionApplication{function: function, arguments: boxed_arguments}
     },
     <method: Method> LPAREN <arguments: Arguments> RPAREN => {
         let boxed_arguments: Vec<Box<AST>> =
@@ -305,22 +305,26 @@ Arguments: Vec<AST> = {
 }
 
 Assignment<openness>: AST = {
-    LET <id: Identifier> BE <v: Expression<openness>> =>
-        AST::LocalDefinition{identifier: Box::new(id), value: Box::new(v)},
+    LET <id: Ident> BE <v: Expression<openness>> =>
+        AST::LocalDefinition{local: id, value: Box::new(v)},
 }
 
 Mutation<openness>: AST = {
-    <id: Identifier> LARROW <v: Expression<openness>> =>
-        AST::LocalMutation{identifier: Box::new(id), value: Box::new(v)},
+    <id: Ident> LARROW <v: Expression<openness>> =>
+        AST::LocalMutation{local: id, value: Box::new(v)},
     <field: Field> LARROW <v: Expression<openness>> =>
         AST::FieldMutation{field_path: Box::new(field), value: Box::new(v)},
     <array: ArrayAccess> LARROW <v: Expression<openness>> =>
         AST::ArrayMutation{array: Box::new(array), value: Box::new(v)},
 }
 
-Identifier: AST = {
-     IDENTIFIER                          => AST::Identifier(<>.to_string()),
-     THIS                                => AST::Identifier(<>.to_string()),
+LocalAccess: AST = {
+    Ident                                => AST::LocalAccess { local: <> },
+}
+
+Ident: Identifier = {
+     IDENTIFIER                          => Identifier::from(<>),
+     THIS                                => Identifier::from(<>),
 }
 
 Number: AST = {

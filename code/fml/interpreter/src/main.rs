@@ -13,6 +13,7 @@ mod memory_tests {
     use crate::heap::Memory;
     use crate::heap::Instance;
     use crate::heap::Function;
+    use fml_ast::Identifier;
 
     #[test] fn instance () {
         let mut memory = Memory::new();
@@ -23,7 +24,7 @@ mod memory_tests {
 
     #[test] fn function () {
         let mut memory = Memory::new();
-        let function_body = fml_ast::AST::Identifier("x".to_string());
+        let function_body = fml_ast::AST::LocalAccess{local: Identifier::from("x")};
         let object = Function::new(
             "f".to_string(),
             vec!("x".to_string()),
@@ -634,6 +635,20 @@ mod interpreter_tests {
         assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Unit);
 
         let expected_output = BufferedIO::from(vec!("1.23.4"));
+        assert_eq!(expected_output, world);
+    }
+
+    #[test]
+    fn print_escape() {
+        let mut memory = Memory::new();
+        let mut gamma = EnvironmentStack::new();
+        let mut world = BufferedIO::new();
+
+        let ast = parse("print(\"~\\~~\", 1, 2)");
+
+        assert_eq!(evaluate(&mut gamma, &mut memory, &mut world, &ast), Reference::Unit);
+
+        let expected_output = BufferedIO::from(vec!("1~2"));
         assert_eq!(expected_output, world);
     }
 }

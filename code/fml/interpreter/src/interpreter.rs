@@ -1,4 +1,5 @@
 use fml_ast::AST;
+use fml_ast::Identifier;
 use crate::world::World;
 use crate::environment::EnvironmentStack;
 use crate::heap::{Memory, Function, Reference, Instance, FunctionReference};
@@ -6,20 +7,20 @@ use crate::heap::{Memory, Function, Reference, Instance, FunctionReference};
 use std::collections::HashMap;
 use regex::Regex;
 
-macro_rules! extract_identifier_token {
-    ($ast:expr) => {
-        match &**($ast) {
-            AST::Identifier(token) => token.to_string(),
-            ast => panic!("Expected AST::Identifier, but found {:?}", ast),
-        }
-    }
-}
+//macro_rules! extract_identifier_token {
+//    ($ast:expr) => {
+//        match &**($ast) {
+//            AST::Identifier(token) => token.to_string(),
+//            ast => panic!("Expected AST::Identifier, but found {:?}", ast),
+//        }
+//    }
+//}
 
 macro_rules! construct_function_definition {
     ($name:expr, $parameters:ident, $body:ident) => {
             Function::new($name.to_string(),
                           $parameters.iter()
-                                .map (|parameter: &Box<AST>| extract_identifier_token!(parameter))
+                                .map (|parameter| parameter.to_string())
                                 .collect(),
                           $body.clone())
     }
@@ -121,22 +122,20 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
 
     match expression {
 
-        AST::LocalDefinition {identifier, value} => {
+        AST::LocalDefinition {local, value} => {
             let reference = soft_evaluate(stack, memory, world, &*value);
-            let name = extract_identifier_token!(identifier);
-            stack.register_binding(name, reference).expect("Cannot register binding");
+            stack.register_binding(local.to_string(), reference).expect("Cannot register binding");
             Reference::Unit
         },
 
-        AST::LocalMutation {identifier, value} => {
+        AST::LocalMutation {local, value} => {
             let reference = soft_evaluate(stack, memory, world, &*value);
-            let name = extract_identifier_token!(identifier);
-            stack.change_binding(name, reference).expect("Cannot modify binding");
+            stack.change_binding(local.to_string(), reference).expect("Cannot modify binding");
             Reference::Unit
         }
 
-        AST::Identifier(token) => {
-            *stack.lookup_binding(token).expect("Cannot resolve identifier")
+        AST::LocalAccess {local} => {
+            *stack.lookup_binding(&local.token).expect("Cannot resolve identifier")
         },
 
         AST::Number(n) => Reference::Integer(*n),
@@ -164,11 +163,10 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
             soft_evaluate(stack, memory, world, &*next_expression)
         },
 
-        AST::FunctionDefinition { name, body, parameters } => {
-            let name = extract_identifier_token!(name);
-            let function_definition = construct_function_definition!(name, parameters, body);
+        AST::FunctionDefinition { function, body, parameters } => {
+            let function_definition = construct_function_definition!(function.token, parameters, body);
             let function_reference = memory.put_function(function_definition);
-            stack.register_function(name, function_reference).expect("Cannot bind function");
+            stack.register_function(function.to_string(), function_reference).expect("Cannot bind function");
             Reference::Unit
         }
 
@@ -183,10 +181,8 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
         }
 
         AST::FunctionApplication {function, arguments} => {
-            let name = extract_identifier_token!(function);
-
-            let function_reference = stack.lookup_function(&name)
-                .expect(&format!("Function {} not found on stack", name));
+            let function_reference = stack.lookup_function(&function.token)
+                .expect(&format!("Function {} not found on stack", function.token));
 
             let function_definition: Function = {
                 let function_definition = memory.get_function(function_reference)
@@ -291,16 +287,14 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
             let mut methods: HashMap<String, FunctionReference> = HashMap::new();
             for member in members.iter() {
                 match &**member {
-                    AST::LocalDefinition {identifier, value} => {
-                        let definition_identifier = extract_identifier_token!(identifier);
+                    AST::LocalDefinition {local, value} => {
                         let definition_reference = soft_evaluate(stack, memory, world, &*value);
-                        fields.insert(definition_identifier, definition_reference);
+                        fields.insert(local.to_string(), definition_reference);
                     },
-                    AST::FunctionDefinition {name, parameters, body} => {
-                        let definition_identifier = extract_identifier_token!(name);
-                        let function_definition = construct_function_definition!(definition_identifier, parameters, body);
+                    AST::FunctionDefinition {function, parameters, body} => {
+                        let function_definition = construct_function_definition!(function.token, parameters, body);
                         let function_reference = memory.put_function(function_definition);
-                        methods.insert(definition_identifier, function_reference);
+                        methods.insert(function.to_string(), function_reference);
                     },
                     AST::OperatorDefinition {operator, parameters, body} => {
                         let definition_identifier = operator.to_str();
@@ -317,15 +311,13 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
         },
 
         AST::FieldAccess {object, field} => {
-            let field_name = extract_identifier_token!(field);
-
             let object_reference = soft_evaluate(stack, memory, world, &*object);
-            let actual_reference = find_actual_host_object!(memory, object_reference, field_name);
+            let actual_reference = find_actual_host_object!(memory, object_reference, field.token);
 
             let actual_instance = memory.get_object(&actual_reference).expect("Could not find object instance");
 
             match actual_instance {
-                Instance::Object { extends:_, fields, methods:_ } => *fields.get(&field_name).unwrap(),
+                Instance::Object { extends:_, fields, methods:_ } => *fields.get(&field.token).unwrap(),
                 _ => panic!("Fatal inconsistency in instance store.")
             }
         }
@@ -336,17 +328,16 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
                 _ => panic!("Cannot mutate non-array object"),
             };
 
-            let field_name = extract_identifier_token!(&*field);
             let value_reference = soft_evaluate(stack, memory, world, &**value);
 
             let object_reference = soft_evaluate(stack, memory, world, &*object);
-            let actual_reference = find_actual_host_object!(memory, object_reference, field_name);
+            let actual_reference = find_actual_host_object!(memory, object_reference, field.token);
 
             let actual_instance = memory.get_object_mut(&actual_reference).expect("Could not find object instance");
 
             match actual_instance {
                 Instance::Object { extends:_, fields, methods: _ } => {
-                    fields.insert(field_name, value_reference);
+                    fields.insert(field.to_string(), value_reference);
                 },
                 _ => panic!("Fatal inconsistency in instance store.")
             }
@@ -356,7 +347,7 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
 
         AST::MethodCall {method_path, arguments} => {
             let (object, method_name) = match &**method_path {
-                AST::FieldAccess {object, field} => (object, extract_identifier_token!(&*field)),
+                AST::FieldAccess {object, field} => (object, field.to_string()),
                 AST::OperatorAccess {object, operator} => (object, operator.to_string()),
                 _ => panic!("Cannot call method on a non-object"),
             };
@@ -426,22 +417,20 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
                 let mut result = String::new();
 
                 for character in format_string.chars() {
-                    if character == '\\' {
-                        escape = true;
-                        result.push(character);
-                        continue;
+                    match character {
+                        '~' if !escape => {
+                            match values.pop() {
+                                Some(value) => result.push_str(&value),
+                                None => panic!("Cannot fill placeholder in {}", format_string),
+                            }
+                        },
+                        '\\' if !escape => { escape = true;                         },
+                        '\\' if  escape => { escape = false; result.push('\\')      },
+                        'n'  if  escape => { escape = false; result.push('\n')      },
+                        't'  if  escape => { escape = false; result.push('\t')      },
+                        'r'  if  escape => { escape = false; result.push('\r')      },
+                        _ =>               { escape = false; result.push(character) },
                     }
-
-                    if !escape && (character == '~') {
-                        match values.pop() {
-                            Some(value) => result.push_str(&value),
-                            None => panic!("Missing argument for placeholder in {}", format_string),
-                        }
-                        continue;
-                    }
-
-                    escape = false;
-                    result.push(character);
                 }
 
                 if !values.is_empty() {
