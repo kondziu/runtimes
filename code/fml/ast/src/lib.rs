@@ -40,14 +40,14 @@ pub enum AST {
 }
 
 #[derive(PartialEq,Debug,Clone,Serialize,Deserialize)]
-pub struct Identifier { pub token: String }
+pub struct Identifier(pub String);
 
 impl Identifier {
     pub fn from(str: &str) -> Identifier {
-        Identifier { token: str.to_string() }
+        Identifier(str.to_string())
     }
     pub fn to_string(&self) -> String {
-        self.token.to_string()
+        self.0.to_string()
     }
 }
 

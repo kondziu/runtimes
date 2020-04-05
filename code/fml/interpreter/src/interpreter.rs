@@ -5,7 +5,6 @@ use crate::environment::EnvironmentStack;
 use crate::heap::{Memory, Function, Reference, Instance, FunctionReference};
 
 use std::collections::HashMap;
-use regex::Regex;
 
 //macro_rules! extract_identifier_token {
 //    ($ast:expr) => {
@@ -122,20 +121,20 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
 
     match expression {
 
-        AST::LocalDefinition {local, value} => {
+        AST::LocalDefinition {local: Identifier(local), value} => {
             let reference = soft_evaluate(stack, memory, world, &*value);
             stack.register_binding(local.to_string(), reference).expect("Cannot register binding");
             Reference::Unit
         },
 
-        AST::LocalMutation {local, value} => {
+        AST::LocalMutation {local: Identifier(local), value} => {
             let reference = soft_evaluate(stack, memory, world, &*value);
             stack.change_binding(local.to_string(), reference).expect("Cannot modify binding");
             Reference::Unit
         }
 
-        AST::LocalAccess {local} => {
-            *stack.lookup_binding(&local.token).expect("Cannot resolve identifier")
+        AST::LocalAccess {local: Identifier(local)} => {
+            *stack.lookup_binding(&local).expect("Cannot resolve identifier")
         },
 
         AST::Number(n) => Reference::Integer(*n),
@@ -163,8 +162,8 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
             soft_evaluate(stack, memory, world, &*next_expression)
         },
 
-        AST::FunctionDefinition { function, body, parameters } => {
-            let function_definition = construct_function_definition!(function.token, parameters, body);
+        AST::FunctionDefinition { function: Identifier(function), body, parameters } => {
+            let function_definition = construct_function_definition!(function, parameters, body);
             let function_reference = memory.put_function(function_definition);
             stack.register_function(function.to_string(), function_reference).expect("Cannot bind function");
             Reference::Unit
@@ -180,9 +179,9 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
             Reference::Unit
         }
 
-        AST::FunctionApplication {function, arguments} => {
-            let function_reference = stack.lookup_function(&function.token)
-                .expect(&format!("Function {} not found on stack", function.token));
+        AST::FunctionApplication {function: Identifier(function), arguments} => {
+            let function_reference = stack.lookup_function(&function)
+                .expect(&format!("Function {} not found on stack", function));
 
             let function_definition: Function = {
                 let function_definition = memory.get_function(function_reference)
@@ -287,12 +286,12 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
             let mut methods: HashMap<String, FunctionReference> = HashMap::new();
             for member in members.iter() {
                 match &**member {
-                    AST::LocalDefinition {local, value} => {
+                    AST::LocalDefinition {local: Identifier(local), value} => {
                         let definition_reference = soft_evaluate(stack, memory, world, &*value);
                         fields.insert(local.to_string(), definition_reference);
                     },
-                    AST::FunctionDefinition {function, parameters, body} => {
-                        let function_definition = construct_function_definition!(function.token, parameters, body);
+                    AST::FunctionDefinition {function: Identifier(function), parameters, body} => {
+                        let function_definition = construct_function_definition!(function, parameters, body);
                         let function_reference = memory.put_function(function_definition);
                         methods.insert(function.to_string(), function_reference);
                     },
@@ -310,28 +309,28 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
             memory.put_object(object_instance)
         },
 
-        AST::FieldAccess {object, field} => {
+        AST::FieldAccess {object, field: Identifier(field)} => {
             let object_reference = soft_evaluate(stack, memory, world, &*object);
-            let actual_reference = find_actual_host_object!(memory, object_reference, field.token);
+            let actual_reference = find_actual_host_object!(memory, object_reference, *field);
 
             let actual_instance = memory.get_object(&actual_reference).expect("Could not find object instance");
 
             match actual_instance {
-                Instance::Object { extends:_, fields, methods:_ } => *fields.get(&field.token).unwrap(),
+                Instance::Object { extends:_, fields, methods:_ } => *fields.get(&**field).unwrap(),
                 _ => panic!("Fatal inconsistency in instance store.")
             }
         }
 
         AST::FieldMutation {field_path, value} => {
             let (object, field) = match &**field_path {
-                AST::FieldAccess {object, field} => (object, field),
+                AST::FieldAccess {object, field: Identifier(field)} => (object, field),
                 _ => panic!("Cannot mutate non-array object"),
             };
 
             let value_reference = soft_evaluate(stack, memory, world, &**value);
 
             let object_reference = soft_evaluate(stack, memory, world, &*object);
-            let actual_reference = find_actual_host_object!(memory, object_reference, field.token);
+            let actual_reference = find_actual_host_object!(memory, object_reference, *field);
 
             let actual_instance = memory.get_object_mut(&actual_reference).expect("Could not find object instance");
 
@@ -347,7 +346,7 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
 
         AST::MethodCall {method_path, arguments} => {
             let (object, method_name) = match &**method_path {
-                AST::FieldAccess {object, field} => (object, field.to_string()),
+                AST::FieldAccess {object, field: Identifier(field)} => (object, field.to_string()),
                 AST::OperatorAccess {object, operator} => (object, operator.to_string()),
                 _ => panic!("Cannot call method on a non-object"),
             };
