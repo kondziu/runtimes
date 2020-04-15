@@ -44,7 +44,7 @@ pub enum ProgramObject {
      * Contains an index that refers to a `ProgramObject::String` object. The string object
      * represents this slot's name.
      *
-     * Serialized with tag `0x03`.
+     * Serialized with tag `0x04`.
      */
     Slot { name: ConstantPoolIndex },
 
@@ -60,7 +60,7 @@ pub enum ProgramObject {
      *   - `locals`: the number of local variables defined in this method,
      *   - `code`: a vector containing all the instructions in this method.
      *
-     * Serialized with tag `0x04`.
+     * Serialized with tag `0x03`.
      */
     Method {
         name: ConstantPoolIndex,
@@ -90,8 +90,8 @@ impl ProgramObject {
             Integer(_)                                         => 0x00,
             Null                                               => 0x01,
             String(_)                                          => 0x02,
-            Slot {name:_}                                      => 0x03,
-            Method {name: _, arguments: _, locals: _, code: _} => 0x04,
+            Method {name: _, arguments: _, locals: _, code: _} => 0x03,
+            Slot {name:_}                                      => 0x04,
             Class(_)                                           => 0x05,
             Boolean(_)                                         => 0x06,
         }
@@ -120,16 +120,17 @@ impl Serializable for ProgramObject {
     }
 
     fn from_bytes<R: Read>(input: &mut R) -> Self {
+        println!("ProgramObject::from_bytes");
         let tag = serializable::read_u8(input);
         match tag {
             0x00 => ProgramObject::Integer(serializable::read_i32(input)),
             0x01 => ProgramObject::Null,
             0x02 => ProgramObject::String(serializable::read_utf8(input)),
-            0x03 => ProgramObject::Slot { name: ConstantPoolIndex::from_bytes(input) },
-            0x04 => ProgramObject::Method { name: ConstantPoolIndex::from_bytes(input),
+            0x03 => ProgramObject::Method { name: ConstantPoolIndex::from_bytes(input),
                                             arguments: Arity::from_bytes(input),
                                             locals: Size::from_bytes(input),
                                             code: OpCode::read_opcode_vector(input) },
+            0x04 => ProgramObject::Slot { name: ConstantPoolIndex::from_bytes(input) },
             0x05 => ProgramObject::Class(ConstantPoolIndex::read_cpi_vector(input)),
             0x06 => ProgramObject::Boolean(serializable::read_bool(input)),
             _    => panic!("Cannot deserialize value: unrecognized value tag: {}", tag)

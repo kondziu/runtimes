@@ -62,25 +62,4 @@ enum Operand {
     RuntimeObject(RuntimeObject),
 }
 
-/**
- * The instruction pointer contains the address of the instruction that will be executed next.
- */
-pub struct InstructionPointer(u64);
-
-/**
- * A listing of program objects. They can be referred to by their numerical index.
- */
-pub struct ConstantPool {
-    constants: Vec<ProgramObject>,
-}
-
-/**
- * A listing of global variables and functions in the program. Each listing points to an object in
- * the constant pool and is **guaranteed** to refer to either:
- *   - a `ProgramObject::Slot` object, or
- *   - a `ProgramObject:Method` object.
- */
-pub struct GlobalSlots {
-    slots: Vec<ConstantPoolIndex>,
-}
 

@@ -5,7 +5,7 @@ mod bytecode;
 mod objects;
 mod types;
 mod serializable;
-mod parser;
+mod program;
 
 #[cfg(test)]
 mod bytecode_deserialization_tests {
@@ -453,6 +453,102 @@ mod program_object_deserialization_tests {
                  0x0F)
         )
     }
+}
+
+#[cfg(test)]
+mod program_deserialization_tests {
+
+    use crate::program::{ConstantPool, GlobalSlots, Program};
+    use crate::objects::ProgramObject;
+    use crate::types::{Arity, Size, ConstantPoolIndex, Address};
+    use crate::bytecode::OpCode;
+    use std::io::Cursor;
+    use crate::serializable::Serializable;
+
+    macro_rules! test_deserialization {
+        ($expected: expr, $input: expr) => {{
+            let input: Vec<u8> = $input;
+            let actual = Program::from_bytes(&mut Cursor::new(input));
+            assert_eq!($expected, actual)
+        }}
+    }
+
+    /* Feeny BC program:
+
+        Constants :
+        #0: String("Hello World\n")
+        #1: String("main")
+        #2: Method(#1, nargs:0, nlocals:0) :
+            printf #0 0
+            return
+        #3: Null
+        #4: String("entry35")
+        #5: Method(#4, nargs:0, nlocals:0) :
+            call #1 0
+            drop
+            lit #3
+            return
+        Globals :
+        #2
+        Entry : #5
+
+        06 00 02 0C  00 00 00 48  65 6C 6C 6F  20 57 6F 72  6C 64 0A 02  04 00 00 00
+        6D 61 69 6E  03 01 00 00  00 00 02 00  00 00 02 00  00 00 0F 01  02 07 00 00
+        00 65 6E 74  72 79 33 35  03 04 00 00  00 00 04 00  00 00 08 01  00 00 10 01
+        03 00 0F 01  00 02 00 05  00
+    */
+
+    #[test] fn hello_world () {
+        let constants = vec!(
+            /* #0 */ ProgramObject::String("Hello World\n".to_string()),
+            /* #1 */ ProgramObject::String("main".to_string()),
+            /* #2 */ ProgramObject::Method {
+                name: ConstantPoolIndex::new(1),
+                arguments: Arity::new(0),
+                locals: Size::new(0),
+                code: vec!(
+                    OpCode::Print { format: ConstantPoolIndex::new(0),
+                                    arguments: Arity::new(0) },
+                    OpCode::Return
+                )
+            },
+            /* #3 */ ProgramObject::Null,
+            /* #4 */ ProgramObject::String("entry35".to_string()),
+            /* #5 */ ProgramObject::Method {
+                name: ConstantPoolIndex::new(4),
+                arguments: Arity::new(0),
+                locals: Size::new(0),
+                code: vec!(
+                    OpCode::CallFunction { function: ConstantPoolIndex::new(1),
+                                           arguments: Arity::new(0) },
+                    OpCode::Drop,
+                    OpCode::Literal { index: ConstantPoolIndex::new(3) },
+                    OpCode::Return
+                )
+            },
+        );
+
+        let globals = vec!(ConstantPoolIndex::new(2));
+        let entry = ConstantPoolIndex::new(5);
+
+        let program = Program::new (
+            ConstantPool::new(constants),
+            GlobalSlots::new(globals),
+            entry
+        );
+
+        let bytes = vec!(
+            0x06, 0x00, 0x02, 0x0C, 0x00, 0x00, 0x00, 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x57,
+            0x6F, 0x72, 0x6C, 0x64, 0x0A, 0x02, 0x04, 0x00, 0x00, 0x00, 0x6D, 0x61, 0x69, 0x6E,
+            0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+            0x0F, 0x01, 0x02, 0x07, 0x00, 0x00, 0x00, 0x65, 0x6E, 0x74, 0x72, 0x79, 0x33, 0x35,
+            0x03, 0x04, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00,
+            0x10, 0x01, 0x03, 0x00, 0x0F, 0x01, 0x00, 0x02, 0x00, 0x05, 0x00,
+        );
+
+        test_deserialization!(program, bytes);
+    }
+
 }
 
 fn main() {

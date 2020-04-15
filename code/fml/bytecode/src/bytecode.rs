@@ -333,7 +333,7 @@ impl OpCode {
     }
 
     pub fn read_opcode_vector<R: Read>(reader: &mut R) -> Vec<OpCode> {
-        let length = serializable::read_u32(reader) as usize;
+        let length = serializable::read_u32_as_usize(reader);
         let mut opcodes: Vec<OpCode> = Vec::new();
         for _ in 0..length {
             opcodes.push(OpCode::from_bytes(reader));
@@ -342,8 +342,7 @@ impl OpCode {
     }
 
     pub fn write_opcode_vector<R: Write>(sink: &mut R, vector: &Vec<OpCode>) {
-        assert!(vector.len() <= 4_294_967_295usize);
-        serializable::write_u32(sink, vector.len() as u32);
+        serializable::write_usize_as_u32(sink, vector.len());
         for opcode in vector {
             opcode.serialize(sink);
         }
