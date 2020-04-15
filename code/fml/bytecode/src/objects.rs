@@ -40,7 +40,8 @@ pub enum ProgramObject {
      *   - a global function.
      *
      * Contains:
-     *   - `name`:  an index that refers to a `ProgramObject::String` object, which represents this method's name,
+     *   - `name`: an index that refers to a `ProgramObject::String` object, which represents this
+     *             method's name,
      *   - `arguments`: the number of arguments this function takes,
      *   - `locals`: the number of local variables defined in this method,
      *   - `code`: a vector containing all the instructions in this method.

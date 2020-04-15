@@ -74,7 +74,6 @@ pub struct ConstantPool {
     constants: Vec<ProgramObject>,
 }
 
-
 /**
  * A listing of global variables and functions in the program. Each listing points to an object in
  * the constant pool and is **guaranteed** to refer to either:

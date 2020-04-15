@@ -1,12 +1,13 @@
-#![crate_name = "doc"]
 use crate::types::{ConstantPoolIndex, LocalFrameIndex, Size};
 use crate::serializable::Serializable;
-use std::fs::File;
+use crate::serializable;
+use std::io::{Write, Read};
 
 /**
  * # Bytecode operation
  *
  */
+#[derive(PartialEq,Debug,Copy,Clone)]
 pub enum OpCode {
     /**
      * ## Push literal onto stack
@@ -124,13 +125,15 @@ pub enum OpCode {
     /**
      * ## Set the value of an object's field member variable to the top value from stack
      *
-     * Pops the value to store, call it x, from the operand stack. Then pops the object to store it
-     * into. Stores x into the object at the variable slot with name given by the String object at
-     * index i. Then, x is pushed onto the operand stack.
+     * Pops a value to store from the `OperandStack`, assume it is a `RuntimeObject`. Then,
+     * pops a host object from the `OperandStack`, also a `RuntimeObject`. Then, looks
+     * up the index given by `name` in the `ConstantPool` and retrieves a `ProgramObject::String`
+     * object. Afterwards, sets the value of the member field of the host object specified by the
+     * `ProgramObject::String` to the value. Finally, push the value onto the operand stack.
      *
      * Serialized as opcode `0x06`.
      */
-    SetSlot { index: ConstantPoolIndex },
+    SetSlot { name: ConstantPoolIndex },
 
     /**
      * ## Call a member method
@@ -178,17 +181,17 @@ pub enum OpCode {
     /**
      * ## Print a formatted string
      *
-     * Pops `arity` values from the `OperandStack`. Then retrieves a `ProgramObject::String` object
-     * referenced by the given `format` index. Then, prints out all the values retrieved from the
-     * `OperandStack` out according to the given retrieved format string. `Null` is then pushed onto
-     * the `OperandStack`.
+     * Pops `arguments` values from the `OperandStack`. Then retrieves a `ProgramObject::String`
+     * object referenced by the given `format` index. Then, prints out all the values retrieved from
+     * the `OperandStack` out according to the given retrieved format string. `Null` is then pushed
+     * onto the `OperandStack`.
      *
      * Arguments are spliced in from the deepest value in the stack (last popped) to the
      * shallowest value in the stack (first popped).
      *
      * Serialized as opcode `0x02`.
      */
-    Print { format: /*String*/ ConstantPoolIndex, arity: Size },
+    Print { format: /*String*/ ConstantPoolIndex, arguments: Size },
 
     /**
      * ## Define a new label here
@@ -245,89 +248,87 @@ pub enum OpCode {
     Drop,
 }
 
-impl OpCode {
-    pub fn to_hex(&self) -> u8 {
+impl Serializable for OpCode {
+
+    fn serialize<W: Write> (&self, sink: &mut W) -> () {
+        serializable::write_u8(sink, self.to_hex());
+
         use OpCode::*;
         match self {
-            Label { name: _ } => 0x00,
-            Literal { index: _ } => 0x01,
-            Print { format: _, arity: _ } => 0x02,
-            Array { size: _ } => 0x03,
-            Object { class: _ } => 0x04,
-            GetSlot { name: _ } => 0x05,
-            SetSlot { index: _ } => 0x06,
-            CallMethod { name: _, arguments: _ } => 0x07,
-            CallFunction { function: _, arguments: _ } => 0x08,
-            SetLocal { index: _ } => 0x09,
-            GetLocal { index: _ } => 0x0A,
-            SetGlobal { name: _ } => 0x0B,
-            GetGlobal { name: _ } => 0x0C,
-            Branch { label: _ } => 0x0D,
-            Jump { label: _ } => 0x0E,
-            Return => 0x0F,
-            Drop => 0x10,
+            Label        { name                } => { name.serialize(sink)      },
+            Literal      { index               } => { index.serialize(sink)     },
+            Print        { format, arguments: arity } => { format.serialize(sink);
+                                                      arity.serialize(sink)     },
+            Array        { size                } => { size.serialize(sink)      },
+            Object       { class               } => { class.serialize(sink)     },
+            GetSlot      { name                } => { name.serialize(sink)      },
+            SetSlot      { name: index } => { index.serialize(sink)     },
+            CallMethod   { name,     arguments } => { name.serialize(sink);
+                                                      arguments.serialize(sink) },
+            CallFunction { function, arguments } => { function.serialize(sink);
+                                                      arguments.serialize(sink) },
+            SetLocal     { index               } => { index.serialize(sink)     },
+            GetLocal     { index               } => { index.serialize(sink)     },
+            SetGlobal    { name                } => { name.serialize(sink)      },
+            GetGlobal    { name                } => { name.serialize(sink)      },
+            Branch       { label               } => { label.serialize(sink)     },
+            Jump         { label               } => { label.serialize(sink)     },
+            Return                               => {                           },
+            Drop                                 => {                           },
+        };
+    }
+
+    fn from_bytes<R: Read>(input: &mut R) -> Self {
+        let tag = serializable::read_u8(input);
+
+        use OpCode::*;
+        match tag {
+            0x00 => Label        { name:      ConstantPoolIndex::from_bytes(input)  },
+            0x01 => Literal      { index:     ConstantPoolIndex::from_bytes(input)  },
+            0x02 => Print        { format:    ConstantPoolIndex::from_bytes(input),
+                                   arguments:     Size::from_bytes(input)               },
+            0x03 => Array        { size:      Size::from_bytes(input)               },
+            0x04 => Object       { class:     ConstantPoolIndex::from_bytes(input)  },
+            0x05 => GetSlot      { name:      ConstantPoolIndex::from_bytes(input)  },
+            0x06 => SetSlot      { name:     ConstantPoolIndex::from_bytes(input)  },
+            0x07 => CallMethod   { name:      ConstantPoolIndex::from_bytes(input),
+                                   arguments: Size::from_bytes(input)               },
+            0x08 => CallFunction { function:  ConstantPoolIndex::from_bytes(input),
+                                   arguments: Size::from_bytes(input)               },
+            0x09 => SetLocal     { index:     LocalFrameIndex::from_bytes(input)    },
+            0x0A => GetLocal     { index:     LocalFrameIndex::from_bytes(input)    },
+            0x0B => SetGlobal    { name:      ConstantPoolIndex::from_bytes(input)  },
+            0x0C => GetGlobal    { name:      ConstantPoolIndex::from_bytes(input)  },
+            0x0D => Branch       { label:     ConstantPoolIndex::from_bytes(input)  },
+            0x0E => Jump         { label:     ConstantPoolIndex::from_bytes(input)  },
+            0x0F => Return,
+            0x10 => Drop,
+            tag  => panic!("Cannot deserialize opcode: unknown tag {}", tag)
         }
     }
 }
 
-impl Serializable for OpCode {
-    fn serialize (&self) -> Vec<u8> {
-        let mut result: Vec<u8> = vec!(self.to_hex());
-
+impl OpCode {
+    pub fn to_hex(&self) -> u8 {
         use OpCode::*;
         match self {
-            Label { name } => {
-                result.extend(name.serialize())
-            }
-            Literal { index } => {
-                result.extend(index.serialize())
-            },
-            Print { format, arity } => {
-                result.extend(format.serialize());
-                result.extend(arity.serialize())
-            },
-            Array { size } => {
-                result.extend(size.serialize())
-            },
-            Object { class } => {
-                result.extend(class.serialize())
-            },
-            GetSlot { name } => {
-                result.extend(name.serialize())
-            },
-            SetSlot { index } => {
-                result.extend(index.serialize())
-            },
-            CallMethod { name, arguments } => {
-                result.extend(name.serialize());
-                result.extend(arguments.serialize())
-            },
-            CallFunction { function, arguments } => {
-                result.extend(function.serialize());
-                result.extend(arguments.serialize())
-            },
-            SetLocal { index } => {
-                result.extend(index.serialize())
-            }
-            GetLocal { index } => {
-                result.extend(index.serialize())
-            },
-            SetGlobal { name } => {
-                result.extend(name.serialize())
-            },
-            GetGlobal { name } => {
-                result.extend(name.serialize())
-            },
-            Branch { label } => {
-                result.extend(label.serialize())
-            },
-            Jump { label } => {
-                result.extend(label.serialize())
-            },
-            Return => (),
-            Drop => (),
+            Label        { name: _                   } => 0x00,
+            Literal      { index: _                  } => 0x01,
+            Print        { format: _, arguments: _       } => 0x02,
+            Array        { size: _                   } => 0x03,
+            Object       { class: _                  } => 0x04,
+            GetSlot      { name: _                   } => 0x05,
+            SetSlot      { name: _                  } => 0x06,
+            CallMethod   { name: _,     arguments: _ } => 0x07,
+            CallFunction { function: _, arguments: _ } => 0x08,
+            SetLocal     { index: _                  } => 0x09,
+            GetLocal     { index: _                  } => 0x0A,
+            SetGlobal    { name: _                   } => 0x0B,
+            GetGlobal    { name: _                   } => 0x0C,
+            Branch       { label: _                  } => 0x0D,
+            Jump         { label: _                  } => 0x0E,
+            Return                                     => 0x0F,
+            Drop                                       => 0x10,
         }
-
-        result
     }
 }
