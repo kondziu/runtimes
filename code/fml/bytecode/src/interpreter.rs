@@ -84,4 +84,3 @@ pub struct GlobalSlots {
     slots: Vec<ConstantPoolIndex>,
 }
 
-

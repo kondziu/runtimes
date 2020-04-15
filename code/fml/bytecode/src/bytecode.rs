@@ -1,4 +1,4 @@
-use crate::types::{ConstantPoolIndex, LocalFrameIndex, Size};
+use crate::types::{ConstantPoolIndex, LocalFrameIndex, Size, Arity};
 use crate::serializable::Serializable;
 use crate::serializable;
 use std::io::{Write, Read};
@@ -158,7 +158,7 @@ pub enum OpCode {
      *
      * Serialized as opcode `0x07`.
      */
-    CallMethod { name: ConstantPoolIndex, arguments: Size },
+    CallMethod { name: ConstantPoolIndex, arguments: Arity },
 
     /**
      * ## Call a global function
@@ -176,7 +176,7 @@ pub enum OpCode {
      *
      * Serialized as opcode `0x08`.
      */
-    CallFunction { function: ConstantPoolIndex, arguments: Size },
+    CallFunction { function: ConstantPoolIndex, arguments: Arity },
 
     /**
      * ## Print a formatted string
@@ -191,7 +191,7 @@ pub enum OpCode {
      *
      * Serialized as opcode `0x02`.
      */
-    Print { format: /*String*/ ConstantPoolIndex, arguments: Size },
+    Print { format: /*String*/ ConstantPoolIndex, arguments: Arity },
 
     /**
      * ## Define a new label here
@@ -257,12 +257,12 @@ impl Serializable for OpCode {
         match self {
             Label        { name                } => { name.serialize(sink)      },
             Literal      { index               } => { index.serialize(sink)     },
-            Print        { format, arguments: arity } => { format.serialize(sink);
-                                                      arity.serialize(sink)     },
+            Print        { format,   arguments } => { format.serialize(sink);
+                                                      arguments.serialize(sink) },
             Array        { size                } => { size.serialize(sink)      },
             Object       { class               } => { class.serialize(sink)     },
             GetSlot      { name                } => { name.serialize(sink)      },
-            SetSlot      { name: index } => { index.serialize(sink)     },
+            SetSlot      { name                } => { name.serialize(sink)      },
             CallMethod   { name,     arguments } => { name.serialize(sink);
                                                       arguments.serialize(sink) },
             CallFunction { function, arguments } => { function.serialize(sink);
@@ -286,15 +286,15 @@ impl Serializable for OpCode {
             0x00 => Label        { name:      ConstantPoolIndex::from_bytes(input)  },
             0x01 => Literal      { index:     ConstantPoolIndex::from_bytes(input)  },
             0x02 => Print        { format:    ConstantPoolIndex::from_bytes(input),
-                                   arguments:     Size::from_bytes(input)               },
+                                   arguments: Arity::from_bytes(input)              },
             0x03 => Array        { size:      Size::from_bytes(input)               },
             0x04 => Object       { class:     ConstantPoolIndex::from_bytes(input)  },
             0x05 => GetSlot      { name:      ConstantPoolIndex::from_bytes(input)  },
-            0x06 => SetSlot      { name:     ConstantPoolIndex::from_bytes(input)  },
+            0x06 => SetSlot      { name:      ConstantPoolIndex::from_bytes(input)  },
             0x07 => CallMethod   { name:      ConstantPoolIndex::from_bytes(input),
-                                   arguments: Size::from_bytes(input)               },
+                                   arguments: Arity::from_bytes(input)              },
             0x08 => CallFunction { function:  ConstantPoolIndex::from_bytes(input),
-                                   arguments: Size::from_bytes(input)               },
+                                   arguments: Arity::from_bytes(input)              },
             0x09 => SetLocal     { index:     LocalFrameIndex::from_bytes(input)    },
             0x0A => GetLocal     { index:     LocalFrameIndex::from_bytes(input)    },
             0x0B => SetGlobal    { name:      ConstantPoolIndex::from_bytes(input)  },
@@ -314,11 +314,11 @@ impl OpCode {
         match self {
             Label        { name: _                   } => 0x00,
             Literal      { index: _                  } => 0x01,
-            Print        { format: _, arguments: _       } => 0x02,
+            Print        { format: _,   arguments: _ } => 0x02,
             Array        { size: _                   } => 0x03,
             Object       { class: _                  } => 0x04,
             GetSlot      { name: _                   } => 0x05,
-            SetSlot      { name: _                  } => 0x06,
+            SetSlot      { name: _                   } => 0x06,
             CallMethod   { name: _,     arguments: _ } => 0x07,
             CallFunction { function: _, arguments: _ } => 0x08,
             SetLocal     { index: _                  } => 0x09,
@@ -329,6 +329,23 @@ impl OpCode {
             Jump         { label: _                  } => 0x0E,
             Return                                     => 0x0F,
             Drop                                       => 0x10,
+        }
+    }
+
+    pub fn read_opcode_vector<R: Read>(reader: &mut R) -> Vec<OpCode> {
+        let length = serializable::read_u32(reader) as usize;
+        let mut opcodes: Vec<OpCode> = Vec::new();
+        for _ in 0..length {
+            opcodes.push(OpCode::from_bytes(reader));
+        }
+        opcodes
+    }
+
+    pub fn write_opcode_vector<R: Write>(sink: &mut R, vector: &Vec<OpCode>) {
+        assert!(vector.len() <= 4_294_967_295usize);
+        serializable::write_u32(sink, vector.len() as u32);
+        for opcode in vector {
+            opcode.serialize(sink);
         }
     }
 }
