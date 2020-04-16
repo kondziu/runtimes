@@ -146,5 +146,5 @@ pub fn write_usize_as_u16<R: Write>(writer: &mut R, value: usize) -> () {
 
 pub fn write_usize_as_u32<R: Write>(writer: &mut R, value: usize) -> () {
     assert!(value <= 4_294_967_295usize); // Max u16 value.
-    write_u16(writer, value as u16);
+    write_u32(writer, value as u32);
 }
