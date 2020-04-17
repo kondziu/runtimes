@@ -96,6 +96,10 @@ impl Program {
     pub fn entry(&self) -> &ConstantPoolIndex {
         &self.entry
     }
+
+    pub fn get_constant(&self, index: &ConstantPoolIndex) -> Option<&ProgramObject> {
+        self.constants.get(index.value() as usize)
+    }
 }
 
 impl Serializable for Program {

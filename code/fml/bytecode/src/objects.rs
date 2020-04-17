@@ -140,7 +140,19 @@ impl Serializable for ProgramObject {
 
 pub enum RuntimeObject {
     Null,
-    Integer,
+    Integer(i32),
+    Boolean(bool),
     Array,
     Object,
+}
+
+impl RuntimeObject {
+    pub fn from_constant(constant: &ProgramObject) -> RuntimeObject {
+        match constant {
+            ProgramObject::Null => RuntimeObject::Null,
+            ProgramObject::Integer(value) => RuntimeObject::Integer(*value),
+            ProgramObject::Boolean(value) => RuntimeObject::Boolean(*value),
+            _ => unimplemented!(),
+        }
+    }
 }

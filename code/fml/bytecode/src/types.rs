@@ -88,3 +88,9 @@ impl Serializable for LocalFrameIndex {
         LocalFrameIndex(serializable::read_u16(input))
     }
 }
+
+impl Address {
+    pub fn increment(address: Address) -> Address {
+        Address(address.0 + 1)
+    }
+}
