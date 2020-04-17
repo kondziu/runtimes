@@ -464,7 +464,7 @@ mod program_deserialization_and_deserialization_tests {
 
     use crate::program::Program;
     use crate::objects::ProgramObject;
-    use crate::types::{Arity, Size, ConstantPoolIndex, Address, LocalFrameIndex};
+    use crate::types::{Arity, Size, ConstantPoolIndex, LocalFrameIndex};
     use crate::bytecode::OpCode;
     use std::io::Cursor;
     use crate::serializable::Serializable;

@@ -1,5 +1,5 @@
 use crate::objects::ProgramObject;
-use crate::types::{ConstantPoolIndex, Address};
+use crate::types::ConstantPoolIndex;
 use crate::serializable::Serializable;
 use std::io::{Write, Read};
 use crate::serializable;

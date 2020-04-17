@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use crate::types::{ConstantPoolIndex, Address};
+use crate::types::{Address, LocalFrameIndex};
 use crate::objects::{RuntimeObject, ProgramObject};
 use crate::bytecode::OpCode;
 use crate::program::Program;
-use std::error::Error;
+use std::rc::Rc;
 
 /**
  * A name-to-value table that holds the current value of all the global variables used in the
@@ -33,7 +33,7 @@ pub struct GlobalVariables {
  *  - the index of the parent frame, ie. the local frame of the calling instruction.
  */
 pub struct LocalFrame {
-    slots: Vec<RuntimeObject>, /* ProgramObject::Slot */
+    slots: Vec<Rc<RuntimeObject>>, /* ProgramObject::Slot */
     call_site: Address, /* address */
     //parent_frame: u64, /* index to local frame stack */
 }
@@ -41,6 +41,22 @@ pub struct LocalFrame {
 impl LocalFrame {
     pub fn return_address(&self) -> &Address {
         &self.call_site
+    }
+
+    pub fn get_local(&self, index: &LocalFrameIndex) -> Option<Rc<RuntimeObject>> {
+        match index.value() {
+            index if index as usize >= self.slots.len() => None,
+            index => Some(self.slots[index as usize].clone()), // new ref
+        }
+    }
+
+    pub fn update_local(&mut self, index: &LocalFrameIndex, local: Rc<RuntimeObject>) -> Result<(), String> {
+        match index.value() {
+            index if index as usize >= self.slots.len() =>
+                Err(format!("No local at index {} in frame", index)),
+            index =>
+                { self.slots[index as usize] = local; Ok(()) },
+        }
     }
 }
 
@@ -78,7 +94,7 @@ impl LocalFrame {
 struct State {
     pub instruction_pointer: Address,
     pub frames: Vec<LocalFrame>,
-    pub operands: Vec<RuntimeObject>,
+    pub operands: Vec<Rc<RuntimeObject>>,
     pub labels: HashMap<String, Address>,
 }
 
@@ -108,25 +124,43 @@ impl State {
         self.frames.pop()
     }
 
-    pub fn pop_operand(&mut self) -> Option<RuntimeObject> {
+    pub fn pop_operand(&mut self) -> Option<Rc<RuntimeObject>> {
         self.operands.pop()
     }
 
-    pub fn push_operand(&mut self, object: RuntimeObject) -> () {
+    pub fn push_operand(&mut self, object: Rc<RuntimeObject>) -> () {
         self.operands.push(object)
     }
 
-    pub fn get_label_address(&self, name: &str) -> Option<&Address> {
-        self.labels.get(name)
-    }
+//    pub fn get_label_address(&self, name: &str) -> Option<&Address> {
+//        self.labels.get(name)
+//    }
 
-    pub fn add_label_address(&mut self, name: String, address: Address) -> Result<(), String> {
+//    pub fn add_label_address(&mut self, name: String, address: Address) -> Result<(), String> {
+//        if self.labels.contains_key(&name) {
+//            Err(format!("Label {} already registered (with value {:?})",
+//                        &name, self.labels.get(&name).unwrap()))
+//        } else {
+//            self.labels.insert(name, address);
+//            Ok(())
+//        }
+//    }
+
+    pub fn create_label_at_instruction_pointer(&mut self, name: String) -> Result<(), String> {
+        let address: Address = self.instruction_pointer;
         if self.labels.contains_key(&name) {
-            Err(format!("Label {} already registered with value {:?}",
+            Err(format!("Label {} already registered (with value {:?})",
                         &name, self.labels.get(&name).unwrap()))
         } else {
             self.labels.insert(name, address);
             Ok(())
+        }
+    }
+
+    pub fn set_instruction_pointer_from_label(&mut self, name: &str) -> Result<(), String> {
+        match self.labels.get(name) {
+            None => Err(format!("Label {} does not exist", name)),
+            Some(address) => {self.instruction_pointer = *address; Ok(())}
         }
     }
 }
@@ -145,12 +179,33 @@ fn interpret(opcode: &OpCode, state: &mut State, program: &Program) {
                              or Boolean, but is {:?}", index, constant),
             }
 
-            let object = RuntimeObject::from_constant(constant);
+            let object = Rc::new(RuntimeObject::from_constant(constant));
             state.push_operand(object)
         }
 
-        OpCode::GetLocal { index: _ } => { unimplemented!() }
-        OpCode::SetLocal { index: _ } => { unimplemented!() }
+        OpCode::GetLocal { index } => {
+            let frame: &LocalFrame = state.current_frame()
+                .expect("Get local error: no frame on stack.");
+
+            let local: Rc<RuntimeObject> = frame.get_local(&index)
+                .expect(&format!("Get local error: there is no local at index {:?} in the current \
+                                  frame", index));
+
+            state.push_operand(local)
+        }
+
+        OpCode::SetLocal { index } => {
+            let operand: Rc<RuntimeObject> = state.pop_operand()
+                .expect("Set local error: cannot pop from empty operand stack");
+
+            let frame: &mut LocalFrame = state.current_frame_mut()
+                .expect("Set local error: no frame on stack.");
+
+            frame.update_local(index, operand)
+                .expect(&format!("Set local error: there is no local at index {:?} in the current \
+                                  frame", index));
+        }
+
         OpCode::GetGlobal { name: _ } => { unimplemented!() }
         OpCode::SetGlobal { name: _ } => { unimplemented!() }
         OpCode::Object { class: _ } => { unimplemented!() }
@@ -172,9 +227,7 @@ fn interpret(opcode: &OpCode, state: &mut State, program: &Program) {
                             label, constant),
             };
 
-            let address: &Address = state.instruction_pointer();
-
-            state.add_label_address(name.to_string(), *address)
+            state.create_label_at_instruction_pointer(name.to_string())
                 .expect(&format!("Label error: a label with name {} already exists", name))
         }
 
@@ -188,10 +241,8 @@ fn interpret(opcode: &OpCode, state: &mut State, program: &Program) {
                             label, constant),
             };
 
-            let address: &Address = state.get_label_address(name)
+            state.set_instruction_pointer_from_label(name)
                 .expect(&format!("Jump error: no such label {:?}", name));
-
-            state.set_instruction_pointer(*address);
         }
 
         OpCode::Branch { label } => {
@@ -199,7 +250,7 @@ fn interpret(opcode: &OpCode, state: &mut State, program: &Program) {
                 .expect("Branch error: cannot pop operand from empty operand stack");
 
             let jump_condition = {
-                match operand {
+                match *operand {
                     RuntimeObject::Boolean(value) => value,
                     RuntimeObject::Null => false,
                     _ => true,
@@ -220,10 +271,8 @@ fn interpret(opcode: &OpCode, state: &mut State, program: &Program) {
                             label, constant),
             };
 
-            let address: &Address = state.get_label_address(name)
+            state.set_instruction_pointer_from_label(name)
                 .expect(&format!("Branch error: no such label {:?}", name));
-
-            state.set_instruction_pointer(*address);
         }
 
         OpCode::Return => {

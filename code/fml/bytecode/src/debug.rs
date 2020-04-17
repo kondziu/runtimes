@@ -153,7 +153,7 @@ impl UglyPrint for ProgramObject {
 }
 
 impl UglyPrint for OpCode {
-    fn ugly_print<W: Write>(&self, sink: &mut W, indent: usize, prefix_first_line: bool) {
+    fn ugly_print<W: Write>(&self, sink: &mut W, indent: usize, _prefix_first_line: bool) {
         match self {
             OpCode::Literal { index } => {
                 write_string!(sink, indent, "lit ");
@@ -229,7 +229,7 @@ impl UglyPrint for OpCode {
 }
 
 impl UglyPrint for Program {
-    fn ugly_print<W: Write>(&self, sink: &mut W, indent: usize, prefix_first_line: bool) {
+    fn ugly_print<W: Write>(&self, sink: &mut W, indent: usize, _prefix_first_line: bool) {
         write_string!(sink, indent, "Constants :\n");
         for (index, opcode) in self.constants().iter().enumerate() {
             ConstantPoolIndex::new(index as u16).pretty_print_indent(sink, further!(indent));
