@@ -6,6 +6,7 @@ mod objects;
 mod types;
 mod serializable;
 mod program;
+mod debug;
 
 #[cfg(test)]
 mod bytecode_deserialization_tests {
@@ -142,6 +143,7 @@ mod bytecode_deserialization_tests {
     }
 }
 
+#[cfg(test)]
 mod bytecode_serialization_tests {
     use crate::bytecode::OpCode;
     use crate::serializable::Serializable;
@@ -276,6 +278,7 @@ mod bytecode_serialization_tests {
     }
 }
 
+#[cfg(test)]
 mod program_object_serialization_tests {
     use crate::bytecode::OpCode;
     use crate::serializable::Serializable;
@@ -361,6 +364,7 @@ mod program_object_serialization_tests {
     }
 }
 
+#[cfg(test)]
 mod program_object_deserialization_tests {
     use crate::bytecode::OpCode;
     use crate::serializable::Serializable;
@@ -458,14 +462,13 @@ mod program_object_deserialization_tests {
 #[cfg(test)]
 mod program_deserialization_and_deserialization_tests {
 
-    use crate::program::{ConstantPool, GlobalSlots, Program};
+    use crate::program::Program;
     use crate::objects::ProgramObject;
     use crate::types::{Arity, Size, ConstantPoolIndex, Address, LocalFrameIndex};
     use crate::bytecode::OpCode;
     use std::io::Cursor;
     use crate::serializable::Serializable;
-
-
+    use crate::debug::PrettyPrint;
 
     macro_rules! test_serialization {
         ($expected: expr, $input: expr) => {{
@@ -484,30 +487,23 @@ mod program_deserialization_and_deserialization_tests {
         }}
     }
 
-    /* Feeny BC program (hello world)
-
-        Constants :
-        #0: String("Hello World\n")
-        #1: String("main")
-        #2: Method(#1, nargs:0, nlocals:0) :
-            printf #0 0
-            return
-        #3: Null
-        #4: String("entry35")
-        #5: Method(#4, nargs:0, nlocals:0) :
-            call #1 0
-            drop
-            lit #3
-            return
-        Globals :
-        #2
-        Entry : #5
-
-        06 00 02 0C  00 00 00 48  65 6C 6C 6F  20 57 6F 72  6C 64 0A 02  04 00 00 00
-        6D 61 69 6E  03 01 00 00  00 00 02 00  00 00 02 00  00 00 0F 01  02 07 00 00
-        00 65 6E 74  72 79 33 35  03 04 00 00  00 00 04 00  00 00 08 01  00 00 10 01
-        03 00 0F 01  00 02 00 05  00
-    */
+    fn hello_world_pretty_print () -> &'static str {
+        r#"Constants :
+    #0: String("Hello World\n")
+    #1: String("main")
+    #2: Method(#1, nargs:0, nlocals:0) :
+          printf #0 0
+          return
+    #3: Null
+    #4: String("entry35")
+    #5: Method(#4, nargs:0, nlocals:0) :
+          call #1 0
+          drop
+          lit #3
+          return
+Globals :
+    #2
+Entry : #5"#}
 
     fn hello_world_program () -> Program {
         let constants = vec!(
@@ -530,7 +526,8 @@ mod program_deserialization_and_deserialization_tests {
                 arguments: Arity::new(0),
                 locals: Size::new(0),
                 code: vec!(
-                    OpCode::CallFunction { function: ConstantPoolIndex::new(1),
+                    OpCode::CallFunction {
+                        function: ConstantPoolIndex::new(1),
                         arguments: Arity::new(0) },
                     OpCode::Drop,
                     OpCode::Literal { index: ConstantPoolIndex::new(3) },
@@ -543,8 +540,8 @@ mod program_deserialization_and_deserialization_tests {
         let entry = ConstantPoolIndex::new(5);
 
         Program::new (
-            ConstantPool::new(constants),
-            GlobalSlots::new(globals),
+            constants,
+            globals,
             entry
         )
     }
@@ -559,6 +556,113 @@ mod program_deserialization_and_deserialization_tests {
             0x10, 0x01, 0x03, 0x00, 0x0F, 0x01, 0x00, 0x02, 0x00, 0x05, 0x00,
         )
     }
+
+    fn fibonacci_pretty_print () -> &'static str {
+        r#"Constants :
+    #0: String("conseq39")
+    #1: String("end40")
+    #2: Int(0)
+    #3: String("eq")
+    #4: String("conseq41")
+    #5: String("end42")
+    #6: Int(1)
+    #7: String("test43")
+    #8: String("loop44")
+    #9: String("add")
+    #10: String("sub")
+    #11: Int(2)
+    #12: String("ge")
+    #13: Null
+    #14: String("fib")
+    #15: Method(#14, nargs:1, nlocals:3) :
+          get local 0
+          lit #2
+          call slot #3 2
+          branch #0
+          get local 0
+          lit #6
+          call slot #3 2
+          branch #4
+          lit #6
+          set local 1
+          drop
+          lit #6
+          set local 2
+          drop
+          goto #7
+       label #8
+          get local 1
+          get local 2
+          call slot #9 2
+          set local 3
+          drop
+          get local 2
+          set local 1
+          drop
+          get local 3
+          set local 2
+          drop
+          get local 0
+          lit #6
+          call slot #10 2
+          set local 0
+          drop
+       label #7
+          get local 0
+          lit #11
+          call slot #12 2
+          branch #8
+          lit #13
+          drop
+          get local 2
+          goto #5
+       label #4
+          lit #6
+       label #5
+          goto #1
+       label #0
+          lit #6
+       label #1
+          return
+    #16: String("test45")
+    #17: String("loop46")
+    #18: String("Fib(~) = ~\n")
+    #19: Int(20)
+    #20: String("lt")
+    #21: String("main")
+    #22: Method(#21, nargs:0, nlocals:1) :
+          lit #2
+          set local 0
+          drop
+          goto #16
+       label #17
+          get local 0
+          get local 0
+          call #14 1
+          printf #18 2
+          drop
+          get local 0
+          lit #6
+          call slot #9 2
+          set local 0
+          drop
+       label #16
+          get local 0
+          lit #19
+          call slot #20 2
+          branch #17
+          lit #13
+          return
+    #23: String("entry47")
+    #24: Method(#23, nargs:0, nlocals:0) :
+          call #21 0
+          drop
+          lit #13
+          return
+Globals :
+    #15
+    #22
+Entry : #24"#}
 
     fn fibonacci_program () -> Program {
         let constants = vec!(
@@ -705,8 +809,8 @@ mod program_deserialization_and_deserialization_tests {
         let entry = ConstantPoolIndex::new(24);
 
         Program::new (
-            ConstantPool::new(constants),
-            GlobalSlots::new(globals),
+            constants,
+            globals,
             entry
         )
     }
@@ -756,135 +860,24 @@ mod program_deserialization_and_deserialization_tests {
         test_serialization!(hello_world_bytes(), hello_world_program());
     }
 
-    /*  Another Feeny BC program (fibonacci)
-        Constants :
-           #0: String("conseq39")
-           #1: String("end40")
-           #2: Int(0)
-           #3: String("eq")
-           #4: String("conseq41")
-           #5: String("end42")
-           #6: Int(1)
-           #7: String("test43")
-           #8: String("loop44")
-           #9: String("add")
-           #10: String("sub")
-           #11: Int(2)
-           #12: String("ge")
-           #13: Null
-           #14: String("fib")
-           #15: Method(#14, nargs:1, nlocals:3) :
-                 get local 0
-                 lit #2
-                 call-slot #3 2
-                 branch #0
-                 get local 0
-                 lit #6
-                 call-slot #3 2
-                 branch #4
-                 lit #6
-                 set local 1
-                 drop
-                 lit #6
-                 set local 2
-                 drop
-                 goto #7
-              label #8
-                 get local 1
-                 get local 2
-                 call-slot #9 2
-                 set local 3
-                 drop
-                 get local 2
-                 set local 1
-                 drop
-                 get local 3
-                 set local 2
-                 drop
-                 get local 0
-                 lit #6
-                 call-slot #10 2
-                 set local 0
-                 drop
-              label #7
-                 get local 0
-                 lit #11
-                 call-slot #12 2
-                 branch #8
-                 lit #13
-                 drop
-                 get local 2
-                 goto #5
-              label #4
-                 lit #6
-              label #5
-                 goto #1
-              label #0
-                 lit #6
-              label #1
-                 return
-           #16: String("test45")
-           #17: String("loop46")
-           #18: String("Fib(~) = ~\n")
-           #19: Int(20)
-           #20: String("lt")
-           #21: String("main")
-           #22: Method(#21, nargs:0, nlocals:1) :
-                 lit #2
-                 set local 0
-                 drop
-                 goto #16
-              label #17
-                 get local 0
-                 get local 0
-                 call #14 1
-                 printf #18 2
-                 drop
-                 get local 0
-                 lit #6
-                 call-slot #9 2
-                 set local 0
-                 drop
-              label #16
-                 get local 0
-                 lit #19
-                 call-slot #20 2
-                 branch #17
-                 lit #13
-                 return
-           #23: String("entry47")
-           #24: Method(#23, nargs:0, nlocals:0) :
-                 call #21 0
-                 drop
-                 lit #13
-                 return
-        Globals :
-           #15
-           #22
-        Entry : #24
+    #[test] fn print_hello_world () {
+        let mut bytes: Vec<u8> = Vec::new();
+        hello_world_program().pretty_print(&mut bytes);
+        assert_eq!(&String::from_utf8(bytes).unwrap(), hello_world_pretty_print());
+    }
 
-        19 00 02 08 00 00 00 63 6F 6E 73 65 71 33 39 02 05 00 00 00 65 6E 64 34 30 00 00 00 00 00
-        02 02 00 00 00 65 71 02 08 00 00 00 63 6F 6E 73 65 71 34 31 02 05 00 00 00 65 6E 64 34 32
-        00 01 00 00 00 02 06 00 00 00 74 65 73 74 34 33 02 06 00 00 00 6C 6F 6F 70 34 34 02 03 00
-        00 00 61 64 64 02 03 00 00 00 73 75 62 00 02 00 00 00 02 02 00 00 00 67 65 01 02 03 00 00
-        00 66 69 62 03 0E 00 01 03 00 31 00 00 00 0A 00 00 01 02 00 07 03 00 02 0D 00 00 0A 00 00
-        01 06 00 07 03 00 02 0D 04 00 01 06 00 09 01 00 10 01 06 00 09 02 00 10 0E 07 00 00 08 00
-        0A 01 00 0A 02 00 07 09 00 02 09 03 00 10 0A 02 00 09 01 00 10 0A 03 00 09 02 00 10 0A 00
-        00 01 06 00 07 0A 00 02 09 00 00 10 00 07 00 0A 00 00 01 0B 00 07 0C 00 02 0D 08 00 01 0D
-        00 10 0A 02 00 0E 05 00 00 04 00 01 06 00 00 05 00 0E 01 00 00 00 00 01 06 00 00 01 00 0F
-        02 06 00 00 00 74 65 73 74 34 35 02 06 00 00 00 6C 6F 6F 70 34 36 02 0B 00 00 00 46 69 62
-        28 7E 29 20 3D 20 7E 0A 00 14 00 00 00 02 02 00 00 00 6C 74 02 04 00 00 00 6D 61 69 6E 03
-        15 00 00 01 00 16 00 00 00 01 02 00 09 00 00 10 0E 10 00 00 11 00 0A 00 00 0A 00 00 08 0E
-        00 01 02 12 00 02 10 0A 00 00 01 06 00 07 09 00 02 09 00 00 10 00 10 00 0A 00 00 01 13 00
-        07 14 00 02 0D 11 00 01 0D 00 0F 02 07 00 00 00 65 6E 74 72 79 34 37 03 17 00 00 00 00 04
-        00 00 00 08 15 00 00 10 01 0D 00 0F 02 00 0F 00 16 00 18 00
-    */
     #[test] fn deserialize_fibonacci () {
         test_deserialization!(fibonacci_program(), fibonacci_bytes());
     }
 
     #[test] fn serialize_fibonacci () {
         test_serialization!(fibonacci_bytes(), fibonacci_program());
+    }
+
+    #[test] fn print_fibonacci () {
+        let mut bytes: Vec<u8> = Vec::new();
+        fibonacci_program().pretty_print(&mut bytes);
+        assert_eq!(&String::from_utf8(bytes).unwrap(), fibonacci_pretty_print());
     }
 }
 

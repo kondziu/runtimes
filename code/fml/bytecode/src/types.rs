@@ -29,6 +29,12 @@ impl ConstantPoolIndex {
     }
 }
 
+impl ConstantPoolIndex  { pub fn value(&self) -> u16 { self.0 } }
+impl LocalFrameIndex    { pub fn value(&self) -> u16 { self.0 } }
+impl Address            { pub fn value(&self) -> u32 { self.0 } }
+impl Size               { pub fn value(&self) -> u16 { self.0 } }
+impl Arity              { pub fn value(&self) -> u8  { self.0 } }
+
 impl Serializable for Arity {
 
     fn serialize<W: Write> (&self, sink: &mut W) -> () {
@@ -44,27 +50,11 @@ impl Serializable for Arity {
 impl Serializable for Size {
 
     fn serialize<W: Write> (&self, sink: &mut W) -> () {
-//        let size_of_type = std::mem::size_of::<usize>();
-//        match size_of_type {
-//            1 => serializable::write_u8(sink, self.0 as u8),
-//            4 => serializable::write_u32(sink, self.0 as u32),
-//            8 => serializable::write_u64(sink, self.0 as u64),
-//            _ => panic!("Cannot serialize: sizeof::<usize> == {} \
-//                         but only 1, 4, and 8 are supported", size_of_type),
-//        }
         serializable::write_u16(sink, self.0)
     }
 
     fn from_bytes<R: Read>(input: &mut R) -> Self {
         println!("Size::from_bytes");
-//        let size_of_type = std::mem::size_of::<usize>();
-//        let value: usize = match size_of_type {
-//            1 => serializable::read_u8(input) as usize,
-//            4 => serializable::read_u32(input) as usize,
-//            8 => serializable::read_u64(input) as usize,
-//            _ => panic!("Cannot deserialize: sizeof::<usize> == {} \
-//                         but only 1, 4, and 8 are supported", size_of_type),
-//        };
         Size(serializable::read_u16(input))
     }
 }
