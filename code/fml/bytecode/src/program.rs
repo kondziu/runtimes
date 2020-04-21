@@ -1,8 +1,9 @@
 use crate::objects::ProgramObject;
-use crate::types::ConstantPoolIndex;
-use crate::serializable::Serializable;
+use crate::types::{ConstantPoolIndex, Address, AddressRange};
+use crate::serializable::{Serializable, SerializableWithContext};
 use std::io::{Write, Read};
 use crate::serializable;
+use crate::bytecode::OpCode;
 
 /**
  * The instruction pointer contains the address of the instruction that will be executed next.
@@ -71,18 +72,58 @@ use crate::serializable;
 //}
 
 #[derive(PartialEq,Debug,Clone)]
+pub struct Code {
+    opcodes: Vec<OpCode>
+}
+
+impl Code {
+    pub fn new() -> Code {
+        Code { opcodes: Vec::new() }
+    }
+
+    pub fn register_opcodes(&mut self, opcodes: Vec<OpCode>) -> AddressRange {
+        let start = self.opcodes.len();
+        let length = opcodes.len();
+        self.opcodes.extend(opcodes);
+        AddressRange::new(Address::from_usize(start), length)
+    }
+
+    pub fn addresses_to_code_vector(&self, range: &AddressRange) -> Vec<&OpCode> {
+        let start = range.start().value_usize();
+        let end = start + range.length();
+        let mut result: Vec<&OpCode> = Vec::new();
+        for i in start..end {
+            result.push(&self.opcodes[i]);
+        }
+        result
+    }
+
+    pub fn next_address(&self, address: Address) -> Option<Address> {
+        let new_address = Address::from_usize(address.value_usize() + 1);
+        if self.opcodes.len() < new_address.value_usize() {
+            Some(new_address)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_opcode(&self, address: Address) -> Option<&OpCode> {
+        //self.table[address.value() as usize]
+        self.opcodes.get(address.value_usize())
+    }
+}
+
+#[derive(PartialEq,Debug,Clone)]
 pub struct Program {
+    code: Code,
     constants: Vec<ProgramObject>,
     globals: Vec<ConstantPoolIndex>,
     entry: ConstantPoolIndex,
 }
 
 impl Program {
-    pub fn new(constants: Vec<ProgramObject>,
-               globals: Vec<ConstantPoolIndex>,
-               entry: ConstantPoolIndex) -> Program {
-
-        Program {constants, globals, entry}
+    pub fn code(&self) -> &Code {
+        &self.code
     }
 
     pub fn constants(&self) -> &Vec<ProgramObject> {
@@ -107,7 +148,7 @@ impl Serializable for Program {
 
         serializable::write_usize_as_u16(sink, self.constants.len());
         for constant in self.constants.iter() {
-            constant.serialize(sink)
+            constant.serialize(sink, self.code())
         }
 
         ConstantPoolIndex::write_cpi_vector(sink, &self.globals);
@@ -118,13 +159,17 @@ impl Serializable for Program {
     fn from_bytes<R: Read>(input: &mut R) -> Self {
         println!("Program::from_bytes");
 
+        let mut code = Code::new();
+
         let size = serializable::read_u16_as_usize(input);
         let mut constants: Vec<ProgramObject> = Vec::new();
         for _ in 0..size {
-            constants.push(ProgramObject::from_bytes(input))
+            constants.push(ProgramObject::from_bytes(input, &mut code))
         }
 
-        Program { constants,
+        Program {
+            code,
+            constants,
             globals: ConstantPoolIndex::read_cpi_vector(input),
             entry: ConstantPoolIndex::from_bytes(input),
         }

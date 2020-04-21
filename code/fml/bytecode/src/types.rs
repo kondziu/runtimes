@@ -7,12 +7,26 @@ use std::io::{Read, Write};
 #[derive(PartialEq,Debug,Copy,Clone)] pub struct Address(u32);
 #[derive(PartialEq,Debug,Copy,Clone)] pub struct ConstantPoolIndex(u16);
 #[derive(PartialEq,Debug,Copy,Clone)] pub struct LocalFrameIndex(u16);
+#[derive(PartialEq,Debug,Copy,Clone)] pub struct AddressRange { start: Address, length: usize }
 
 impl Arity             { pub fn new(value: u8)  -> Arity             { Arity(value)             }}
 impl Size              { pub fn new(value: u16) -> Size              { Size(value)              }}
-impl Address           { pub fn new(value: u32) -> Address           { Address(value)           }}
 impl LocalFrameIndex   { pub fn new(value: u16) -> LocalFrameIndex   { LocalFrameIndex(value)   }}
 impl ConstantPoolIndex { pub fn new(value: u16) -> ConstantPoolIndex { ConstantPoolIndex(value) }}
+
+impl AddressRange {
+    pub fn new (start: Address, length: usize) -> Self {
+        AddressRange { start, length }
+    }
+
+    pub fn start(&self) -> &Address {
+       &self.start
+    }
+
+    pub fn length(&self) -> usize {
+        self.length
+    }
+}
 
 impl ConstantPoolIndex {
     pub fn read_cpi_vector<R: Read>(input: &mut R) -> Vec<ConstantPoolIndex> {
@@ -31,9 +45,24 @@ impl ConstantPoolIndex {
 
 impl ConstantPoolIndex  { pub fn value(&self) -> u16 { self.0 } }
 impl LocalFrameIndex    { pub fn value(&self) -> u16 { self.0 } }
-impl Address            { pub fn value(&self) -> u32 { self.0 } }
 impl Size               { pub fn value(&self) -> u16 { self.0 } }
 impl Arity              { pub fn value(&self) -> u8  { self.0 } }
+
+impl Address {
+    pub fn from_u32(value: u32) -> Address {
+        Address(value)
+    }
+    pub fn from_usize(value: usize) -> Address {
+        assert!(value <= 4_294_967_295usize);
+        Address(value as u32)
+    }
+    pub fn value_u32(&self) -> u32 {
+        self.0
+    }
+    pub fn value_usize(&self) -> usize {
+        self.0 as usize
+    }
+}
 
 impl Serializable for Arity {
 

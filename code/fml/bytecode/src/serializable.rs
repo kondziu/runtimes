@@ -1,9 +1,16 @@
 use std::io::{Read, Write};
+use crate::program::Code;
+
+pub trait SerializableWithContext {
+    fn serialize<W: Write> (&self, sink: &mut W, code: &Code) -> ();
+    fn from_bytes<R: Read>(input: &mut R, code: &mut Code) -> Self;
+}
 
 pub trait Serializable {
     fn serialize<W: Write> (&self, sink: &mut W) -> ();
     fn from_bytes<R: Read>(input: &mut R) -> Self;
 }
+
 
 pub fn read_u8<R: Read>(reader: &mut R) -> u8 {
     let mut buf = [0u8; 1];

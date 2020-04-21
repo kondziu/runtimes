@@ -273,8 +273,8 @@ impl Serializable for OpCode {
             GetGlobal    { name                } => { name.serialize(sink)      },
             Branch       { label               } => { label.serialize(sink)     },
             Jump         { label               } => { label.serialize(sink)     },
-            Return                               => {                           },
-            Drop                                 => {                           },
+            Return                               => {                                    },
+            Drop                                 => {                                    },
         };
     }
 
@@ -341,7 +341,7 @@ impl OpCode {
         opcodes
     }
 
-    pub fn write_opcode_vector<R: Write>(sink: &mut R, vector: &Vec<OpCode>) {
+    pub fn write_opcode_vector<W: Write>(sink: &mut W, vector: &Vec<&OpCode>) {
         serializable::write_usize_as_u32(sink, vector.len());
         for opcode in vector {
             opcode.serialize(sink);

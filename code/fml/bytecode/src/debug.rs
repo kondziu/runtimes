@@ -2,7 +2,7 @@ use crate::types::{ConstantPoolIndex, LocalFrameIndex, Size, Arity, Address};
 use std::io::Write;
 use crate::objects::ProgramObject;
 use crate::bytecode::OpCode;
-use crate::program::Program;
+use crate::program::{Program, Code};
 
 pub trait PrettyPrint: UglyPrint {
     fn pretty_print<W: Write>(&self, sink: &mut W) {
@@ -19,17 +19,36 @@ pub trait PrettyPrint: UglyPrint {
     }
 }
 
+pub trait PrettyPrintWithContext: UglyPrintWithContext {
+    fn pretty_print<W: Write>(&self, sink: &mut W, code: &Code) {
+        self.ugly_print(sink, code, 0, false);
+    }
+    fn pretty_print_indent<W: Write>(&self, sink: &mut W, code: &Code, indent: usize) {
+        self.ugly_print(sink, code, indent, true);
+    }
+    fn pretty_print_no_indent<W: Write>(&self, sink: &mut W, code: &Code) {
+        self.ugly_print(sink, code, 0, false);
+    }
+    fn pretty_print_no_first_line_indent<W: Write>(&self, sink: &mut W, code: &Code, indent: usize) {
+        self.ugly_print(sink, code, indent, false);
+    }
+}
+
 impl PrettyPrint for ConstantPoolIndex {}
 impl PrettyPrint for LocalFrameIndex {}
 impl PrettyPrint for Address {}
 impl PrettyPrint for Size {}
 impl PrettyPrint for Arity {}
-impl PrettyPrint for ProgramObject {}
 impl PrettyPrint for OpCode {}
 impl PrettyPrint for Program {}
+impl PrettyPrintWithContext for ProgramObject {}
 
 pub trait UglyPrint {
     fn ugly_print<W: Write>(&self, sink: &mut W, indent: usize, indent_first_line: bool);
+}
+
+pub trait UglyPrintWithContext {
+    fn ugly_print<W: Write>(&self, sink: &mut W, code: &Code, indent: usize, indent_first_line: bool);
 }
 
 macro_rules! write_string {
@@ -99,12 +118,12 @@ impl UglyPrint for Arity {
 
 impl UglyPrint for Address {
     fn ugly_print<W: Write>(&self, sink: &mut W, indent: usize, prefix_first_line: bool) {
-        write_string!(sink, first!(indent, prefix_first_line), "0x{:X}", self.value());
+        write_string!(sink, first!(indent, prefix_first_line), "0x{:X}", self.value_u32());
     }
 }
 
-impl UglyPrint for ProgramObject {
-    fn ugly_print<W: Write>(&self, sink: &mut W, indent: usize, prefix_first_line: bool) {
+impl UglyPrintWithContext for ProgramObject {
+    fn ugly_print<W: Write>(&self, sink: &mut W, code: &Code, indent: usize, prefix_first_line: bool) {
         match self {
             ProgramObject::Null  =>
                 write_string!(sink, first!(indent, prefix_first_line), "Null"),
@@ -134,7 +153,7 @@ impl UglyPrint for ProgramObject {
                 }
             },
 
-            ProgramObject::Method {name, arguments, locals, code} => {
+            ProgramObject::Method {name, arguments, locals, code: range} => {
                 write_string!(sink, first!(indent, prefix_first_line), "Method(");
                 name.pretty_print_no_indent(sink);
                 write_string!(sink, 0, ", nargs:");
@@ -142,7 +161,8 @@ impl UglyPrint for ProgramObject {
                 write_string!(sink, 0, ", nlocals:");
                 locals.pretty_print_no_indent(sink);
                 write_string!(sink, 0, ") :");
-                for opcode in code {
+
+                for opcode in code.addresses_to_code_vector(range) {
                     write_string!(sink, 0, "\n");
                     //println!("indent {:?} {} -> {} ", self, indent, further!(indent));
                     opcode.pretty_print_indent(sink, further!(indent))
@@ -234,7 +254,7 @@ impl UglyPrint for Program {
         for (index, opcode) in self.constants().iter().enumerate() {
             ConstantPoolIndex::new(index as u16).pretty_print_indent(sink, further!(indent));
             write_string!(sink, 0, ": ");
-            opcode.pretty_print_no_first_line_indent(sink, big_further!(indent));
+            opcode.pretty_print_no_first_line_indent(sink, self.code(), big_further!(indent));
             write_string!(sink, 0, "\n");
         }
         write_string!(sink, indent, "Globals :\n");

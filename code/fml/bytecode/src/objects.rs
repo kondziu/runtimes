@@ -1,8 +1,13 @@
-use crate::types::{ConstantPoolIndex, Arity, Size};
+use crate::types::{ConstantPoolIndex, Arity, Size, AddressRange};
 use crate::bytecode::OpCode;
-use crate::serializable::Serializable;
+use crate::serializable::{Serializable, SerializableWithContext};
 use crate::serializable;
 use std::io::{Read, Write};
+use std::rc::Rc;
+use std::collections::HashMap;
+use std::cell::RefCell;
+use std::ops::Deref;
+use crate::program::Code;
 
 #[derive(PartialEq,Debug,Clone)]
 pub enum ProgramObject {
@@ -66,7 +71,7 @@ pub enum ProgramObject {
         name: ConstantPoolIndex,
         arguments: Arity,
         locals: Size,
-        code: Vec<OpCode>
+        code: AddressRange,
     },
 
     /**
@@ -98,8 +103,8 @@ impl ProgramObject {
     }
 }
 
-impl Serializable for ProgramObject {
-    fn serialize<W: Write>(&self, sink: &mut W) -> () {
+impl SerializableWithContext for ProgramObject {
+    fn serialize<W: Write>(&self, sink: &mut W, code: &Code) -> () {
         serializable::write_u8(sink, self.tag());
         use ProgramObject::*;
         match &self {
@@ -110,16 +115,16 @@ impl Serializable for ProgramObject {
             Class(v)    => ConstantPoolIndex::write_cpi_vector(sink, v),
             Slot {name} => name.serialize(sink),
 
-            Method {name, arguments, locals, code} => {
+            Method {name, arguments, locals, code: range} => {
                 name.serialize(sink);
                 arguments.serialize(sink);
                 locals.serialize(sink);
-                OpCode::write_opcode_vector(sink, code)
+                OpCode::write_opcode_vector(sink, &code.addresses_to_code_vector(range))
             }
         }
     }
 
-    fn from_bytes<R: Read>(input: &mut R) -> Self {
+    fn from_bytes<R: Read>(input: &mut R, code: &mut Code) -> Self {
         println!("ProgramObject::from_bytes");
         let tag = serializable::read_u8(input);
         match tag {
@@ -129,7 +134,7 @@ impl Serializable for ProgramObject {
             0x03 => ProgramObject::Method { name: ConstantPoolIndex::from_bytes(input),
                                             arguments: Arity::from_bytes(input),
                                             locals: Size::from_bytes(input),
-                                            code: OpCode::read_opcode_vector(input) },
+                                            code: code.register_opcodes(OpCode::read_opcode_vector(input))},
             0x04 => ProgramObject::Slot { name: ConstantPoolIndex::from_bytes(input) },
             0x05 => ProgramObject::Class(ConstantPoolIndex::read_cpi_vector(input)),
             0x06 => ProgramObject::Boolean(serializable::read_bool(input)),
@@ -138,21 +143,79 @@ impl Serializable for ProgramObject {
     }
 }
 
+pub type SharedRuntimeObject = Rc<RefCell<RuntimeObject>>;
+
+#[derive(PartialEq,Debug)]
 pub enum RuntimeObject {
     Null,
     Integer(i32),
     Boolean(bool),
-    Array,
-    Object,
+    Array(Vec<SharedRuntimeObject>),
+    Object {
+        parent: SharedRuntimeObject,
+        fields: HashMap<String, SharedRuntimeObject>,
+        methods: HashMap<String, ProgramObject>,
+    },
 }
 
 impl RuntimeObject {
-    pub fn from_constant(constant: &ProgramObject) -> RuntimeObject {
+    pub fn from_i32(n :i32) -> Rc<RefCell<RuntimeObject>> {
+        Rc::new(RefCell::new(RuntimeObject::Integer(n)))
+    }
+
+    pub fn from_bool(b: bool) -> Rc<RefCell<RuntimeObject>> {
+        Rc::new(RefCell::new(RuntimeObject::Boolean(b)))
+    }
+
+    pub fn from_constant(constant: &ProgramObject) -> Rc<RefCell<RuntimeObject>> {
         match constant {
-            ProgramObject::Null => RuntimeObject::Null,
-            ProgramObject::Integer(value) => RuntimeObject::Integer(*value),
-            ProgramObject::Boolean(value) => RuntimeObject::Boolean(*value),
+            ProgramObject::Null => Rc::new(RefCell::new(RuntimeObject::Null)),
+            ProgramObject::Integer(value) => Rc::new(RefCell::new(RuntimeObject::Integer(*value))),
+            ProgramObject::Boolean(value) => Rc::new(RefCell::new(RuntimeObject::Boolean(*value))),
             _ => unimplemented!(),
+        }
+    }
+
+    pub fn null() -> Rc<RefCell<RuntimeObject>> {
+        Rc::new(RefCell::new(RuntimeObject::Null))
+    }
+
+    pub fn to_string(object: &SharedRuntimeObject) -> String {
+        match object.as_ref().borrow().deref() {
+            RuntimeObject::Null => "null".to_string(),
+            RuntimeObject::Integer(n) => n.to_string(),
+            RuntimeObject::Boolean(b) => b.to_string(),
+            RuntimeObject::Array(elements) => {
+                let mut buffer = String::new();
+                buffer.push('[');
+                for (i, e) in elements.iter().enumerate() {
+                    buffer.push_str(&RuntimeObject::to_string(e));
+                    if i < elements.len() {
+                        buffer.push_str(", ")
+                    }
+                }
+                buffer.push(']');
+                buffer
+            },
+            RuntimeObject::Object { parent, fields, methods:_ } => {
+                let mut buffer = String::from("object(");
+
+                buffer.push_str("..=");
+                buffer.push_str(&RuntimeObject::to_string(parent));
+                buffer.push_str(", ");
+
+                for (i, (name, field)) in fields.iter().enumerate() {
+                    buffer.push_str(name);
+                    buffer.push_str("=");
+                    buffer.push_str(&RuntimeObject::to_string(field));
+                    if i < fields.len() {
+                        buffer.push_str(", ")
+                    }
+                }
+
+                buffer.push_str(")");
+                buffer
+            }
         }
     }
 }
