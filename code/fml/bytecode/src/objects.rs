@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::cell::RefCell;
 use std::ops::Deref;
 use crate::program::Code;
+use crate::objects::RuntimeObject::Object;
 
 #[derive(PartialEq,Debug,Clone)]
 pub enum ProgramObject {
@@ -159,6 +160,10 @@ pub enum RuntimeObject {
 }
 
 impl RuntimeObject {
+    pub fn from_vec(v: Vec<SharedRuntimeObject>) -> Rc<RefCell<RuntimeObject>> {
+        Rc::new(RefCell::new(RuntimeObject::Array(v)))
+    }
+
     pub fn from_i32(n :i32) -> Rc<RefCell<RuntimeObject>> {
         Rc::new(RefCell::new(RuntimeObject::Integer(n)))
     }
@@ -174,6 +179,10 @@ impl RuntimeObject {
             ProgramObject::Boolean(value) => Rc::new(RefCell::new(RuntimeObject::Boolean(*value))),
             _ => unimplemented!(),
         }
+    }
+
+    pub fn object(parent: SharedRuntimeObject , fields: HashMap<String, SharedRuntimeObject>, methods: HashMap<String, ProgramObject>) -> Rc<RefCell<RuntimeObject>> {
+        Rc::new(RefCell::new(Object { parent, fields, methods }))
     }
 
     pub fn null() -> Rc<RefCell<RuntimeObject>> {

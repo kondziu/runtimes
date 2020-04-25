@@ -417,19 +417,32 @@ mod program_object_deserialization_tests {
 #[cfg(test)]
 mod interpreter_test {
     use crate::bytecode::OpCode;
-    use crate::types::{ConstantPoolIndex, Address};
+    use crate::types::{ConstantPoolIndex, Address, LocalFrameIndex, Arity, Size, AddressRange};
     use crate::program::{Program, Code};
     use crate::objects::{ProgramObject, RuntimeObject};
     use crate::interpreter::{State, interpret, LocalFrame};
     use std::collections::HashMap;
 
-    //fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &Program)
+    macro_rules! hashmap {
+        ($key: expr, $value: expr) => {{
+            let mut map = HashMap::new();
+            map.insert($key, $value);
+            map
+        }};
+        ($key1: expr, $value1: expr, $key2: expr, $value2: expr) => {{
+            let mut map = HashMap::new();
+            map.insert($key1, $value1);
+            map.insert($key2, $value2);
+            map
+        }};
+    }
 
     #[test] fn literal() {
         let code = Code::from(vec!(
             OpCode::Literal { index: ConstantPoolIndex::new(0) },
             OpCode::Skip,
         ));
+
         let constants: Vec<ProgramObject> = vec!(ProgramObject::Integer(42));
         let globals: Vec<ConstantPoolIndex> = vec!();
         let entry = ConstantPoolIndex::new(0);
@@ -440,14 +453,791 @@ mod interpreter_test {
 
         interpret(&mut state, &mut output, &program);
 
-        assert_eq!(&output, "");
-        assert_eq!(state.operands, vec!(RuntimeObject::from_i32(42)));
-        assert_eq!(state.globals, HashMap::new());
-        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)));
-        assert_eq!(state.labels, HashMap::new());
-        assert_eq!(state.frames, vec!(LocalFrame::empty()));
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::from_i32(42)), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn label() {
+        let code = Code::from(vec!(
+            OpCode::Label { name: ConstantPoolIndex::new(0) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("o.o".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, Vec::new(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, hashmap!("o.o".to_string(), Address::from_usize(1)), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn get_local() {
+        let code = Code::from(vec!(
+            OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!();
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.current_frame_mut().unwrap().push_local(RuntimeObject::from_i32(42));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::from_i32(42)), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::from(None, vec!(RuntimeObject::from_i32(42)))), "test frames");
+    }
+
+    #[test] fn set_local() {
+        let code = Code::from(vec!(
+            OpCode::SetLocal { index: LocalFrameIndex::new(0) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!();
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::from_i32(42));
+        state.current_frame_mut().unwrap().push_local(RuntimeObject::from_i32(0));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, Vec::new(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::from(None, vec!(RuntimeObject::from_i32(42)))), "test frames");
+    }
+
+    #[test] fn get_global() {
+        let code = Code::from(vec!(
+            OpCode::GetGlobal { name: ConstantPoolIndex::new(0) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("skippy".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!(ConstantPoolIndex::new(0));
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.register_global("skippy".to_string(), RuntimeObject::from_i32(666));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::from_i32(666)), "test operands");
+        assert_eq!(state.globals, hashmap!("skippy".to_string(), RuntimeObject::from_i32(666)), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn set_global() {
+        let code = Code::from(vec!(
+            OpCode::SetGlobal { name: ConstantPoolIndex::new(0) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("skippy".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!(ConstantPoolIndex::new(0));
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::from_i32(42));
+        state.register_global("skippy".to_string(), RuntimeObject::from_i32(666));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::from_i32(42)), "test operands");
+        assert_eq!(state.globals, hashmap!("skippy".to_string(), RuntimeObject::from_i32(42)), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn drop() {
+        let code = Code::from(vec!(
+            OpCode::Drop,
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!();
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::from_i32(7));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, Vec::new(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn jump() {
+        let code = Code::from(vec!(
+            /*0*/ OpCode::Label { name: ConstantPoolIndex::new(0) },
+            /*1*/ OpCode::Skip,
+            /*2*/ OpCode::Jump { label: ConstantPoolIndex::new(0) },
+            /*3*/ OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("^.^".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.set_instruction_pointer(Some(Address::from_usize(2)));
+        state.add_label("^.^".to_string(), Address::from_usize(1));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, Vec::new(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, hashmap!("^.^".to_string(), Address::from_usize(1)), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn branch_true() {
+        let code = Code::from(vec!(
+            /*0*/ OpCode::Label { name: ConstantPoolIndex::new(0) },
+            /*1*/ OpCode::Skip,
+            /*2*/ OpCode::Branch { label: ConstantPoolIndex::new(0) },
+            /*3*/ OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("x.x".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.set_instruction_pointer(Some(Address::from_usize(2)));
+        state.add_label("x.x".to_string(), Address::from_usize(1));
+        state.push_operand(RuntimeObject::from_bool(true));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, Vec::new(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, hashmap!("x.x".to_string(), Address::from_usize(1)), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn branch_false() {
+        let code = Code::from(vec!(
+            /*0*/ OpCode::Label { name: ConstantPoolIndex::new(0) },
+            /*1*/ OpCode::Skip,
+            /*2*/ OpCode::Branch { label: ConstantPoolIndex::new(0) },
+            /*3*/ OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("butt".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.set_instruction_pointer(Some(Address::from_usize(2)));
+        state.add_label("butt".to_string(), Address::from_usize(1));
+        state.push_operand(RuntimeObject::from_bool(false));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, Vec::new(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(3)), "test instruction pointer");
+        assert_eq!(state.labels, hashmap!("butt".to_string(), Address::from_usize(1)), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn print() {
+        let code = Code::from(vec!(
+            OpCode::Print { format: ConstantPoolIndex::new(0), arguments: Arity::new(0) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("Ahoj przygodo!\n".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "Ahoj przygodo!\n", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::null()), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn print_one() {
+        let code = Code::from(vec!(
+            OpCode::Print { format: ConstantPoolIndex::new(0), arguments: Arity::new(1) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("~!\n".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::from_i32(42));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "42!\n", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::null()), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn print_two() {
+        let code = Code::from(vec!(
+            OpCode::Print { format: ConstantPoolIndex::new(0), arguments: Arity::new(2) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("~x~!\n".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::from_i32(0));
+        state.push_operand(RuntimeObject::from_i32(42));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "0x42!\n", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::null()), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn skip() {
+        let code = Code::from(vec!(
+            OpCode::Skip,
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!();
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, Vec::new(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn array_zero() {
+        let code = Code::from(vec!(
+            OpCode::Array { size: Size::new(0) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!();
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::null());
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::from_vec(vec!())), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn array_one() {
+        let code = Code::from(vec!(
+            OpCode::Array { size: Size::new(1) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!();
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::from_i32(1));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::from_vec(vec!(RuntimeObject::from_i32(1)))), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn array_three() {
+        let code = Code::from(vec!(
+            OpCode::Array { size: Size::new(3) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!();
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::from_i32(0));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::from_vec(vec!(RuntimeObject::from_i32(0),
+                                                                     RuntimeObject::from_i32(0),
+                                                                     RuntimeObject::from_i32(0)))), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn call_function_zero() {
+        let code = Code::from(vec!(
+            /*0*/ OpCode::Return,
+            /*1*/ OpCode::CallFunction { function: ConstantPoolIndex::new(1), arguments: Arity::new(0) },
+            /*2*/ OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(
+            ProgramObject::String("bar".to_string()),
+            ProgramObject::Method { name: ConstantPoolIndex::new(0),
+                arguments: Arity::new(0),
+                locals: Size::new(0),
+                code: AddressRange::from(0,1) });
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.set_instruction_pointer(Some(Address::from_usize(1)));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(0)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty(),
+                                      LocalFrame::from(Some(Address::from_usize(2)), vec!())), "test frames");
+    }
+
+    #[test] fn call_function_one() {
+        let code = Code::from(vec!(
+            /*0*/ OpCode::Return,
+            /*1*/ OpCode::CallFunction { function: ConstantPoolIndex::new(1), arguments: Arity::new(1) },
+            /*2*/ OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(
+            ProgramObject::String("foo".to_string()),
+            ProgramObject::Method { name: ConstantPoolIndex::new(0),
+                arguments: Arity::new(1),
+                locals: Size::new(0),
+                code: AddressRange::from(0,1) });
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::from_i32(42));
+
+        state.set_instruction_pointer(Some(Address::from_usize(1)));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(0)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty(),
+                                      LocalFrame::from(Some(Address::from_usize(2)),
+                                                       vec!(RuntimeObject::from_i32(42)))), "test frames");
+    }
+
+    #[test] fn call_function_three() {
+        let code = Code::from(vec!(
+            /*0*/ OpCode::Return,
+            /*1*/ OpCode::CallFunction { function: ConstantPoolIndex::new(1), arguments: Arity::new(3) },
+            /*2*/ OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(
+            ProgramObject::String("fun".to_string()),
+            ProgramObject::Method { name: ConstantPoolIndex::new(0),
+                                    arguments: Arity::new(3),
+                                    locals: Size::new(0),
+                                    code: AddressRange::from(0,1) });
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::from_i32(3));
+        state.push_operand(RuntimeObject::from_i32(2));
+        state.push_operand(RuntimeObject::from_i32(1));
+
+        state.set_instruction_pointer(Some(Address::from_usize(1)));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(0)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty(),
+                                      LocalFrame::from(Some(Address::from_usize(2)),
+                                                       vec!(RuntimeObject::from_i32(1),
+                                                            RuntimeObject::from_i32(2),
+                                                            RuntimeObject::from_i32(3)))), "test frames");
+    }
+
+    #[test] fn returns() {
+        let code = Code::from(vec!(
+            /*0*/ OpCode::Return,
+            /*1*/ OpCode::CallFunction { function: ConstantPoolIndex::new(1), arguments: Arity::new(3) },
+            /*2*/ OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(
+            ProgramObject::String("xxx".to_string()),
+            ProgramObject::Method { name: ConstantPoolIndex::new(0),
+                arguments: Arity::new(3),
+                locals: Size::new(0),
+                code: AddressRange::from(0,1) });
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        //state.set_instruction_pointer(Some(Address::from_usize(0)));
+        state.new_frame(Some(Address::from_usize(2)),
+                        vec!(RuntimeObject::from_i32(1),
+                             RuntimeObject::from_i32(2),
+                             RuntimeObject::from_i32(3)));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(2)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn object_zero() {
+        let code = Code::from(vec!(
+            /*0*/ OpCode::Return,
+            /*1*/ OpCode::Object { class: ConstantPoolIndex::new(2) },
+            /*2*/ OpCode::Skip
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(
+            /*0*/ ProgramObject::String ("+".to_string()),
+            /*1*/ ProgramObject::Method { name: ConstantPoolIndex::new(0),
+                arguments: Arity::new(1),
+                locals: Size::new(0),
+                code: AddressRange::from(0, 1)},
+
+            /*2*/ ProgramObject::Class(vec!(ConstantPoolIndex::new(1))),
+        );
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.set_instruction_pointer(Some(Address::from_usize(1)));
+        state.push_operand(RuntimeObject::null());
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(
+            RuntimeObject::object(RuntimeObject::null(),
+                                  HashMap::new(),
+                                  hashmap!("+".to_string(), ProgramObject::Method { name: ConstantPoolIndex::new(0),
+                                                                                    arguments: Arity::new(1),
+                                                                                    locals: Size::new(0),
+                                                                                    code: AddressRange::from(0, 1)}))), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(2)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn object_one() {
+        let code = Code::from(vec!(
+            /*0*/ OpCode::Return,
+            /*1*/ OpCode::Object { class: ConstantPoolIndex::new(4) },
+            /*2*/ OpCode::Skip
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(
+            /*0*/ ProgramObject::String ("x".to_string()),
+            /*1*/ ProgramObject::Slot { name: ConstantPoolIndex::new(0) },
+
+            /*2*/ ProgramObject::String ("+".to_string()),
+            /*3*/ ProgramObject::Method { name: ConstantPoolIndex::new(2),
+                arguments: Arity::new(1),
+                locals: Size::new(0),
+                code: AddressRange::from(0, 1)},
+
+            /*4*/ ProgramObject::Class(vec!(ConstantPoolIndex::new(1),
+                                            ConstantPoolIndex::new(3))),
+        );
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.set_instruction_pointer(Some(Address::from_usize(1)));
+        state.push_operand(RuntimeObject::null());          // parent
+        state.push_operand(RuntimeObject::from_i32(0));     // x
+
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(
+            RuntimeObject::object(RuntimeObject::null(),
+                                  hashmap!("x".to_string(), RuntimeObject::from_i32(0)),
+                                  hashmap!("+".to_string(), ProgramObject::Method { name: ConstantPoolIndex::new(2),
+                                                                                    arguments: Arity::new(1),
+                                                                                    locals: Size::new(0),
+                                                                                    code: AddressRange::from(0, 1)}))), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(2)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn object_two() {
+        let code = Code::from(vec!(
+            /*0*/ OpCode::Return,
+            /*1*/ OpCode::Object { class: ConstantPoolIndex::new(6) },
+            /*2*/ OpCode::Skip
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(
+            /*0*/ ProgramObject::String ("x".to_string()),
+            /*1*/ ProgramObject::Slot { name: ConstantPoolIndex::new(0) },
+
+            /*2*/ ProgramObject::String ("y".to_string()),
+            /*3*/ ProgramObject::Slot { name: ConstantPoolIndex::new(2) },
+
+            /*4*/ ProgramObject::String ("+".to_string()),
+            /*5*/ ProgramObject::Method { name: ConstantPoolIndex::new(4),
+                                          arguments: Arity::new(1),
+                                          locals: Size::new(0),
+                                          code: AddressRange::from(0, 1)},
+
+            /*6*/ ProgramObject::Class(vec!(ConstantPoolIndex::new(1),
+                                            ConstantPoolIndex::new(3),
+                                            ConstantPoolIndex::new(5))),
+        );
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.set_instruction_pointer(Some(Address::from_usize(1)));
+        state.push_operand(RuntimeObject::null());          // parent
+        state.push_operand(RuntimeObject::from_i32(42));    // y
+        state.push_operand(RuntimeObject::from_i32(0));     // x
+
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(
+            RuntimeObject::object(RuntimeObject::null(),
+                                  hashmap!("x".to_string(), RuntimeObject::from_i32(0), "y".to_string(), RuntimeObject::from_i32(42)),
+                                  hashmap!("+".to_string(), ProgramObject::Method { name: ConstantPoolIndex::new(4),
+                                                                                    arguments: Arity::new(1),
+                                                                                    locals: Size::new(0),
+                                                                                    code: AddressRange::from(0, 1)}))), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(2)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn get_slot() {
+        let code = Code::from(vec!(
+            OpCode::GetSlot { name: ConstantPoolIndex::new(0) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("value".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::object(RuntimeObject::null(),
+                                                 hashmap!("value".to_string(), RuntimeObject::from_i32(42)),
+                                                 HashMap::new()));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::from_i32(42)), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn set_slot() {
+        let code = Code::from(vec!(
+            OpCode::SetSlot { name: ConstantPoolIndex::new(0) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("value".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.push_operand(RuntimeObject::object(RuntimeObject::null(),
+                                                 hashmap!("value".to_string(), RuntimeObject::from_i32(42)),
+                                                 HashMap::new()));
+        state.push_operand(RuntimeObject::from_i32(666));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::from_i32(666)), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    #[test] fn call_method() {
+        unimplemented!()
     }
 }
+
+//CallMethod   { name: _,     arguments: _ } => 0x07,
 
 #[cfg(test)]
 mod hello_world_tests {

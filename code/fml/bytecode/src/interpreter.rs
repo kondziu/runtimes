@@ -50,6 +50,13 @@ impl LocalFrame {
         }
     }
 
+    pub fn from(return_address: Option<Address>, slots: Vec<SharedRuntimeObject>) -> Self {
+        LocalFrame {
+            return_address,
+            slots,
+        }
+    }
+
     pub fn return_address(&self) -> &Option<Address> {
         &self.return_address
     }
@@ -202,7 +209,7 @@ impl State {
         self.frames.pop()
     }
 
-    pub fn new_frame(&mut self, slots: Vec<SharedRuntimeObject>, return_address: Option<Address>) {
+    pub fn new_frame(&mut self, return_address: Option<Address>, slots: Vec<SharedRuntimeObject>,) {
         self.frames.push(LocalFrame{ slots, return_address });
     }
 
@@ -245,15 +252,15 @@ impl State {
 //        self.labels.get(name)
 //    }
 
-//    pub fn add_label_address(&mut self, name: String, address: Address) -> Result<(), String> {
-//        if self.labels.contains_key(&name) {
-//            Err(format!("Label {} already registered (with value {:?})",
-//                        &name, self.labels.get(&name).unwrap()))
-//        } else {
-//            self.labels.insert(name, address);
-//            Ok(())
-//        }
-//    }
+    pub fn add_label(&mut self, name: String, address: Address) -> Result<(), String> {
+        if self.labels.contains_key(&name) {
+            Err(format!("Label {} already registered (with value {:?})",
+                        &name, self.labels.get(&name).unwrap()))
+        } else {
+            self.labels.insert(name, address);
+            Ok(())
+        }
+    }
 
     pub fn create_label_at_instruction_pointer(&mut self, name: String) -> Result<(), String> {
         let address: Option<Address> = self.instruction_pointer;
@@ -487,13 +494,14 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
         }
 
         OpCode::Array { size } => {
+            let initializer = state.pop_operand()
+                .expect(&format!("Array error: cannot pop initializer from empty operand \
+                                  stack"));
+
             let elements = {
                 let mut elements: Vec<SharedRuntimeObject> = Vec::new();
-                for index in 0..size.value() {
-                    let element = state.pop_operand()
-                        .expect(&format!("Array error: cannot pop operand {} from empty operand \
-                                          stack", index));
-                    elements.push(element);
+                for _ in 0..size.value() {
+                    elements.push(initializer.clone());
                 }
                 elements
             };
@@ -505,6 +513,26 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
             state.bump_instruction_pointer(program);
 //                .expect("Array error: cannot bump instruction pointer");
         }
+
+//        OpCode::ArrayN { size } => {
+//            let elements = {
+//                let mut elements: Vec<SharedRuntimeObject> = Vec::new();
+//                for index in 0..size.value() {
+//                    let element = state.pop_operand()
+//                        .expect(&format!("Array error: cannot pop operand {} from empty operand \
+//                                          stack", index));
+//                    elements.push(element);
+//                }
+//                elements
+//            };
+//
+//            let object = Rc::new(RefCell::new(RuntimeObject::Array(elements)));
+//
+//            state.push_operand(object);
+//
+//            state.bump_instruction_pointer(program);
+////                .expect("Array error: cannot bump instruction pointer");
+//        }
 
         OpCode::GetSlot { name: index } => {
             let constant: &ProgramObject = program.get_constant(index)
@@ -732,7 +760,8 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                                 slots
                             };
 
-                            state.new_frame(slots, *state.instruction_pointer());                          //FIXME right order?
+                            state.bump_instruction_pointer(program);
+                            state.new_frame(*state.instruction_pointer(), slots);                          //FIXME right order?
                             state.set_instruction_pointer(Some(*code.start()));
                         },
                         thing => panic!("Call method error: member {} in object definition {:?}
@@ -765,7 +794,8 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                         slots.push(element);
                     }
 
-                    state.new_frame(slots, *state.instruction_pointer()); // FIXME or IP+1?
+                    state.bump_instruction_pointer(program);
+                    state.new_frame(*state.instruction_pointer(), slots);
                     state.set_instruction_pointer(Some(*range.start()));
                 },
                 _ => panic!("Call function error: constant at index {:?} must be a Method, but it \
@@ -867,6 +897,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
             };
 
             if !jump_condition {
+                state.bump_instruction_pointer(program);
                 return;
             }
 
