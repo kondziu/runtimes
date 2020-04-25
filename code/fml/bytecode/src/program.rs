@@ -81,6 +81,10 @@ impl Code {
         Code { opcodes: Vec::new() }
     }
 
+    pub fn from(opcodes: Vec<OpCode>) -> Code {
+        Code { opcodes }
+    }
+
     pub fn register_opcodes(&mut self, opcodes: Vec<OpCode>) -> AddressRange {
         let start = self.opcodes.len();
         let length = opcodes.len();
@@ -98,12 +102,17 @@ impl Code {
         result
     }
 
-    pub fn next_address(&self, address: Address) -> Option<Address> {
-        let new_address = Address::from_usize(address.value_usize() + 1);
-        if self.opcodes.len() < new_address.value_usize() {
-            Some(new_address)
-        } else {
-            None
+    pub fn next_address(&self, address: Option<Address>) -> Option<Address> {
+        match address {
+            Some(address) => {
+                let new_address = Address::from_usize(address.value_usize() + 1);
+                if self.opcodes.len() > new_address.value_usize() {
+                    Some(new_address)
+                } else {
+                    None
+                }
+            }
+            None => panic!("Cannot advance a nothing address.")
         }
     }
 
@@ -122,6 +131,14 @@ pub struct Program {
 }
 
 impl Program {
+    pub fn new(code: Code,
+               constants: Vec<ProgramObject>,
+               globals: Vec<ConstantPoolIndex>,
+               entry: ConstantPoolIndex) -> Program {
+
+        Program { code, constants, globals, entry }
+    }
+
     pub fn code(&self) -> &Code {
         &self.code
     }
@@ -140,6 +157,10 @@ impl Program {
 
     pub fn get_constant(&self, index: &ConstantPoolIndex) -> Option<&ProgramObject> {
         self.constants.get(index.value() as usize)
+    }
+
+    pub fn get_opcode(&self, address: Address) -> Option<&OpCode> {
+        self.code.get_opcode(address)
     }
 }
 

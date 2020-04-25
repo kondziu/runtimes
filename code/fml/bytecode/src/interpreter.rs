@@ -7,7 +7,6 @@ use crate::program::Program;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
-use std::io::Read;
 use std::fmt::Write;
 
 /**
@@ -36,14 +35,22 @@ use std::fmt::Write;
  *  - the address of instruction that called the current function,
  *  - the index of the parent frame, ie. the local frame of the calling instruction.
  */
+#[derive(PartialEq,Debug)]
 pub struct LocalFrame {
     slots: Vec<SharedRuntimeObject>, /* ProgramObject::Slot */
-    return_address: Address, /* address */
+    return_address: Option<Address>, /* address */
     //parent_frame: u64, /* index to local frame stack */
 }
 
 impl LocalFrame {
-    pub fn return_address(&self) -> &Address {
+    pub fn empty() -> Self {
+        LocalFrame {
+            slots: vec!(),
+            return_address: None,
+        }
+    }
+
+    pub fn return_address(&self) -> &Option<Address> {
         &self.return_address
     }
 
@@ -101,8 +108,8 @@ impl LocalFrame {
 //    fn interpret(&self);
 //}
 
-struct State {
-    pub instruction_pointer: Address,
+pub struct State {
+    pub instruction_pointer: Option<Address>,
     pub frames: Vec<LocalFrame>,
     pub operands: Vec<SharedRuntimeObject>,
     pub labels: HashMap<String, Address>,
@@ -110,23 +117,76 @@ struct State {
 }
 
 impl State {
-    pub fn instruction_pointer(&self) -> &Address {
+    pub fn from(program: &Program) -> Self {
+        let entry_index = program.entry();
+        let entry_method = program.get_constant(entry_index)
+            .expect(&format!("State init error: entry method is not in the constant pool \
+                              at index {:?}", entry_index));
+
+        let instruction_pointer = *match entry_method {
+            ProgramObject::Method { name:_, arguments:_, locals:_, code } => code.start(),
+            _ => panic!("State init error: entry method is not a Method {:?}", entry_method),
+        };
+
+        let globals = {
+            let mut globals: HashMap<String, SharedRuntimeObject> = HashMap::new();
+            for index in program.globals() {
+                let name = program.get_constant(index)
+                    .expect(&format!("State init error: no such entry at index pool: {:?}", index));
+                let string = match name {
+                    ProgramObject::String(string) => string.to_string(),
+                    _ => panic!("State init error: name of global is not a String {:?}", name),
+                };
+                if globals.contains_key(&string) {
+                    panic!("State init error: duplicate name for global {:?}", string)
+                }
+                globals.insert(string, RuntimeObject::null());
+            }
+            globals
+        };
+
+        let frames = vec!(LocalFrame::empty());
+
+        State {
+            instruction_pointer: Some(instruction_pointer),
+            frames,
+            operands: Vec::new(),
+            labels: HashMap::new(),
+            globals,
+        }
+    }
+
+    pub fn empty() -> Self {
+        State {
+            instruction_pointer: None,
+            frames: Vec::new(),
+            operands: Vec::new(),
+            labels: HashMap::new(),
+            globals: HashMap::new(),
+        }
+    }
+
+    pub fn minimal() -> Self {
+        State {
+            instruction_pointer: Some(Address::from_usize(0)),
+            frames: vec!(LocalFrame::empty()),
+            operands: Vec::new(),
+            labels: HashMap::new(),
+            globals: HashMap::new(),
+        }
+    }
+
+    pub fn instruction_pointer(&self) -> &Option<Address> {
         &self.instruction_pointer
     }
 
-    pub fn bump_instruction_pointer(&mut self, program: &Program) -> Result<&Address, String> {
-        match program.code().next_address(self.instruction_pointer) {
-            Some(address) => {
-                self.instruction_pointer = address;
-                Ok(&self.instruction_pointer)
-            },
-            None => Err(format!("Address cannot be bumped without going out of range {:?}",
-                                self.instruction_pointer)),
-        }
-
+    pub fn bump_instruction_pointer(&mut self, program: &Program) -> &Option<Address> {
+        let address = program.code().next_address(self.instruction_pointer);
+        self.instruction_pointer = address;
+        &self.instruction_pointer
     }
 
-    pub fn set_instruction_pointer(&mut self, address: Address) -> () {
+    pub fn set_instruction_pointer(&mut self, address: Option<Address>) -> () {
         self.instruction_pointer = address;
     }
 
@@ -142,7 +202,7 @@ impl State {
         self.frames.pop()
     }
 
-    pub fn new_frame(&mut self, slots: Vec<SharedRuntimeObject>, return_address: Address) {
+    pub fn new_frame(&mut self, slots: Vec<SharedRuntimeObject>, return_address: Option<Address>) {
         self.frames.push(LocalFrame{ slots, return_address });
     }
 
@@ -196,20 +256,25 @@ impl State {
 //    }
 
     pub fn create_label_at_instruction_pointer(&mut self, name: String) -> Result<(), String> {
-        let address: Address = self.instruction_pointer;
+        let address: Option<Address> = self.instruction_pointer;
         if self.labels.contains_key(&name) {
             Err(format!("Label {} already registered (with value {:?})",
                         &name, self.labels.get(&name).unwrap()))
         } else {
-            self.labels.insert(name, address);
-            Ok(())
+            match address {
+                Some(address) => {
+                    self.labels.insert(name, address);
+                    Ok(())
+                },
+                None => panic!("Cannot set label address to nothing"),
+            }
         }
     }
 
     pub fn set_instruction_pointer_from_label(&mut self, name: &str) -> Result<(), String> {
         match self.labels.get(name) {
             None => Err(format!("Label {} does not exist", name)),
-            Some(address) => {self.instruction_pointer = *address; Ok(())}
+            Some(address) => {self.instruction_pointer = Some(*address); Ok(())}
         }
     }
 
@@ -226,8 +291,19 @@ impl State {
     }
 }
 
-fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &Program)
-    where IO : Read, IO : Write {
+pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Program)
+    where /*Input : Read,*/ Output : Write {
+    let opcode: &OpCode = {
+        let address = state.instruction_pointer()
+            .expect("Interpreter error: cannot reference opcode at instruction pointer: nothing");
+
+        let opcode = program.get_opcode(address)
+            .expect(&format!("Interpreter error: cannot reference opcode at instruction pointer: \
+                              {:?}", address));
+
+        opcode
+    };
+
     match opcode {
         OpCode::Literal { index } => {
             let constant: &ProgramObject = program.get_constant(index)
@@ -244,8 +320,8 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
             let object = RuntimeObject::from_constant(constant);
             state.push_operand(object);
 
-            state.bump_instruction_pointer(program)
-                .expect("Literal error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Literal error: cannot bump instruction pointer");
         }
 
         OpCode::GetLocal { index } => {
@@ -258,8 +334,8 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
 
             state.push_operand(local);
 
-            state.bump_instruction_pointer(program)
-                .expect("Get local error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Get local error: cannot bump instruction pointer");
         }
 
         OpCode::SetLocal { index } => {
@@ -273,8 +349,8 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
                 .expect(&format!("Set local error: there is no local at index {:?} in the current \
                                   frame", index));
 
-            state.bump_instruction_pointer(program)
-                .expect("Set local error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Set local error: cannot bump instruction pointer");
         }
 
         OpCode::GetGlobal { name: index } => {
@@ -292,8 +368,8 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
 
             state.push_operand(global);
 
-            state.bump_instruction_pointer(program)
-                .expect("Get global error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Get global error: cannot bump instruction pointer");
         }
 
         OpCode::SetGlobal { name: index } => {
@@ -312,8 +388,8 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
             state.update_global(name.to_string(), operand)
                 .expect(&format!("Set global: cannot update global {}, no such global", name));
 
-            state.bump_instruction_pointer(program)
-                .expect("Set global error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Set global error: cannot bump instruction pointer");
         }
 
         OpCode::Object { class: index } => {
@@ -406,8 +482,8 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
 
             state.push_operand(object);
 
-            state.bump_instruction_pointer(program)
-                .expect("Object error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Object error: cannot bump instruction pointer");
         }
 
         OpCode::Array { size } => {
@@ -426,8 +502,8 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
 
             state.push_operand(object);
 
-            state.bump_instruction_pointer(program)
-                .expect("Array error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Array error: cannot bump instruction pointer");
         }
 
         OpCode::GetSlot { name: index } => {
@@ -456,8 +532,8 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
             }; // this semicolon turns the expression into a statement and is *important* because of
                // how temporaries work https://github.com/rust-lang/rust/issues/22449
 
-            state.bump_instruction_pointer(program)
-                .expect("Get slot error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Get slot error: cannot bump instruction pointer");
         }
 
         OpCode::SetSlot { name: index } => {
@@ -492,8 +568,8 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
             }; // this semicolon turns the expression into a statement and is *important* because of
                // how temporaries work https://github.com/rust-lang/rust/issues/22449
 
-            state.bump_instruction_pointer(program)
-                .expect("Get slot error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Get slot error: cannot bump instruction pointer");
         }
 
         OpCode::CallMethod { name: index, arguments: parameters } => {
@@ -635,7 +711,7 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
                     };
                     state.push_operand(result)
                 }
-                RuntimeObject::Object { parent, fields, methods } => {
+                RuntimeObject::Object { parent, fields:_, methods } => {
                     let constant = methods.get(name)                                                // FIXME dispatch though
                         .expect(&format!("Call method error: there is no method {} in object{:?}",
                                           name, object));
@@ -657,7 +733,7 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
                             };
 
                             state.new_frame(slots, *state.instruction_pointer());                          //FIXME right order?
-                            state.set_instruction_pointer(*code.start());
+                            state.set_instruction_pointer(Some(*code.start()));
                         },
                         thing => panic!("Call method error: member {} in object definition {:?}
                                          should have type Method, but it is {:?}",
@@ -690,7 +766,7 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
                     }
 
                     state.new_frame(slots, *state.instruction_pointer()); // FIXME or IP+1?
-                    state.set_instruction_pointer(*range.start());
+                    state.set_instruction_pointer(Some(*range.start()));
                 },
                 _ => panic!("Call function error: constant at index {:?} must be a Method, but it \
                              is {:?}", index, constant),
@@ -726,11 +802,11 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
                             .expect(&format!("Print error: Not enough arguments for format {}",
                                              format));
 
-                        world.write_str(string)
+                        output.write_str(string)
                             .expect("Print error: Could not write to output stream.")
                     },
                     character => {
-                        world.write_char(character)
+                        output.write_char(character)
                             .expect("Print error: Could not write to output stream.")
                     }
                 }
@@ -742,8 +818,8 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
 
             state.push_operand(RuntimeObject::from_constant(&ProgramObject::Null));
 
-            state.bump_instruction_pointer(program)
-                .expect("Print error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Print error: cannot bump instruction pointer");
         }
 
         OpCode::Label { name: label } => {
@@ -757,8 +833,8 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
                             label, constant),
             };
 
-            state.bump_instruction_pointer(program)
-                .expect("Label error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Label error: cannot bump instruction pointer");
 
             state.create_label_at_instruction_pointer(name.to_string())
                 .expect(&format!("Label error: a label with name {} already exists", name));
@@ -811,7 +887,7 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
         OpCode::Return => {
             let current_frame: LocalFrame = state.pop_frame()
                 .expect("Return error: cannot pop local frame from empty frame stack");
-            let address: &Address = current_frame.return_address();
+            let address: &Option<Address> = current_frame.return_address();
             state.set_instruction_pointer(*address);
             // current_frame is reclaimed here
         }
@@ -819,9 +895,14 @@ fn interpret<IO>(opcode: &OpCode, state: &mut State, world: &mut IO, program: &P
         OpCode::Drop => {
             state.pop_operand()
                 .expect("Drop error: cannot pop operand from empty operand stack");
-            state.bump_instruction_pointer(program)
-                .expect("Drop error: cannot bump instruction pointer");
+            state.bump_instruction_pointer(program);
+//                .expect("Drop error: cannot bump instruction pointer");
         },
+
+        OpCode::Skip => {
+            state.bump_instruction_pointer(program);
+//                .expect("Skip error: cannot bump instruction pointer");
+        }
     }
 }
 

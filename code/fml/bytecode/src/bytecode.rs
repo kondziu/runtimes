@@ -246,6 +246,17 @@ pub enum OpCode {
      * Serialized as opcode `0x10`.
      */
     Drop,
+
+    /**
+     * ## Does nothing
+     *
+     * A classic NOP.
+     *
+     * This is an extension to Feeny's bytecode.
+     *
+     * Serialized as opcode `0xFF`.
+     */
+    Skip,
 }
 
 impl Serializable for OpCode {
@@ -273,8 +284,9 @@ impl Serializable for OpCode {
             GetGlobal    { name                } => { name.serialize(sink)      },
             Branch       { label               } => { label.serialize(sink)     },
             Jump         { label               } => { label.serialize(sink)     },
-            Return                               => {                                    },
-            Drop                                 => {                                    },
+            Return                               => {                           },
+            Drop                                 => {                           },
+            Skip => {                           },
         };
     }
 
@@ -329,6 +341,7 @@ impl OpCode {
             Jump         { label: _                  } => 0x0E,
             Return                                     => 0x0F,
             Drop                                       => 0x10,
+            Skip => 0xFF,
         }
     }
 

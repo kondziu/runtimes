@@ -244,6 +244,9 @@ impl UglyPrint for OpCode {
             OpCode::Drop => {
                 write_string!(sink, indent, "drop");
             },
+            OpCode::Skip => {
+                write_string!(sink, indent, "nop");
+            },
         }
     }
 }

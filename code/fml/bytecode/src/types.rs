@@ -19,6 +19,10 @@ impl AddressRange {
         AddressRange { start, length }
     }
 
+    pub fn from (start: usize, length: usize) -> Self {
+        AddressRange { start: Address::from_usize(start), length }
+    }
+
     pub fn start(&self) -> &Address {
        &self.start
     }
