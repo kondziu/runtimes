@@ -640,55 +640,75 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                         _ => panic!("Call method error: Null type does not implement method {}",
                                     name),
                     };
-                    state.push_operand(result)
+                    state.push_operand(result);
+                    state.bump_instruction_pointer(program);
                 },
                 RuntimeObject::Integer(i) => {
                     if arguments.len() != 1 {
                         panic!("Call method error: Integer method {} takes 1 argument, but {} were \
                                 supplied", name, arguments.len())
                     }
-                    let operand: i32 = match arguments[0].as_ref().borrow().deref() {
-                        RuntimeObject::Integer(i) => *i,
-                        _ => panic!("Call method error: cannot apply Integer method {} with \
-                                     argument {:?}", name, arguments[0]),
-                    };
-                    let result = match name {
-                        "add" | "+"  => RuntimeObject::from_i32 (*i +  operand),
-                        "sub" | "-"  => RuntimeObject::from_i32 (*i +  operand),
-                        "mul" | "*"  => RuntimeObject::from_i32 (*i +  operand),
-                        "div" | "/"  => RuntimeObject::from_i32 (*i +  operand),
-                        "mod" | "%"  => RuntimeObject::from_i32 (*i +  operand),
-                        "le"  | "<=" => RuntimeObject::from_bool(*i <= operand),
-                        "ge"  | ">=" => RuntimeObject::from_bool(*i >= operand),
-                        "lt"  | "<"  => RuntimeObject::from_bool(*i <  operand),
-                        "gt"  | ">"  => RuntimeObject::from_bool(*i >  operand),
-                        "eq"  | "==" => RuntimeObject::from_bool(*i == operand),
-                        "neq" | "!=" => RuntimeObject::from_bool(*i != operand),
-                        _ => panic!("Call method error: Integer type does not implement method {}",
-                                    name),
+                    let result = match (name, arguments[0].as_ref().borrow().deref()) {
+                        ("+",   RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i +  *j),
+                        ("-",   RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i -  *j),
+                        ("*",   RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i *  *j),
+                        ("/",   RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i /  *j),
+                        ("%",   RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i %  *j),
+                        ("<=",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i <= *j),
+                        (">=",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i >= *j),
+                        ("<",   RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i <  *j),
+                        (">",   RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i >  *j),
+                        ("==",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i == *j),
+                        ("!=",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i != *j),
+                        ("==",  _)                         => RuntimeObject::from_bool(false),
+                        ("!=",  _)                         => RuntimeObject::from_bool(true),
+
+                        ("add", RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i +  *j),
+                        ("sub", RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i -  *j),
+                        ("mul", RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i *  *j),
+                        ("div", RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i /  *j),
+                        ("mod", RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i %  *j),
+                        ("le",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i <= *j),
+                        ("ge",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i >= *j),
+                        ("lt",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i <  *j),
+                        ("gt",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i >  *j),
+                        ("eq",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i == *j),
+                        ("neq", RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i != *j),
+                        ("eq",  _)                         => RuntimeObject::from_bool(false),
+                        ("neq", _)                         => RuntimeObject::from_bool(true),
+
+                        _ => panic!("Call method error: Integer type does not implement method {} for operand {:?}",
+                                    name, arguments[0]),
                     };
 
-                    state.push_operand(result)
+                    state.push_operand(result);
+                    state.bump_instruction_pointer(program);
                 }
-                RuntimeObject::Boolean(b) => {
+                RuntimeObject::Boolean(p) => {
                     if arguments.len() != 1 {
                         panic!("Call method error: Boolean method {} takes 1 argument, but {} were \
                                 supplied", name, arguments.len())
                     }
-                    let operand: bool = match arguments[0].as_ref().borrow().deref() {
-                        RuntimeObject::Boolean(b) => *b,
-                        _ => panic!("Call method error: cannot apply Boolean method {} with \
-                                     argument {:?}", name, arguments[0]),
-                    };
-                    let result = match name {
-                        "and" | "&"  => RuntimeObject::from_bool(*b && operand),
-                        "or"  | "|"  => RuntimeObject::from_bool(*b || operand),
-                        "eq"  | "==" => RuntimeObject::from_bool(*b == operand),
-                        "neq" | "!=" => RuntimeObject::from_bool(*b != operand),
+                    let result = match (name, arguments[0].as_ref().borrow().deref()) {
+                        ("and", RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p && *q),
+                        ("or",  RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p || *q),
+                        ("eq",  RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p == *q),
+                        ("neq", RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p != *q),
+                        ("eq",  _)                         => RuntimeObject::from_bool(false),
+                        ("neq", _)                         => RuntimeObject::from_bool(true),
+
+                        ("&",   RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p && *q),
+                        ("|",   RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p || *q),
+                        ("==",  RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p == *q),
+                        ("!=",  RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p != *q),
+                        ("==",  _)                         => RuntimeObject::from_bool(false),
+                        ("!=",  _)                         => RuntimeObject::from_bool(true),
+
                         _ => panic!("Call method error: Boolean type does not implement method {}",
                                     name),
                     };
-                    state.push_operand(result)
+                    state.push_operand(result);
+                    state.bump_instruction_pointer(program);
                 }
                 RuntimeObject::Array(elements) => {
                     if arguments.len() != parameters.value() as usize {
@@ -737,7 +757,8 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                         _ => panic!("Call method error: Array type does not implement method {}",
                                     name),
                     };
-                    state.push_operand(result)
+                    state.push_operand(result);
+                    state.bump_instruction_pointer(program);
                 }
                 RuntimeObject::Object { parent, fields:_, methods } => {
                     let constant = methods.get(name)                                                // FIXME dispatch though

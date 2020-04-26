@@ -419,9 +419,11 @@ mod interpreter_test {
     use crate::bytecode::OpCode;
     use crate::types::{ConstantPoolIndex, Address, LocalFrameIndex, Arity, Size, AddressRange};
     use crate::program::{Program, Code};
-    use crate::objects::{ProgramObject, RuntimeObject};
+    use crate::objects::{ProgramObject, RuntimeObject, SharedRuntimeObject};
     use crate::interpreter::{State, interpret, LocalFrame};
     use std::collections::HashMap;
+    use std::ops::Deref;
+    use std::borrow::Borrow;
 
     macro_rules! hashmap {
         ($key: expr, $value: expr) => {{
@@ -1217,9 +1219,11 @@ mod interpreter_test {
         let mut state = State::minimal();
         let mut output: String = String::new();
 
-        state.push_operand(RuntimeObject::object(RuntimeObject::null(),
-                                                 hashmap!("value".to_string(), RuntimeObject::from_i32(42)),
-                                                 HashMap::new()));
+        let object = RuntimeObject::object(RuntimeObject::null(),
+                                           hashmap!("value".to_string(), RuntimeObject::from_i32(42)),
+                                           HashMap::new());
+
+        state.push_operand(object.clone());
         state.push_operand(RuntimeObject::from_i32(666));
 
         interpret(&mut state, &mut output, &program);
@@ -1230,10 +1234,351 @@ mod interpreter_test {
         assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
         assert_eq!(state.labels, HashMap::new(), "test labels");
         assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+
+        assert_eq!(object, RuntimeObject::object(RuntimeObject::null(),
+                                                 hashmap!("value".to_string(), RuntimeObject::from_i32(666)),
+                                                 HashMap::new()));
     }
 
-    #[test] fn call_method() {
-        unimplemented!()
+    #[test] fn call_method_zero() {
+        let code = Code::from(vec!(
+            OpCode::Return,
+            OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(0) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("+".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        let receiver = RuntimeObject::object(RuntimeObject::null(),
+                                             HashMap::new(),
+                                             hashmap!("+".to_string(), ProgramObject::Method { name: ConstantPoolIndex::new(0),
+                                                                                               arguments: Arity::new(0),
+                                                                                               locals: Size::new(0),
+                                                                                               code: AddressRange::from(0, 1) }));
+
+        state.set_instruction_pointer(Some(Address::from_usize(1)));
+        state.push_operand(receiver.clone());
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, Vec::new(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(0)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty(),
+                                      LocalFrame::from(Some(Address::from_usize(2)),
+                                                       vec!(receiver.clone()))), "test frames");
+    }
+
+    #[test] fn call_method_one() {
+        let code = Code::from(vec!(
+            OpCode::Return,
+            OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(1) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("+".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        let receiver = RuntimeObject::object(RuntimeObject::null(),
+                                             HashMap::new(),
+                                             hashmap!("+".to_string(), ProgramObject::Method { name: ConstantPoolIndex::new(0),
+                                                                                               arguments: Arity::new(1),
+                                                                                               locals: Size::new(0),
+                                                                                               code: AddressRange::from(0, 1) }));
+
+        state.set_instruction_pointer(Some(Address::from_usize(1)));
+        state.push_operand(receiver.clone());
+        state.push_operand(RuntimeObject::from_i32(1));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, Vec::new(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(0)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty(),
+                                      LocalFrame::from(Some(Address::from_usize(2)),
+                                                       vec!(receiver.clone(),
+                                                            RuntimeObject::from_i32(1)))), "test frames");
+    }
+
+    #[test] fn call_method_three() {
+        let code = Code::from(vec!(
+            OpCode::Return,
+            OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(3) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("+".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        let receiver = RuntimeObject::object(RuntimeObject::null(),
+                                             HashMap::new(),
+                                             hashmap!("+".to_string(), ProgramObject::Method { name: ConstantPoolIndex::new(0),
+                                                                                               arguments: Arity::new(3),
+                                                                                               locals: Size::new(0),
+                                                                                               code: AddressRange::from(0, 1) }));
+
+        state.set_instruction_pointer(Some(Address::from_usize(1)));
+        state.push_operand(receiver.clone());
+        state.push_operand(RuntimeObject::from_i32(3));
+        state.push_operand(RuntimeObject::from_i32(2));
+        state.push_operand(RuntimeObject::from_i32(1));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, Vec::new(), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(0)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty(),
+                                      LocalFrame::from(Some(Address::from_usize(2)),
+                                                       vec!(receiver.clone(),
+                                                            RuntimeObject::from_i32(1),
+                                                            RuntimeObject::from_i32(2),
+                                                            RuntimeObject::from_i32(3)))), "test frames");
+    }
+
+    fn call_method(receiver: SharedRuntimeObject, argument: SharedRuntimeObject, operation: &str, result: SharedRuntimeObject) {
+        let code = Code::from(vec!(
+            OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(1) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String(operation.to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        state.set_instruction_pointer(Some(Address::from_usize(0)));
+        state.push_operand(receiver);
+        state.push_operand(argument);
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(result), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+    }
+
+    fn call_method_integer(receiver: i32, argument: i32, operation: &str, result: i32) {
+        call_method(RuntimeObject::from_i32(receiver),
+                    RuntimeObject::from_i32(argument),
+                    operation,
+                    RuntimeObject::from_i32(result));
+    }
+
+    fn call_method_integer_cmp(receiver: i32, argument: i32, operation: &str, result: bool) {
+        call_method(RuntimeObject::from_i32(receiver),
+                    RuntimeObject::from_i32(argument),
+                    operation,
+                    RuntimeObject::from_bool(result));
+    }
+
+    fn call_method_boolean(receiver: bool, argument: bool, operation: &str, result: bool) {
+        call_method(RuntimeObject::from_bool(receiver),
+                    RuntimeObject::from_bool(argument),
+                    operation,
+                    RuntimeObject::from_bool(result));
+    }
+
+    #[test] fn call_method_integer_add() {
+        call_method_integer(2, 5, "+", 7);
+        call_method_integer(2, 5, "add", 7);
+    }
+
+    #[test] fn call_method_integer_subtract() {
+        call_method_integer(2, 5, "-", -3);
+        call_method_integer(2, 5, "sub", -3);
+    }
+
+    #[test] fn call_method_integer_multiply() {
+        call_method_integer(2, 5, "*", 10);
+        call_method_integer(2, 5, "mul", 10);
+    }
+
+    #[test] fn call_method_integer_divide() {
+        call_method_integer(2, 5, "/", 0);
+        call_method_integer(2, 5, "div", 0);
+    }
+
+    #[test] fn call_method_integer_module() {
+        call_method_integer(2, 5, "%", 2);
+        call_method_integer(2, 5, "mod", 2);
+    }
+
+    #[test] fn call_method_integer_equality() {
+        call_method_integer_cmp(2, 5, "==", false);
+        call_method_integer_cmp(5, 5, "==", true);
+        call_method_integer_cmp(2, 5, "eq", false);
+        call_method_integer_cmp(5, 5, "eq", true);
+    }
+
+    #[test] fn call_method_integer_inequality() {
+        call_method_integer_cmp(2, 5, "!=", true);
+        call_method_integer_cmp(2, 2, "!=", false);
+        call_method_integer_cmp(2, 5, "neq", true);
+        call_method_integer_cmp(2, 2, "neq", false);
+    }
+
+    #[test] fn call_method_integer_less() {
+        call_method_integer_cmp(2, 5, "<", true);
+        call_method_integer_cmp(7, 5, "<", false);
+        call_method_integer_cmp(5, 5, "<", false);
+        call_method_integer_cmp(2, 5, "lt", true);
+        call_method_integer_cmp(7, 5, "lt", false);
+        call_method_integer_cmp(5, 5, "lt", false);
+    }
+
+    #[test] fn call_method_integer_less_equal() {
+        call_method_integer_cmp(2, 5, "<=", true);
+        call_method_integer_cmp(7, 5, "<=", false);
+        call_method_integer_cmp(5, 5, "<=", true);
+        call_method_integer_cmp(2, 5, "le", true);
+        call_method_integer_cmp(7, 5, "le", false);
+        call_method_integer_cmp(5, 5, "le", true);
+    }
+
+    #[test] fn call_method_integer_more() {
+        call_method_integer_cmp(2, 5, ">", false);
+        call_method_integer_cmp(7, 5, ">", true);
+        call_method_integer_cmp(5, 5, ">", false);
+        call_method_integer_cmp(2, 5, "gt", false);
+        call_method_integer_cmp(7, 5, "gt", true);
+        call_method_integer_cmp(5, 5, "gt", false);
+    }
+
+    #[test] fn call_method_integer_more_equal() {
+        call_method_integer_cmp(2, 5, ">=", false);
+        call_method_integer_cmp(7, 5, ">=", true);
+        call_method_integer_cmp(5, 5, ">=", true);
+        call_method_integer_cmp(2, 5, "ge", false);
+        call_method_integer_cmp(7, 5, "ge", true);
+        call_method_integer_cmp(5, 5, "ge", true);
+    }
+
+    #[test] fn call_method_boolean_conjunction() {
+        call_method_boolean(true, false, "&",   false);
+        call_method_boolean(true, true,  "&",   true);
+        call_method_boolean(true, false, "and", false);
+        call_method_boolean(true, true,  "and", true);
+    }
+
+    #[test] fn call_method_boolean_disjunction() {
+        call_method_boolean(true,  false, "|",  true);
+        call_method_boolean(false, false, "|",  false);
+        call_method_boolean(true,  false, "or", true);
+        call_method_boolean(false, false, "or", false);
+    }
+
+    #[test] fn call_method_boolean_equal() {
+        call_method_boolean(true,  false, "==",  false);
+        call_method_boolean(false, false, "==",  true);
+        call_method_boolean(true,  true,  "==",  true);
+        call_method_boolean(true,  false, "eq",  false);
+        call_method_boolean(false, false, "eq",  true);
+        call_method_boolean(true,  true,  "eq",  true);
+    }
+
+    #[test] fn call_method_boolean_unequal() {
+        call_method_boolean(true,  false, "!=",  true);
+        call_method_boolean(false, false, "!=",  false);
+        call_method_boolean(true,  true,  "!=",  false);
+        call_method_boolean(true,  false, "neq",  true);
+        call_method_boolean(false, false, "neq",  false);
+        call_method_boolean(true,  true,  "neq",  false);
+    }
+
+    #[test] fn call_method_array_get() {
+        call_method(RuntimeObject::from_vec(vec!(RuntimeObject::from_i32(1),
+                                                 RuntimeObject::from_i32(2),
+                                                 RuntimeObject::from_i32(3))),
+                    RuntimeObject::from_i32(1),
+                    "get",
+                    RuntimeObject::from_i32(2));
+    }
+
+    #[test] fn call_method_array_set() {
+        let code = Code::from(vec!(
+            OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(2) },
+            OpCode::Skip,
+        ));
+
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("set".to_string()));
+        let globals: Vec<ConstantPoolIndex> = vec!();
+        let entry = ConstantPoolIndex::new(0);
+        let program = Program::new(code, constants, globals, entry);
+
+        let mut state = State::minimal();
+        let mut output: String = String::new();
+
+        let array = RuntimeObject::from_vec(vec!(RuntimeObject::from_i32(1),
+                                                 RuntimeObject::from_i32(2),
+                                                 RuntimeObject::from_i32(3)));
+
+        state.set_instruction_pointer(Some(Address::from_usize(0)));
+        state.push_operand(array.clone());
+        state.push_operand(RuntimeObject::from_i32(42));
+        state.push_operand(RuntimeObject::from_i32(1));
+
+        interpret(&mut state, &mut output, &program);
+
+        assert_eq!(&output, "", "test output");
+        assert_eq!(state.operands, vec!(RuntimeObject::null()), "test operands");
+        assert_eq!(state.globals, HashMap::new(), "test globals");
+        assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
+        assert_eq!(state.labels, HashMap::new(), "test labels");
+        assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
+
+        assert_eq!(array, RuntimeObject::from_vec(vec!(RuntimeObject::from_i32(1),
+                                                       RuntimeObject::from_i32(42),
+                                                       RuntimeObject::from_i32(3))), "test object state");
+    }
+
+    #[test] fn call_method_null_equals() {
+        call_method(RuntimeObject::null(), RuntimeObject::null(), "==", RuntimeObject::from_bool(true));
+        call_method(RuntimeObject::null(), RuntimeObject::from_i32(1), "==", RuntimeObject::from_bool(false));
+        call_method(RuntimeObject::from_i32(1), RuntimeObject::null(), "==", RuntimeObject::from_bool(false));
+
+        call_method(RuntimeObject::null(), RuntimeObject::null(), "eq", RuntimeObject::from_bool(true));
+        call_method(RuntimeObject::null(), RuntimeObject::from_i32(1), "eq", RuntimeObject::from_bool(false));
+        call_method(RuntimeObject::from_i32(1), RuntimeObject::null(), "eq", RuntimeObject::from_bool(false));
+    }
+
+    #[test] fn call_method_null_unequals() {
+        call_method(RuntimeObject::null(), RuntimeObject::null(), "!=", RuntimeObject::from_bool(false));
+        call_method(RuntimeObject::null(), RuntimeObject::from_i32(1), "!=", RuntimeObject::from_bool(true));
+        call_method(RuntimeObject::from_i32(1), RuntimeObject::null(), "!=", RuntimeObject::from_bool(true));
+
+        call_method(RuntimeObject::null(), RuntimeObject::null(), "neq", RuntimeObject::from_bool(false));
+        call_method(RuntimeObject::null(), RuntimeObject::from_i32(1), "neq", RuntimeObject::from_bool(true));
+        call_method(RuntimeObject::from_i32(1), RuntimeObject::null(), "neq", RuntimeObject::from_bool(true));
     }
 }
 

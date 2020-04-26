@@ -140,7 +140,7 @@ pub enum OpCode {
      *
      * Pops `arguments` values from the `OperandStack` for the arguments to the call. Then pops the
      * a `RuntimeObject` from the `OperandStack` to be used as the method call's receiver.
-     * Afterwards, a `ProgramObject::String` object represnting the name of the method to call is
+     * Afterwards, a `ProgramObject::String` object representing the name of the method to call is
      * retrieved from the `ConstantPool` from the index specified by `name`.
      *
      * If the receiver is a `RuntimeObject::Integer` or `RuntimeObject::Array`, then the result of
