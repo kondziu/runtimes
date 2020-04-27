@@ -119,8 +119,8 @@ pub struct State {
     pub instruction_pointer: Option<Address>,
     pub frames: Vec<LocalFrame>,
     pub operands: Vec<SharedRuntimeObject>,
-    pub labels: HashMap<String, Address>,
     pub globals: HashMap<String, SharedRuntimeObject>,
+    pub functions: HashMap<String, ProgramObject>,
 }
 
 impl State {
@@ -135,21 +135,50 @@ impl State {
             _ => panic!("State init error: entry method is not a Method {:?}", entry_method),
         };
 
-        let globals = {
+        let (globals, functions) = {
             let mut globals: HashMap<String, SharedRuntimeObject> = HashMap::new();
+            let mut functions: HashMap<String, ProgramObject> = HashMap::new();
+
             for index in program.globals() {
-                let name = program.get_constant(index)
+                let thing = program.get_constant(index)
                     .expect(&format!("State init error: no such entry at index pool: {:?}", index));
-                let string = match name {
-                    ProgramObject::String(string) => string.to_string(),
-                    _ => panic!("State init error: name of global is not a String {:?}", name),
+
+                match thing {
+                    ProgramObject::Slot { name: index } => {
+                        let constant = program.get_constant(index)
+                            .expect(&format!("State init error: no such entry at index pool: {:?} \
+                                     (expected by slot: {:?})", index, thing));
+                        let name = match constant {
+                            ProgramObject::String(string) => string,
+                            constant => panic!("State init error: name of global at index {:?} is \
+                                                not a String {:?}", index, constant),
+                        };
+                        if globals.contains_key(name) {
+                            panic!("State init error: duplicate name for global {:?}", name)
+                        }
+                        globals.insert(name.to_string(), RuntimeObject::null());
+                    }
+
+                    ProgramObject::Method { name: index, arguments:_, locals:_, code:_ } => {
+                        let constant = program.get_constant(index)
+                            .expect(&format!("State init error: no such entry at index pool: {:?} \
+                                     (expected by method: {:?})", index, thing));
+                        let name = match constant {
+                            ProgramObject::String(string) => string,
+                            constant => panic!("State init error: name of function at index {:?} \
+                                                is not a String {:?}", index, constant),
+                        };
+                        if functions.contains_key(name) {
+                            panic!("State init error: duplicate name for function {:?}", name)
+                        }
+                        functions.insert(name.to_string(), thing.clone());
+                    }
+                    _ => panic!("State init error: name of global at index {:?} is not a String \
+                                 {:?}", index, thing),
                 };
-                if globals.contains_key(&string) {
-                    panic!("State init error: duplicate name for global {:?}", string)
-                }
-                globals.insert(string, RuntimeObject::null());
+
             }
-            globals
+            (globals, functions)
         };
 
         let frames = vec!(LocalFrame::empty());
@@ -158,8 +187,9 @@ impl State {
             instruction_pointer: Some(instruction_pointer),
             frames,
             operands: Vec::new(),
-            labels: HashMap::new(),
+//            labels: HashMap::new(),
             globals,
+            functions,
         }
     }
 
@@ -168,8 +198,9 @@ impl State {
             instruction_pointer: None,
             frames: Vec::new(),
             operands: Vec::new(),
-            labels: HashMap::new(),
+//            labels: HashMap::new(),
             globals: HashMap::new(),
+            functions: HashMap::new(),
         }
     }
 
@@ -178,8 +209,9 @@ impl State {
             instruction_pointer: Some(Address::from_usize(0)),
             frames: vec!(LocalFrame::empty()),
             operands: Vec::new(),
-            labels: HashMap::new(),
+//            labels: HashMap::new(),
             globals: HashMap::new(),
+            functions: HashMap::new(),
         }
     }
 
@@ -225,6 +257,10 @@ impl State {
         self.operands.push(object)
     }
 
+    pub fn get_function(&self, name: &str) -> Option<&ProgramObject> {
+        self.functions.get(name)
+    }
+
     pub fn get_global(&self, name: &str) -> Option<&SharedRuntimeObject> {
         self.globals.get(name)
     }
@@ -252,34 +288,34 @@ impl State {
 //        self.labels.get(name)
 //    }
 
-    pub fn add_label(&mut self, name: String, address: Address) -> Result<(), String> {
-        if self.labels.contains_key(&name) {
-            Err(format!("Label {} already registered (with value {:?})",
-                        &name, self.labels.get(&name).unwrap()))
-        } else {
-            self.labels.insert(name, address);
-            Ok(())
-        }
-    }
+//    pub fn add_label(&mut self, name: String, address: Address) -> Result<(), String> {
+//        if self.labels.contains_key(&name) {
+//            Err(format!("Label {} already registered (with value {:?})",
+//                        &name, self.labels.get(&name).unwrap()))
+//        } else {
+//            self.labels.insert(name, address);
+//            Ok(())
+//        }
+//    }
 
-    pub fn create_label_at_instruction_pointer(&mut self, name: String) -> Result<(), String> {
-        let address: Option<Address> = self.instruction_pointer;
-        if self.labels.contains_key(&name) {
-            Err(format!("Label {} already registered (with value {:?})",
-                        &name, self.labels.get(&name).unwrap()))
-        } else {
-            match address {
-                Some(address) => {
-                    self.labels.insert(name, address);
-                    Ok(())
-                },
-                None => panic!("Cannot set label address to nothing"),
-            }
-        }
-    }
+//    pub fn create_label_at_instruction_pointer(&mut self, name: String) -> Result<(), String> {
+//        let address: Option<Address> = self.instruction_pointer;
+//        if self.labels.contains_key(&name) {
+//            Err(format!("Label {} already registered (with value {:?})",
+//                        &name, self.labels.get(&name).unwrap()))
+//        } else {
+//            match address {
+//                Some(address) => {
+//                    self.labels.insert(name, address);
+//                    Ok(())
+//                },
+//                None => panic!("Cannot set label address to nothing"),
+//            }
+//        }
+//    }
 
-    pub fn set_instruction_pointer_from_label(&mut self, name: &str) -> Result<(), String> {
-        match self.labels.get(name) {
+    pub fn set_instruction_pointer_from_label(&mut self, program: &Program, name: &str) -> Result<(), String> {
+        match program.get_label(name) {
             None => Err(format!("Label {} does not exist", name)),
             Some(address) => {self.instruction_pointer = Some(*address); Ok(())}
         }
@@ -304,7 +340,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
         let address = state.instruction_pointer()
             .expect("Interpreter error: cannot reference opcode at instruction pointer: nothing");
 
-        let opcode = program.get_opcode(address)
+        let opcode = program.get_opcode(&address)
             .expect(&format!("Interpreter error: cannot reference opcode at instruction pointer: \
                               {:?}", address));
 
@@ -346,8 +382,9 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
         }
 
         OpCode::SetLocal { index } => {
-            let operand: SharedRuntimeObject = state.pop_operand()
-                .expect("Set local error: cannot pop from empty operand stack");
+            let operand: SharedRuntimeObject = state.peek_operand()
+                .expect("Set local error: cannot pop from empty operand stack")
+                .clone();
 
             let frame: &mut LocalFrame = state.current_frame_mut()
                 .expect("Set local error: no frame on stack.");
@@ -601,9 +638,13 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
         }
 
         OpCode::CallMethod { name: index, arguments: parameters } => {
+            if parameters.value() == 0 {
+                panic!("Call method error: method must have at least one parameter (receiver)");
+            }
+
             let mut arguments: Vec<SharedRuntimeObject> = Vec::with_capacity(parameters.value() as usize);
-            for index in 0..parameters.value() {
-                let element = state.pop_operand()                                           // FIXME the right order?
+            for index in 0..(parameters.value() - 1) {
+                let element = state.pop_operand()
                     .expect(&format!("Call method error: cannot pop argument {} from empty operand \
                                       stack", index));
                 arguments.push(element);
@@ -711,16 +752,16 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                     state.bump_instruction_pointer(program);
                 }
                 RuntimeObject::Array(elements) => {
-                    if arguments.len() != parameters.value() as usize {
+                    if arguments.len() != (parameters.value() - 1) as usize {
                         panic!("Call method error: Array method {} takes {} argument, but {} were \
                                 supplied", name, parameters.value(), arguments.len())
                     }
 
                     let result: SharedRuntimeObject = match name {
                         "get"  => {
-                            if parameters.value() as usize != 1 {
+                            if parameters.value() as usize != 2 {
                                 panic!("Call method error: Array method get takes {} argument, but \
-                                        it should take 1", parameters.value())
+                                        it should take 1", parameters.value() - 1)
                             }
                             match arguments[0].as_ref().borrow().deref() {
                                 RuntimeObject::Integer(n) => {
@@ -736,9 +777,9 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                             }
                         },
                         "set"  => {
-                            if parameters.value() as usize != 2 {
+                            if parameters.value() as usize != 3 {
                                 panic!("Call method error: Array method set takes {} argument, but \
-                                        it should take 2", parameters.value())
+                                        it should take 2", parameters.value() - 1)
                             }
                             match arguments[0].as_ref().borrow().deref() {
                                 RuntimeObject::Integer(n) => {
@@ -747,7 +788,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                                                n)
                                     }
 
-                                    elements[*n as usize] = arguments[1].clone();                                 // FIXME negatives
+                                    elements[*n as usize] = arguments[1].clone();
                                     RuntimeObject::null()
                                 },
                                 _ => panic!("Call method error: cannot apply Array method {} with \
@@ -766,7 +807,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                                           name, object));
                     match constant {
                         ProgramObject::Method { name:_, arguments: parameters, locals, code } => {
-                            if arguments.len() != parameters.value() as usize {
+                            if arguments.len() != (parameters.value() - 1) as usize {
                                 panic!("Call method error: method {} from object {:?} takes {} \
                                         arguments, but {} were supplied",
                                         name, object, parameters.value(), arguments.len())
@@ -778,11 +819,14 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                                                          + locals.value() as usize);
                                 slots.push(object.clone());
                                 slots.extend(arguments);
+                                for _ in 0..locals.value() {
+                                    slots.push(RuntimeObject::null())
+                                }
                                 slots
                             };
 
                             state.bump_instruction_pointer(program);
-                            state.new_frame(*state.instruction_pointer(), slots);                          //FIXME right order?
+                            state.new_frame(*state.instruction_pointer(), slots);
                             state.set_instruction_pointer(Some(*code.start()));
                         },
                         thing => panic!("Call method error: member {} in object definition {:?}
@@ -794,13 +838,26 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
         }
 
         OpCode::CallFunction { function: index, arguments } => {
-            let constant: &ProgramObject = program.get_constant(index)
-                .expect(&format!("Call function error: no constant to serve as format index {:?}",
-                                  index));
 
-            match constant {
+            let constant: &ProgramObject = program.get_constant(index)
+                .expect(&format!("Call function error: no constant to serve as function name at \
+                                  index {:?}", index));
+
+            let name = match constant {
+                ProgramObject::String(string) => string,
+                _ => panic!("Call function error: function name must be specified by a String \
+                             object, but instead it is: {:?}", constant),
+            };
+
+            let function: ProgramObject = {
+                state.get_function(name)
+                    .expect(&format!("Call function error: no such function {}", name))
+                    .clone()
+            };
+
+            match function {
                 ProgramObject::Method { name:_, arguments: parameters, locals, code: range } => {
-                    if arguments != parameters {
+                    if arguments.value() != parameters.value() {
                         panic!("Call function error: function definition requires {} arguments, \
                                but {} were supplied", parameters.value(), arguments.value())
                     }
@@ -809,10 +866,14 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                         Vec::with_capacity(parameters.value() as usize + locals.value() as usize);
 
                     for index in 0..arguments.value() {
-                        let element = state.pop_operand()                                           // FIXME the right order?
+                        let element = state.pop_operand()
                             .expect(&format!("Call function error: cannot pop argument {} from \
                                               empty operand stack", index));
                         slots.push(element);
+                    }
+
+                    for _ in 0..locals.value() {
+                        slots.push(RuntimeObject::null())
                     }
 
                     state.bump_instruction_pointer(program);
@@ -874,21 +935,21 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
         }
 
         OpCode::Label { name: label } => {
-            let constant: &ProgramObject = program.get_constant(label)
-                .expect(&format!("Label error: no constant to serve as label name at index {:?}",
-                                 label.value()));
-
-            let name: &str = match constant {
-                ProgramObject::String(s) => s,
-                _ => panic!("Label error: constant at index {:?} must be a String, but it is {:?}",
-                            label, constant),
-            };
+//            let constant: &ProgramObject = program.get_constant(label)
+//                .expect(&format!("Label error: no constant to serve as label name at index {:?}",
+//                                 label.value()));
+//
+//            let name: &str = match constant {
+//                ProgramObject::String(s) => s,
+//                _ => panic!("Label error: constant at index {:?} must be a String, but it is {:?}",
+//                            label, constant),
+//            };
 
             state.bump_instruction_pointer(program);
 //                .expect("Label error: cannot bump instruction pointer");
 
-            state.create_label_at_instruction_pointer(name.to_string())
-                .expect(&format!("Label error: a label with name {} already exists", name));
+//            state.create_label_at_instruction_pointer(name.to_string())
+//                .expect(&format!("Label error: a label with name {} already exists", name));
         }
 
         OpCode::Jump { label } => {
@@ -901,7 +962,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                             label, constant),
             };
 
-            state.set_instruction_pointer_from_label(name)
+            state.set_instruction_pointer_from_label(program, name)
                 .expect(&format!("Jump error: no such label {:?}", name));
         }
 
@@ -932,7 +993,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                             label, constant),
             };
 
-            state.set_instruction_pointer_from_label(name)
+            state.set_instruction_pointer_from_label(program, name)
                 .expect(&format!("Branch error: no such label {:?}", name));
         }
 

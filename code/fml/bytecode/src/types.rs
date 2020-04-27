@@ -80,6 +80,19 @@ impl Serializable for Arity {
     }
 }
 
+impl Arity {
+    pub fn serialize_plus_one<W: Write> (&self, sink: &mut W) -> () {
+        assert!(self.0 < 255u8);
+        serializable::write_u8(sink, self.0 + 1)
+    }
+    pub fn from_bytes_minus_one<R: Read>(input: &mut R) -> Self {
+        println!("Arity::from_bytes");
+        let value = serializable::read_u8(input);
+        assert!(value > 0);
+        Arity(value - 1)
+    }
+}
+
 impl Serializable for Size {
 
     fn serialize<W: Write> (&self, sink: &mut W) -> () {

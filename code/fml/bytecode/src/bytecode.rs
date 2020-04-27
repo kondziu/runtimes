@@ -138,8 +138,8 @@ pub enum OpCode {
     /**
      * ## Call a member method
      *
-     * Pops `arguments` values from the `OperandStack` for the arguments to the call. Then pops the
-     * a `RuntimeObject` from the `OperandStack` to be used as the method call's receiver.
+     * Pops `arguments` values from the `OperandStack` for the arguments to the call. The last popped
+      *`RuntimeObject` from the `OperandStack` will be used as the method call's receiver.
      * Afterwards, a `ProgramObject::String` object representing the name of the method to call is
      * retrieved from the `ConstantPool` from the index specified by `name`.
      *
@@ -266,26 +266,26 @@ impl Serializable for OpCode {
 
         use OpCode::*;
         match self {
-            Label        { name                } => { name.serialize(sink)      },
-            Literal      { index               } => { index.serialize(sink)     },
+            Label        { name                } => { name.serialize(sink)               },
+            Literal      { index               } => { index.serialize(sink)              },
             Print        { format,   arguments } => { format.serialize(sink);
-                                                      arguments.serialize(sink) },
-            Array        { size                } => { size.serialize(sink)      },
-            Object       { class               } => { class.serialize(sink)     },
-            GetSlot      { name                } => { name.serialize(sink)      },
-            SetSlot      { name                } => { name.serialize(sink)      },
+                                                      arguments.serialize(sink)          },
+            Array        { size                } => { size.serialize(sink)               },
+            Object       { class               } => { class.serialize(sink)              },
+            GetSlot      { name                } => { name.serialize(sink)               },
+            SetSlot      { name                } => { name.serialize(sink)               },
             CallMethod   { name,     arguments } => { name.serialize(sink);
-                                                      arguments.serialize(sink) },
+                                                      arguments.serialize(sink)          },
             CallFunction { function, arguments } => { function.serialize(sink);
-                                                      arguments.serialize(sink) },
-            SetLocal     { index               } => { index.serialize(sink)     },
-            GetLocal     { index               } => { index.serialize(sink)     },
-            SetGlobal    { name                } => { name.serialize(sink)      },
-            GetGlobal    { name                } => { name.serialize(sink)      },
-            Branch       { label               } => { label.serialize(sink)     },
-            Jump         { label               } => { label.serialize(sink)     },
-            Return                               => {                           },
-            Drop                                 => {                           },
+                                                      arguments.serialize(sink)          },
+            SetLocal     { index               } => { index.serialize(sink)              },
+            GetLocal     { index               } => { index.serialize(sink)              },
+            SetGlobal    { name                } => { name.serialize(sink)               },
+            GetGlobal    { name                } => { name.serialize(sink)               },
+            Branch       { label               } => { label.serialize(sink)              },
+            Jump         { label               } => { label.serialize(sink)              },
+            Return                               => {                                    },
+            Drop                                 => {                                    },
             Skip => {                           },
         };
     }

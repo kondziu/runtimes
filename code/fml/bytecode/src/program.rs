@@ -4,6 +4,7 @@ use crate::serializable::{Serializable, SerializableWithContext};
 use std::io::{Write, Read};
 use crate::serializable;
 use crate::bytecode::OpCode;
+use std::collections::HashMap;
 
 /**
  * The instruction pointer contains the address of the instruction that will be executed next.
@@ -73,7 +74,7 @@ use crate::bytecode::OpCode;
 
 #[derive(PartialEq,Debug,Clone)]
 pub struct Code {
-    opcodes: Vec<OpCode>
+    opcodes: Vec<OpCode>,
 }
 
 impl Code {
@@ -116,15 +117,22 @@ impl Code {
         }
     }
 
-    pub fn get_opcode(&self, address: Address) -> Option<&OpCode> {
+    pub fn get_opcode(&self, address: &Address) -> Option<&OpCode> {
         //self.table[address.value() as usize]
         self.opcodes.get(address.value_usize())
+    }
+
+    pub fn dump(&self) { // TODO pretty print
+        for (i, opcode) in self.opcodes.iter().enumerate() {
+            println!("{}: {:?}", i, opcode);
+        }
     }
 }
 
 #[derive(PartialEq,Debug,Clone)]
 pub struct Program {
     code: Code,
+    labels: HashMap<String, Address>,
     constants: Vec<ProgramObject>,
     globals: Vec<ConstantPoolIndex>,
     entry: ConstantPoolIndex,
@@ -136,7 +144,36 @@ impl Program {
                globals: Vec<ConstantPoolIndex>,
                entry: ConstantPoolIndex) -> Program {
 
-        Program { code, constants, globals, entry }
+        let labels = Program::labels_from_code(&code, &constants);
+
+        Program { code, labels, constants, globals, entry }
+    }
+
+    fn labels_from_code(code: &Code, constants: &Vec<ProgramObject>) -> HashMap<String, Address> {
+        let mut labels: HashMap<String, Address> = HashMap::new();
+        for (i, opcode) in code.opcodes.iter().enumerate() {
+            if let OpCode::Label { name: index } = opcode {
+                let constant = constants.get(index.value() as usize)
+                    .expect(&format!("Program initialization: label {:?} expects a constant in the \
+                                      constant pool at index {:?} but none was found",
+                                     opcode, index));
+
+                let name = match constant {
+                    ProgramObject::String(string) => string,
+                    _ => panic!("Program initialization: label {:?} expects a String in the \
+                                 constant pool at index {:?} but {:?} was found",
+                                opcode, index, constant),
+                };
+
+                if labels.contains_key(name) {
+                    panic!("Program initialization: attempt to define label {:?} with a non-unique \
+                            name: {}", opcode, name)
+                }
+
+                labels.insert(name.to_string(), Address::from_usize(i));
+            };
+        }
+        labels
     }
 
     pub fn code(&self) -> &Code {
@@ -159,8 +196,12 @@ impl Program {
         self.constants.get(index.value() as usize)
     }
 
-    pub fn get_opcode(&self, address: Address) -> Option<&OpCode> {
+    pub fn get_opcode(&self, address: &Address) -> Option<&OpCode> {
         self.code.get_opcode(address)
+    }
+
+    pub fn get_label(&self, name: &str) -> Option<&Address> {
+        self.labels.get(name)
     }
 }
 
@@ -188,11 +229,16 @@ impl Serializable for Program {
             constants.push(ProgramObject::from_bytes(input, &mut code))
         }
 
+        let globals = ConstantPoolIndex::read_cpi_vector(input);
+        let entry = ConstantPoolIndex::from_bytes(input);
+        let labels = Program::labels_from_code(&code, &constants);
+
         Program {
             code,
             constants,
-            globals: ConstantPoolIndex::read_cpi_vector(input),
-            entry: ConstantPoolIndex::from_bytes(input),
+            globals,
+            entry,
+            labels
         }
     }
 }
