@@ -99,16 +99,16 @@ pub enum OpCode {
     /**
      * ## Create a new array (runtime) object
      *
-     * First pops the initializing value from the `OperandStack`. Creates a new array with the given
-     * `size``, with each element initialized to the initializing value. Then, pushes the array onto
-     * the `OperandStack`.
+     * First pops the initializing value from the `OperandStack`. Then pops the `size` of the array
+     * from the `OperandStack`. Creates a new array with the given `size`, with each element
+     * initialized to the initializing value. Then, pushes the array onto the `OperandStack`.
      *
      * **Warning**: this is different from the semantics of the `array` operation in FML, which
      * evaluates the initializing value separately for each element.
      *
      * Serialized as opcode `0x03`.
      */
-    Array { size: Size },
+    Array,
 
     /**
      * ## Push the value of an object's field member to stack
@@ -179,6 +179,16 @@ pub enum OpCode {
     CallFunction { function: ConstantPoolIndex, arguments: Arity },
 
     /**
+     * ## Define a new label here
+     *
+     * Associates `name` with the address of this instruction. The name is given by the
+     * `ProgramObject::String`object at the specified index.
+     *
+     * Serialized as opcode `0x00`.
+     */
+    Label { name: /*String*/ ConstantPoolIndex },
+
+    /**
      * ## Print a formatted string
      *
      * Pops `arguments` values from the `OperandStack`. Then retrieves a `ProgramObject::String`
@@ -192,16 +202,6 @@ pub enum OpCode {
      * Serialized as opcode `0x02`.
      */
     Print { format: /*String*/ ConstantPoolIndex, arguments: Arity },
-
-    /**
-     * ## Define a new label here
-     *
-     * Associates `name` with the address of this instruction. The name is given by the
-     * `ProgramObject::String`object at the specified index.
-     *
-     * Serialized as opcode `0x00`.
-     */
-    Label { name: /*String*/ ConstantPoolIndex },
 
     /**
      * ## Jump to a label
@@ -270,7 +270,7 @@ impl Serializable for OpCode {
             Literal      { index               } => { index.serialize(sink)              },
             Print        { format,   arguments } => { format.serialize(sink);
                                                       arguments.serialize(sink)          },
-            Array        { size                } => { size.serialize(sink)               },
+            Array                                => {                                    },
             Object       { class               } => { class.serialize(sink)              },
             GetSlot      { name                } => { name.serialize(sink)               },
             SetSlot      { name                } => { name.serialize(sink)               },
@@ -286,7 +286,7 @@ impl Serializable for OpCode {
             Jump         { label               } => { label.serialize(sink)              },
             Return                               => {                                    },
             Drop                                 => {                                    },
-            Skip => {                           },
+            Skip                                 => {                                    },
         };
     }
 
@@ -299,7 +299,7 @@ impl Serializable for OpCode {
             0x01 => Literal      { index:     ConstantPoolIndex::from_bytes(input)  },
             0x02 => Print        { format:    ConstantPoolIndex::from_bytes(input),
                                    arguments: Arity::from_bytes(input)              },
-            0x03 => Array        { size:      Size::from_bytes(input)               },
+            0x03 => Array        {                                                  },
             0x04 => Object       { class:     ConstantPoolIndex::from_bytes(input)  },
             0x05 => GetSlot      { name:      ConstantPoolIndex::from_bytes(input)  },
             0x06 => SetSlot      { name:      ConstantPoolIndex::from_bytes(input)  },
@@ -327,7 +327,7 @@ impl OpCode {
             Label        { name: _                   } => 0x00,
             Literal      { index: _                  } => 0x01,
             Print        { format: _,   arguments: _ } => 0x02,
-            Array        { size: _                   } => 0x03,
+            Array        {                           } => 0x03,
             Object       { class: _                  } => 0x04,
             GetSlot      { name: _                   } => 0x05,
             SetSlot      { name: _                   } => 0x06,

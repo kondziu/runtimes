@@ -199,9 +199,8 @@ impl UglyPrint for OpCode {
                 write_string!(sink, indent, "object ");
                 class.pretty_print_no_indent(sink);
             },
-            OpCode::Array { size } => {
-                write_string!(sink, indent, "array ");
-                size.pretty_print_no_indent(sink);
+            OpCode::Array => {
+                write_string!(sink, indent, "array");
             },
             OpCode::GetSlot { name } => {
                 write_string!(sink, indent, "get slot ");

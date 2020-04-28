@@ -530,14 +530,29 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
 //                .expect("Object error: cannot bump instruction pointer");
         }
 
-        OpCode::Array { size } => {
+        OpCode::Array => {
             let initializer = state.pop_operand()
-                .expect(&format!("Array error: cannot pop initializer from empty operand \
-                                  stack"));
+                .expect(&format!("Array error: cannot pop initializer from empty operand stack"));
+
+            let size_object = state.pop_operand()
+                .expect(&format!("Array error: cannot pop size from empty operand stack"));
+
+            let size: usize = match size_object.as_ref().borrow().deref() {
+                RuntimeObject::Integer(n) => {
+                    if *n < 0 {
+                        panic!("Array error: negative value cannot be used to specify the size of \
+                                an array {:?}", size_object);
+                    } else {
+                        *n as usize
+                    }
+                }
+                _ => panic!("Array error: object cannot be used to specify the size of an array \
+                             {:?}", size_object),
+            };
 
             let elements = {
                 let mut elements: Vec<SharedRuntimeObject> = Vec::new();
-                for _ in 0..size.value() {
+                for _ in 0..size {
                     elements.push(initializer.clone());
                 }
                 elements

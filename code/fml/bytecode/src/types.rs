@@ -14,6 +14,13 @@ impl Size              { pub fn new(value: u16) -> Size              { Size(valu
 impl LocalFrameIndex   { pub fn new(value: u16) -> LocalFrameIndex   { LocalFrameIndex(value)   }}
 impl ConstantPoolIndex { pub fn new(value: u16) -> ConstantPoolIndex { ConstantPoolIndex(value) }}
 
+impl LocalFrameIndex  {
+    pub fn from_usize(value: usize) -> LocalFrameIndex {
+        assert!(value <= 65535usize);
+        LocalFrameIndex(value as u16)
+    }
+}
+
 impl AddressRange {
     pub fn new (start: Address, length: usize) -> Self {
         AddressRange { start, length }

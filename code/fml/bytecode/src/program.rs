@@ -203,6 +203,20 @@ impl Program {
     pub fn get_label(&self, name: &str) -> Option<&Address> {
         self.labels.get(name)
     }
+
+    //-----------
+
+    pub fn register_constant(&mut self, constant: ProgramObject) -> ConstantPoolIndex {
+        unimplemented!()
+    }
+
+    pub fn emit_code(&mut self, opcode: OpCode) {
+        unimplemented!()
+    }
+
+    pub fn register_unique_label(&mut self, name: &str) -> ConstantPoolIndex {
+        unimplemented!()
+    }
 }
 
 impl Serializable for Program {

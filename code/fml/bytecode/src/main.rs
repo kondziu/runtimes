@@ -66,8 +66,8 @@ mod bytecode_deserialization_tests {
     }
 
     #[test] fn array () {
-        let expected = OpCode::Array { size: Size::new(1) };
-        let bytes = vec!(0x03, 0x01, 0x00, 0x00, 0x00);
+        let expected = OpCode::Array;
+        let bytes = vec!(0x03);
         test(expected, bytes);
     }
 
@@ -181,8 +181,8 @@ mod bytecode_serialization_tests {
     }
 
     #[test] fn array () {
-        let expected = vec!(0x03, 0x01, 0x00, );
-        let object = OpCode::Array { size: Size::new(1) };
+        let expected = vec!(0x03);
+        let object = OpCode::Array;
         test(expected, object);
     }
 
@@ -812,7 +812,7 @@ mod interpreter_test {
 
     #[test] fn array_zero() {
         let code = Code::from(vec!(
-            OpCode::Array { size: Size::new(0) },
+            OpCode::Array,
             OpCode::Skip,
         ));
 
@@ -824,6 +824,7 @@ mod interpreter_test {
         let mut state = State::minimal();
         let mut output: String = String::new();
 
+        state.push_operand(RuntimeObject::from_i32(0));
         state.push_operand(RuntimeObject::null());
 
         interpret(&mut state, &mut output, &program);
@@ -838,7 +839,7 @@ mod interpreter_test {
 
     #[test] fn array_one() {
         let code = Code::from(vec!(
-            OpCode::Array { size: Size::new(1) },
+            OpCode::Array,
             OpCode::Skip,
         ));
 
@@ -851,11 +852,12 @@ mod interpreter_test {
         let mut output: String = String::new();
 
         state.push_operand(RuntimeObject::from_i32(1));
+        state.push_operand(RuntimeObject::null());
 
         interpret(&mut state, &mut output, &program);
 
         assert_eq!(&output, "", "test output");
-        assert_eq!(state.operands, vec!(RuntimeObject::from_vec(vec!(RuntimeObject::from_i32(1)))), "test operands");
+        assert_eq!(state.operands, vec!(RuntimeObject::from_vec(vec!(RuntimeObject::null()))), "test operands");
         assert_eq!(state.globals, HashMap::new(), "test globals");
         assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
 //        assert_eq!(state.labels, HashMap::new(), "test labels");
@@ -864,7 +866,7 @@ mod interpreter_test {
 
     #[test] fn array_three() {
         let code = Code::from(vec!(
-            OpCode::Array { size: Size::new(3) },
+            OpCode::Array,
             OpCode::Skip,
         ));
 
@@ -876,6 +878,7 @@ mod interpreter_test {
         let mut state = State::minimal();
         let mut output: String = String::new();
 
+        state.push_operand(RuntimeObject::from_i32(3));
         state.push_operand(RuntimeObject::from_i32(0));
 
         interpret(&mut state, &mut output, &program);
