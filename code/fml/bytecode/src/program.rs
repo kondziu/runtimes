@@ -149,6 +149,16 @@ impl Program {
         Program { code, labels, constants, globals, entry }
     }
 
+    pub fn empty() -> Program {
+        Program {
+            code: Code::new(),
+            labels: HashMap::new(),
+            constants: Vec::new(),
+            globals: Vec::new(),
+            entry: ConstantPoolIndex::new(0) // FIXME
+        }
+    }
+
     fn labels_from_code(code: &Code, constants: &Vec<ProgramObject>) -> HashMap<String, Address> {
         let mut labels: HashMap<String, Address> = HashMap::new();
         for (i, opcode) in code.opcodes.iter().enumerate() {
@@ -207,15 +217,61 @@ impl Program {
     //-----------
 
     pub fn register_constant(&mut self, constant: ProgramObject) -> ConstantPoolIndex {
-        unimplemented!()
+        match self.constants.iter().position(|c| *c == constant) {
+            Some(position) => ConstantPoolIndex::from_usize(position),
+            None => {
+                let index = ConstantPoolIndex::from_usize(self.constants.len());
+                self.constants.push(constant);
+                index
+            }
+        }
+    }
+
+//    fn register_label(&mut self, label: String) -> ConstantPoolIndex {
+//        if let Some(index) = self.labels.get(&label) {
+//            return *index;
+//        }
+//        let index = ConstantPoolIndex::from_usize(self.labels.len());
+//        self.labels.insert(label, index);
+//        index
+//    }
+
+    pub fn generate_new_label_name(&mut self, name: &str) -> ConstantPoolIndex {
+        let label = format!("{}_{}", name, self.labels.len());
+        assert!(!self.labels.contains_key(&label));
+
+        let constant = ProgramObject::String(label);
+        let index = self.register_constant(constant);
+
+        index
     }
 
     pub fn emit_code(&mut self, opcode: OpCode) {
-        unimplemented!()
-    }
+        match opcode {
+            OpCode::Label {name: index} => {
+                let address = Address::from_usize(self.code.opcodes.len());
+                self.code.opcodes.push(opcode);
+                match self.get_constant(&index) {
+                    Some(ProgramObject::String(name)) => {
+                        let result = self.labels.insert(name.to_string(), address);
 
-    pub fn register_unique_label(&mut self, name: &str) -> ConstantPoolIndex {
-        unimplemented!()
+                        if result.is_some() {
+                            panic!("Emit code error: cannot create label {:?}, \
+                                              name {:?} already used by another label.",
+                                                  opcode, self.get_constant(&index))
+                        }
+                    },
+                    Some(object) => panic!("Emit code error: cannot create label, \
+                                            constant at index {:?} should be a String, but is {:?}",
+                                            index, object),
+
+                    None => panic!("Emit code error: cannot create label, \
+                                    there is no constant at index {:?}", index),
+                }
+
+            }
+            _ => self.code.opcodes.push(opcode),
+        }
     }
 }
 

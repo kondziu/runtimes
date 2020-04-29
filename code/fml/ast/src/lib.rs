@@ -8,7 +8,6 @@ pub trait Portable {
 
 #[derive(PartialEq,Debug,Serialize,Deserialize,Clone)]
 pub enum AST {
-    String(String),
     Number(i32),
     Boolean(bool),
     Unit,
@@ -19,14 +18,14 @@ pub enum AST {
 
     LocalMutation { local: Identifier, value: Box<AST> },
     FieldMutation { field_path: Box<AST>, value: Box<AST> },
-    ArrayMutation { array: Box<AST>, value: Box<AST> },
+    ArrayMutation { array: Box<AST>, index: Box<AST>, value: Box<AST> },
 
     FunctionDefinition { function: Identifier, parameters: Vec<Identifier>, body: Box<AST> },
     OperatorDefinition { operator: Operator, parameters: Vec<Identifier>, body: Box<AST> },
 
     FunctionApplication { function: Identifier, arguments: Vec<Box<AST>> },
     MethodCall { method_path: Box<AST>, arguments: Vec<Box<AST>> },
-    Print { format: Box<AST>, arguments: Vec<Box<AST>> },
+    Print { format: String, arguments: Vec<Box<AST>> },
 
     LocalAccess { local: Identifier },
     FieldAccess { object: Box<AST>, field: Identifier },
@@ -39,7 +38,7 @@ pub enum AST {
     Conditional { condition: Box<AST>, consequent: Box<AST>, alternative: Box<AST> },
 }
 
-#[derive(PartialEq,Debug,Clone,Serialize,Deserialize)]
+#[derive(PartialEq,Eq,Hash,Debug,Clone,Serialize,Deserialize)]
 pub struct Identifier(pub String);
 
 impl Identifier {
@@ -49,6 +48,7 @@ impl Identifier {
     pub fn to_string(&self) -> String {
         self.0.to_string()
     }
+    pub fn to_str(&self) -> &str { &self.0 }
 }
 
 #[derive(PartialEq,Debug,Copy,Clone,Serialize,Deserialize)]

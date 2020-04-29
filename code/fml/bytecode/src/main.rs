@@ -90,7 +90,7 @@ mod bytecode_deserialization_tests {
     }
 
     #[test] fn call_function () {
-        let expected = OpCode::CallFunction { function: ConstantPoolIndex::new(1), arguments: Arity::new(2) };
+        let expected = OpCode::CallFunction { name: ConstantPoolIndex::new(1), arguments: Arity::new(2) };
         let bytes = vec!(0x08, 0x01, 0x00, 0x02);
         test(expected, bytes);
     }
@@ -206,7 +206,7 @@ mod bytecode_serialization_tests {
 
     #[test] fn call_function () {
         let expected = vec!(0x08, 0x01, 0x00, 0x02);
-        let object = OpCode::CallFunction { function: ConstantPoolIndex::new(1), arguments: Arity::new(2) };
+        let object = OpCode::CallFunction { name: ConstantPoolIndex::new(1), arguments: Arity::new(2) };
         test(expected, object);
     }
 
@@ -896,7 +896,7 @@ mod interpreter_test {
     #[test] fn call_function_zero() {
         let code = Code::from(vec!(
             /*0*/ OpCode::Return,
-            /*1*/ OpCode::CallFunction { function: ConstantPoolIndex::new(0), arguments: Arity::new(0) },
+            /*1*/ OpCode::CallFunction { name: ConstantPoolIndex::new(0), arguments: Arity::new(0) },
             /*2*/ OpCode::Skip,
         ));
 
@@ -932,7 +932,7 @@ mod interpreter_test {
     #[test] fn call_function_one() {
         let code = Code::from(vec!(
             /*0*/ OpCode::Return,
-            /*1*/ OpCode::CallFunction { function: ConstantPoolIndex::new(0), arguments: Arity::new(1) },
+            /*1*/ OpCode::CallFunction { name: ConstantPoolIndex::new(0), arguments: Arity::new(1) },
             /*2*/ OpCode::Skip,
         ));
 
@@ -969,7 +969,7 @@ mod interpreter_test {
     #[test] fn call_function_three() {
         let code = Code::from(vec!(
             /*0*/ OpCode::Return,
-            /*1*/ OpCode::CallFunction { function: ConstantPoolIndex::new(0), arguments: Arity::new(3) },
+            /*1*/ OpCode::CallFunction { name: ConstantPoolIndex::new(0), arguments: Arity::new(3) },
             /*2*/ OpCode::Skip,
         ));
 
@@ -1012,7 +1012,7 @@ mod interpreter_test {
     #[test] fn returns() {
         let code = Code::from(vec!(
             /*0*/ OpCode::Return,
-            /*1*/ OpCode::CallFunction { function: ConstantPoolIndex::new(1), arguments: Arity::new(3) },
+            /*1*/ OpCode::CallFunction { name: ConstantPoolIndex::new(1), arguments: Arity::new(3) },
             /*2*/ OpCode::Skip,
         ));
 
@@ -1639,7 +1639,7 @@ Entry : #5"#}
         let code = Code::from(vec!(
             /* 0 */ OpCode::Print { format: ConstantPoolIndex::new(0), arguments: Arity::new(0) },
             /* 1 */ OpCode::Return,
-            /* 2 */ OpCode::CallFunction { function: ConstantPoolIndex::new(1), arguments: Arity::new(0) },
+            /* 2 */ OpCode::CallFunction { name: ConstantPoolIndex::new(1), arguments: Arity::new(0) },
             /* 3 */ OpCode::Drop,
             /* 4 */ OpCode::Literal { index: ConstantPoolIndex::new(3) },
             /* 5 */ OpCode::Return,
@@ -1956,7 +1956,7 @@ Fib(19) = 6765
             /* 54 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },   // var0
             /* 55 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },   // var0 ... again?
             /* 56 */ OpCode::CallFunction {                                 // fib(var0) -> result1
-                        function: ConstantPoolIndex::new(14),
+                        name: ConstantPoolIndex::new(14),
                         arguments: Arity::new(1) },
             /* 57 */ OpCode::Print {                                        // printf "Fib(~) = ~\n" var0 result1
                         format: ConstantPoolIndex::new(18),
@@ -1981,7 +1981,7 @@ Fib(19) = 6765
 
             /* method entry: start: 71, length: 4 */
             /* 71 */ OpCode::CallFunction {                                 // main() -> result0
-                        function: ConstantPoolIndex::new(21),
+                        name: ConstantPoolIndex::new(21),
                         arguments: Arity::new(0) },
             /* 72 */ OpCode::Drop,
             /* 73 */ OpCode::Literal { index: ConstantPoolIndex::new(13) }, // null
@@ -2087,6 +2087,593 @@ Fib(19) = 6765
         }
 
         assert_eq!(output, expected_output());
+    }
+}
+
+#[cfg(test)]
+mod compiler_tests {
+    use fml_ast::{AST, Identifier};
+    use crate::fml::Compiled;
+    use crate::program::{Program, Code};
+    use crate::bytecode::OpCode;
+    use crate::fml::Bookkeeping;
+    use crate::objects::ProgramObject;
+    use crate::types::{ConstantPoolIndex, LocalFrameIndex, Arity, Size, AddressRange};
+
+    #[test] fn number () {
+        let ast = AST::Number(1);
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) }
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::Integer(1)
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn some_more_numbers () {
+        let asts = vec!(AST::Number(1), AST::Number(42), AST::Number(0), AST::Number(42));
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        for ast in asts {
+            ast.compile_into(&mut program, &mut bookkeeping);
+        }
+
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
+            /* 1 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },
+            /* 2 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
+            /* 3 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::Integer(1),
+            /* 1 */ ProgramObject::Integer(42),
+            /* 2 */ ProgramObject::Integer(0),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn boolean () {
+        let ast = AST::Boolean(true);
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) }
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::Boolean(true)
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn unit () {
+        let ast = AST::Unit;
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) }
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::Null
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn local_definition () {
+        let ast = AST::LocalDefinition { local: Identifier::from("x"),
+                                         value: Box::new(AST::Number(1)) };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from(vec!("x".to_string()));
+
+        let expected_code = Code::from(vec!(
+            OpCode::Literal { index: ConstantPoolIndex::new(0) },    // value
+            OpCode::SetLocal { index: LocalFrameIndex::new(0) }
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::Integer(1)
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn local_access_x () {
+        let ast = AST::LocalAccess { local: Identifier::from("x") };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("x".to_string(), "y".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from(vec!("x".to_string(), "y".to_string()));
+
+        let expected_code = Code::from(vec!(
+            OpCode::GetLocal { index: LocalFrameIndex::new(0) }
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!();
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn local_access_y () {
+        let ast = AST::LocalAccess { local: Identifier::from("y") };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping =
+            Bookkeeping::from(vec!("x".to_string(), "y".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping =
+            Bookkeeping::from(vec!("x".to_string(), "y".to_string()));
+
+        let expected_code = Code::from(vec!(
+            OpCode::GetLocal { index: LocalFrameIndex::new(1) }
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!();
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn loop_de_loop () {
+        let ast = AST::Loop { condition: Box::new(AST::Boolean(false)), body: Box::new(AST::Unit) };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Jump { label: ConstantPoolIndex::new(1) },
+            /* 1 */ OpCode::Label { name: ConstantPoolIndex::new(0) },
+            /* 2 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
+            /* 3 */ OpCode::Label { name: ConstantPoolIndex::new(1) },
+            /* 4 */ OpCode::Literal { index: ConstantPoolIndex::new(3) },
+            /* 5 */ OpCode::Branch { label: ConstantPoolIndex::new(0) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::String("loop_body_0".to_string()),
+            /* 1 */ ProgramObject::String("loop_condition_0".to_string()),
+            /* 2 */ ProgramObject::Null,
+            /* 3 */ ProgramObject::Boolean(false),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn conditional () {
+        let ast = AST::Conditional {
+            condition: Box::new(AST::Boolean(true)),
+            consequent: Box::new(AST::Number(1)),
+            alternative: Box::new(AST::Number(-1))
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let mut expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
+            /* 1 */ OpCode::Branch { label: ConstantPoolIndex::new(0) },
+            /* 2 */ OpCode::Literal { index: ConstantPoolIndex::new(3) },
+            /* 3 */ OpCode::Jump { label: ConstantPoolIndex::new(1) },
+            /* 4 */ OpCode::Label { name: ConstantPoolIndex::new(0) },
+            /* 5 */ OpCode::Literal { index: ConstantPoolIndex::new(4) },
+            /* 6 */ OpCode::Label { name: ConstantPoolIndex::new(1) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::String("if_consequent_0".to_string()),
+            /* 1 */ ProgramObject::String("if_end_0".to_string()),
+            /* 2 */ ProgramObject::Boolean(true),
+            /* 3 */ ProgramObject::Integer(-1),
+            /* 4 */ ProgramObject::Integer(1),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn array_definition_simple_test() {
+        let ast = AST::ArrayDefinition {
+            value: Box::new(AST::Unit),
+            size: Box::new(AST::Number(10)),
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
+            /* 1 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },
+            /* 2 */ OpCode::Array,
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::Integer(10),
+            /* 1 */ ProgramObject::Null,
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn array_definition_complex_test() {
+        unimplemented!()
+    }
+
+    #[test] fn array_access_test() {
+        let ast = AST::ArrayAccess {
+            array: Box::new(AST::LocalAccess { local: Identifier("x".to_string()) }),
+            index: Box::new(AST::Number(1)),
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("x".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::from(vec!("x".to_string()));
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            /* 1 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
+            /* 2 */ OpCode::CallMethod { name: ConstantPoolIndex::new(1), arguments: Arity::new(2) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::Integer(1),
+            /* 1 */ ProgramObject::String("get".to_string()),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn array_mutation_test() {
+        let ast = AST::ArrayMutation {
+            array: Box::new(AST::LocalAccess { local: Identifier("x".to_string()) }),
+            index: Box::new(AST::Number(1)),
+            value: Box::new(AST::Number(42)),
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("x".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::from(vec!("x".to_string()));
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            /* 1 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
+            /* 2 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },
+            /* 3 */ OpCode::CallMethod { name: ConstantPoolIndex::new(2), arguments: Arity::new(3) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::Integer(1),
+            /* 1 */ ProgramObject::Integer(42),
+            /* 2 */ ProgramObject::String("set".to_string()),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn print_test () {
+        let ast = AST::Print {
+            format: "~ + ~".to_string(),
+            arguments: vec!(
+                Box::new(AST::Number(2)),
+                Box::new(AST::Number(5)),
+            ),
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index:  ConstantPoolIndex::new(1) },
+            /* 1 */ OpCode::Literal { index:  ConstantPoolIndex::new(2) },
+            /* 2 */ OpCode::Print   { format: ConstantPoolIndex::new(0), arguments: Arity::new(2) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::String("~ + ~".to_string()),
+            /* 1 */ ProgramObject::Integer(2),
+            /* 2 */ ProgramObject::Integer(5),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn function_application_test_three () {
+        let ast = AST::FunctionApplication {
+            function: Identifier("f".to_string()),
+            arguments: vec!(
+                Box::new(AST::Unit),
+                Box::new(AST::Number(0)),
+                Box::new(AST::Boolean(true)),
+            ),
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index:  ConstantPoolIndex::new(1) },
+            /* 1 */ OpCode::Literal { index:  ConstantPoolIndex::new(2) },
+            /* 2 */ OpCode::Literal { index:  ConstantPoolIndex::new(3) },
+            /* 3 */ OpCode::CallFunction { name: ConstantPoolIndex::new(0), arguments: Arity::new(3) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::String("f".to_string()),
+            /* 1 */ ProgramObject::Null,
+            /* 2 */ ProgramObject::Integer(0),
+            /* 3 */ ProgramObject::Boolean(true),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn function_application_test_one () {
+        let ast = AST::FunctionApplication {
+            function: Identifier("f".to_string()),
+            arguments: vec!(Box::new(AST::Number(42))),
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index:  ConstantPoolIndex::new(1) },
+            /* 1 */ OpCode::CallFunction { name: ConstantPoolIndex::new(0), arguments: Arity::new(1) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::String("f".to_string()),
+            /* 1 */ ProgramObject::Integer(42),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn function_application_test_zero () {
+        let ast = AST::FunctionApplication {
+            function: Identifier("f".to_string()),
+            arguments: vec!()
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::CallFunction { name: ConstantPoolIndex::new(0), arguments: Arity::new(0) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::String("f".to_string()),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn function_definition () {
+        let ast = AST::FunctionDefinition {
+            function: Identifier("left".to_string()),
+            parameters: vec!(Identifier("left".to_string()), Identifier("right".to_string())),
+            body: Box::new(AST::LocalAccess {local: Identifier("left".to_string())})
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from(vec!(
+            "left".to_string(),
+            "right".to_string(),
+        ));;
+
+        let expected_code = Code::from(vec!(
+            OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            OpCode::Return,
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::String("left".to_string()),
+            /* 1 */ ProgramObject::String("right".to_string()),
+            /* 2 */ ProgramObject::Method {
+                name: ConstantPoolIndex::new(0),
+                arguments: Arity::new(0),
+                locals: Size::new(2),
+                code: AddressRange::from(0, 1),
+            },
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
     }
 }
 

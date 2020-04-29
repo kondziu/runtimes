@@ -215,9 +215,9 @@ impl UglyPrint for OpCode {
                 name.pretty_print_no_indent(sink);
                 arguments.pretty_print_indent(sink, 1);
             },
-            OpCode::CallFunction { function, arguments } => {
+            OpCode::CallFunction { name, arguments } => {
                 write_string!(sink, indent, "call ");
-                function.pretty_print_no_indent(sink);
+                name.pretty_print_no_indent(sink);
                 arguments.pretty_print_indent(sink, 1);
             },
             OpCode::Print { format, arguments } => {

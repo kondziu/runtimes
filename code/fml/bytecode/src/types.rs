@@ -14,10 +14,24 @@ impl Size              { pub fn new(value: u16) -> Size              { Size(valu
 impl LocalFrameIndex   { pub fn new(value: u16) -> LocalFrameIndex   { LocalFrameIndex(value)   }}
 impl ConstantPoolIndex { pub fn new(value: u16) -> ConstantPoolIndex { ConstantPoolIndex(value) }}
 
-impl LocalFrameIndex  {
+impl Arity {
+    pub fn from_usize(value: usize) -> Arity {
+        assert!(value <= 255usize);
+        Arity(value as u8)
+    }
+}
+
+impl LocalFrameIndex {
     pub fn from_usize(value: usize) -> LocalFrameIndex {
         assert!(value <= 65535usize);
         LocalFrameIndex(value as u16)
+    }
+}
+
+impl ConstantPoolIndex {
+    pub fn from_usize(value: usize) -> ConstantPoolIndex {
+        assert!(value <= 65535usize);
+        ConstantPoolIndex(value as u16)
     }
 }
 

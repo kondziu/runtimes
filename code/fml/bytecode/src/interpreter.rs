@@ -852,7 +852,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
             };
         }
 
-        OpCode::CallFunction { function: index, arguments } => {
+        OpCode::CallFunction { name: index, arguments } => {
 
             let constant: &ProgramObject = program.get_constant(index)
                 .expect(&format!("Call function error: no constant to serve as function name at \

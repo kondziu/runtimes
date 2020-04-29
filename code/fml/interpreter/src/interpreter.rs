@@ -243,7 +243,7 @@ pub fn evaluate (stack: &mut EnvironmentStack, memory: &mut Memory,
             }
         }
 
-        AST::ArrayMutation {array, value} => {
+        AST::ArrayMutation {array, index, value} => {
             let (array, index) = match &**array {
                 AST::ArrayAccess {array, index} => (array, index),
                 _ => panic!("Cannot mutate non-array object"),

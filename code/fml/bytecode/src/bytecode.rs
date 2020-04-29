@@ -176,7 +176,7 @@ pub enum OpCode {
      *
      * Serialized as opcode `0x08`.
      */
-    CallFunction { function: ConstantPoolIndex, arguments: Arity },
+    CallFunction { name: ConstantPoolIndex, arguments: Arity },
 
     /**
      * ## Define a new label here
@@ -276,7 +276,7 @@ impl Serializable for OpCode {
             SetSlot      { name                } => { name.serialize(sink)               },
             CallMethod   { name,     arguments } => { name.serialize(sink);
                                                       arguments.serialize(sink)          },
-            CallFunction { function, arguments } => { function.serialize(sink);
+            CallFunction { name: function, arguments } => { function.serialize(sink);
                                                       arguments.serialize(sink)          },
             SetLocal     { index               } => { index.serialize(sink)              },
             GetLocal     { index               } => { index.serialize(sink)              },
@@ -305,7 +305,7 @@ impl Serializable for OpCode {
             0x06 => SetSlot      { name:      ConstantPoolIndex::from_bytes(input)  },
             0x07 => CallMethod   { name:      ConstantPoolIndex::from_bytes(input),
                                    arguments: Arity::from_bytes(input)              },
-            0x08 => CallFunction { function:  ConstantPoolIndex::from_bytes(input),
+            0x08 => CallFunction { name:  ConstantPoolIndex::from_bytes(input),
                                    arguments: Arity::from_bytes(input)              },
             0x09 => SetLocal     { index:     LocalFrameIndex::from_bytes(input)    },
             0x0A => GetLocal     { index:     LocalFrameIndex::from_bytes(input)    },
@@ -332,7 +332,7 @@ impl OpCode {
             GetSlot      { name: _                   } => 0x05,
             SetSlot      { name: _                   } => 0x06,
             CallMethod   { name: _,     arguments: _ } => 0x07,
-            CallFunction { function: _, arguments: _ } => 0x08,
+            CallFunction { name: _, arguments: _ } => 0x08,
             SetLocal     { index: _                  } => 0x09,
             GetLocal     { index: _                  } => 0x0A,
             SetGlobal    { name: _                   } => 0x0B,
