@@ -1,7 +1,5 @@
 #![crate_name = "bytecode"]
 
-use crate::interpreter::{interpret, State};
-
 mod interpreter;
 mod bytecode;
 mod objects;
@@ -11,13 +9,14 @@ mod program;
 mod debug;
 mod io;
 mod fml;
+mod compiler;
 
 #[cfg(test)]
 mod bytecode_deserialization_tests {
     use std::io::Cursor;
     use crate::bytecode::OpCode;
     use crate::serializable::Serializable;
-    use crate::types::{ConstantPoolIndex, LocalFrameIndex, Size, Arity};
+    use crate::types::{ConstantPoolIndex, LocalFrameIndex, Arity};
 
     fn test(expected: OpCode, input: Vec<u8>) {
         assert_eq!(OpCode::from_bytes(&mut Cursor::new(input)), expected);
@@ -130,7 +129,7 @@ mod bytecode_deserialization_tests {
 mod bytecode_serialization_tests {
     use crate::bytecode::OpCode;
     use crate::serializable::Serializable;
-    use crate::types::{ConstantPoolIndex, LocalFrameIndex, Size, Arity};
+    use crate::types::{ConstantPoolIndex, LocalFrameIndex, Arity};
 
     fn test (expected: Vec<u8>, object: OpCode) {
         let mut actual: Vec<u8> = Vec::new();
@@ -1712,7 +1711,6 @@ mod fibonacci_tests {
     use crate::serializable::Serializable;
     use crate::debug::PrettyPrint;
     use std::io::Cursor;
-    use std::io::Write;
     use crate::interpreter::{State, interpret};
 
     fn source() -> &'static str {
@@ -2351,7 +2349,7 @@ mod compiler_tests {
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let mut expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
@@ -2633,11 +2631,13 @@ mod compiler_tests {
         assert_eq!(bookkeeping, expected_bookkeeping);
     }
 
-    #[test] fn function_definition () {
+    #[test] fn function_definition_three () {
         let ast = AST::FunctionDefinition {
-            function: Identifier("left".to_string()),
-            parameters: vec!(Identifier("left".to_string()), Identifier("right".to_string())),
-            body: Box::new(AST::LocalAccess {local: Identifier("left".to_string())})
+            function: Identifier("project_right".to_string()),
+            parameters: vec!(Identifier::from("left"),
+                             Identifier::from("middle"),
+                             Identifier::from("right")),
+            body: Box::new(AST::LocalAccess {local: Identifier::from("left")})
         };
 
         let mut program: Program = Program::empty();
@@ -2645,24 +2645,23 @@ mod compiler_tests {
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from(vec!(
-            "left".to_string(),
-            "right".to_string(),
-        ));;
+        let expected_bookkeeping = Bookkeeping::empty();
 
         let expected_code = Code::from(vec!(
-            OpCode::GetLocal { index: LocalFrameIndex::new(0) },
-            OpCode::Return,
+            /* 0 */ OpCode::Jump { label: ConstantPoolIndex::new(0) },
+            /* 1 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            /* 2 */ OpCode::Return,
+            /* 3 */ OpCode::Label { name: ConstantPoolIndex::new(0) },
         ));
 
         let expected_constants: Vec<ProgramObject> = vec!(
-            /* 0 */ ProgramObject::String("left".to_string()),
-            /* 1 */ ProgramObject::String("right".to_string()),
+            /* 0 */ ProgramObject::String("function_guard_0".to_string()),
+            /* 1 */ ProgramObject::String("project_right".to_string()),
             /* 2 */ ProgramObject::Method {
-                name: ConstantPoolIndex::new(0),
-                arguments: Arity::new(0),
-                locals: Size::new(2),
-                code: AddressRange::from(0, 1),
+                name: ConstantPoolIndex::new(1),
+                arguments: Arity::new(3),
+                locals: Size::new(0),
+                code: AddressRange::from(1, 3),
             },
         );
 
@@ -2674,6 +2673,36 @@ mod compiler_tests {
 
         assert_eq!(program, expected_program);
         assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+}
+
+#[cfg(test)]
+mod doom {
+    use fml_ast::{AST, Identifier};
+    use fml_ast::AST::FunctionDefinition;
+    use crate::compiler::{compile, Blueprint};
+
+    #[test] fn doom () {
+        let ast: AST = AST::Block(vec!(
+            Box::new(FunctionDefinition {function: Identifier::from("id"), parameters: vec!(Identifier::from("x")), body: Box::new(AST::LocalAccess {local: Identifier::from("x")}) }),
+            Box::new(FunctionDefinition { function: Identifier::from("x"), parameters: vec!(Identifier::from("x")), body: Box::new(AST::Block(vec!(
+                Box::new(FunctionDefinition {function: Identifier::from("id"), parameters: vec!(Identifier::from("x")), body: Box::new(AST::LocalAccess {local: Identifier::from("x")}) }),
+                Box::new(FunctionDefinition {function: Identifier::from("left"), parameters: vec!(Identifier::from("x"), Identifier::from("y")), body: Box::new(AST::LocalAccess {local: Identifier::from("x")}) }),
+                Box::new(FunctionDefinition {function: Identifier::from("right"), parameters: vec!(Identifier::from("x"), Identifier::from("y")), body: Box::new(AST::LocalAccess {local: Identifier::from("y")}) }),
+                Box::new(FunctionDefinition {function: Identifier::from("f"), parameters: vec!(Identifier::from("x"), Identifier::from("x")), body:
+                    Box::new(FunctionDefinition {function: Identifier::from("g"), parameters: vec!(Identifier::from("x"), Identifier::from("x")), body:
+                        Box::new(FunctionDefinition {function: Identifier::from("h"), parameters: vec!(Identifier::from("x"), Identifier::from("x")), body:
+                            Box::new(AST::Number(-1))
+                        })
+                    })
+                }),
+            )))}),
+        ));
+
+        let mut blueprint = Blueprint::new();
+        compile(ast, &mut blueprint);
+
+        assert!(false);
     }
 }
 

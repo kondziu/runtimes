@@ -949,7 +949,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
 //                .expect("Print error: cannot bump instruction pointer");
         }
 
-        OpCode::Label { name: label } => {
+        OpCode::Label { name: _ } => {
 //            let constant: &ProgramObject = program.get_constant(label)
 //                .expect(&format!("Label error: no constant to serve as label name at index {:?}",
 //                                 label.value()));

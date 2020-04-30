@@ -246,12 +246,23 @@ impl Program {
         index
     }
 
+    pub fn get_current_address(&self) -> Address {
+        let size = self.code.opcodes.len();
+        Address::from_usize(size - 1)
+    }
+
+    pub fn get_upcoming_address(&self) -> Address {
+        let size = self.code.opcodes.len();
+        Address::from_usize(size)
+    }
+
     pub fn emit_code(&mut self, opcode: OpCode) {
         match opcode {
             OpCode::Label {name: index} => {
                 let address = Address::from_usize(self.code.opcodes.len());
                 self.code.opcodes.push(opcode);
-                match self.get_constant(&index) {
+                let constant = self.get_constant(&index);
+                match constant {
                     Some(ProgramObject::String(name)) => {
                         let result = self.labels.insert(name.to_string(), address);
 

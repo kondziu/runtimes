@@ -1,4 +1,4 @@
-use crate::types::{ConstantPoolIndex, LocalFrameIndex, Size, Arity};
+use crate::types::{ConstantPoolIndex, LocalFrameIndex, Arity};
 use crate::serializable::Serializable;
 use crate::serializable;
 use std::io::{Write, Read};

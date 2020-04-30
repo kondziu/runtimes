@@ -3,64 +3,64 @@ use crate::bytecode::OpCode;
 use fml_ast::{AST, Identifier};
 use crate::program::Program;
 use crate::objects::ProgramObject;
-use crate::types::{LocalFrameIndex, ConstantPoolIndex, Arity};
-use std::collections::{HashMap, HashSet};
-use std::iter::FromIterator;
+use crate::types::{LocalFrameIndex, ConstantPoolIndex, Arity, Size, AddressRange};
+use std::collections::HashMap;
 
 #[derive(PartialEq,Debug,Clone)]
 pub struct Bookkeeping { // TODO rename
-    locals: HashMap<String, LocalFrameIndex>,
+    locals: Vec<HashMap<String, LocalFrameIndex>>,
 //    labels: HashMap<String, ConstantPoolIndex>,
 }
 
 impl Bookkeeping {
     pub fn empty() -> Bookkeeping {
-        Bookkeeping { locals: HashMap::new() }
+        Bookkeeping { locals: vec!(HashMap::new()) }
     }
 
     pub fn from(locals: Vec<String>) -> Bookkeeping {
         let mut local_map: HashMap<String, LocalFrameIndex> = HashMap::new();
+
         for (i, local) in locals.into_iter().enumerate() {
             local_map.insert(local, LocalFrameIndex::from_usize(i));
         }
-        Bookkeeping { locals: local_map }
+
+        Bookkeeping { locals: vec!(local_map) }
     }
 
-//    pub fn from_labels(labels: Vec<String>) -> Bookkeeping {
-//        let mut labels_map: HashMap<String, ConstantPoolIndex> = HashMap::new();
-//        for (i, label) in labels.into_iter().enumerate() {
-//            labels_map.insert(label, ConstantPoolIndex::from_usize(i));
-//        }
-//        Bookkeeping { locals: HashMap::new(), labels: labels_map }
-//    }
+    fn register_local(&mut self, id: &str) -> LocalFrameIndex {
+        let mut locals = self.locals.last_mut()
+            .expect("Bookkeeping: cannot register local, no frame on stack");
 
-//    pub fn from(locals: Vec<String>, labels: Vec<String>) -> Bookkeeping {
-//
-//        let mut local_map: HashMap<String, LocalFrameIndex> = HashMap::new();
-//        for (i, local) in locals.into_iter().enumerate() {
-//            local_map.insert(local, LocalFrameIndex::from_usize(i));
-//        }
-
-//        let mut labels_map: HashMap<String, ConstantPoolIndex> = HashMap::new();
-//        for (i, label) in labels.into_iter().enumerate() {
-//            labels_map.insert(label, ConstantPoolIndex::from_usize(i));
-//        }
-
-//        Bookkeeping { locals: local_map }
-//    }
-
-    fn register_local(&mut self, id: Identifier) -> LocalFrameIndex {
-        if let Some(index) = self.locals.get(id.to_str()) {
+        if let Some(index) = locals.get(id) {
             return *index;
         }
-        let index = LocalFrameIndex::from_usize(self.locals.len());
-        self.locals.insert(id.to_string(), index);
+
+        let index = LocalFrameIndex::from_usize(locals.len());
+        locals.insert(id.to_string(), index);
         index
     }
 
+    fn count_locals(&self) -> usize {
+        let mut locals = self.locals.last()
+            .expect("Bookkeeping: cannot count locals, no frame on stack");
+
+        locals.len()
+    }
+
+    fn add_frame(&mut self) {
+        self.locals.push(HashMap::new())
+    }
+
+    fn remove_frame(&mut self)  {
+        self.locals.pop().expect("Bookkeeping: cannot pop frame from an empty stack");
+    }
+
     fn generate_new_local(&mut self, name: &str) -> LocalFrameIndex {
-        let index = LocalFrameIndex::from_usize(self.locals.len());
-        let result = self.locals.insert(format!("${}_{}", name, self.locals.len()), index);
+        let locals = self.locals.last_mut()
+            .expect("Bookkeeping: cannot generate local, no frame on stack");
+
+        let index = LocalFrameIndex::from_usize(locals.len());
+        let result = locals.insert(format!("${}_{}", name, locals.len()), index);
         assert!(result.is_none());
         index
     }
@@ -92,18 +92,18 @@ impl Compiled for AST {
             }
 
             AST::LocalDefinition { local: name, value } => {
-                let index: LocalFrameIndex = environment.register_local(name.clone()).clone();
+                let index: LocalFrameIndex = environment.register_local(name.to_str()).clone();
                 (**value).compile_into(program, environment);    // FIXME scoping!!!
                 program.emit_code(OpCode::SetLocal { index });
             }
 
             AST::LocalAccess { local: name } => {
-                let index: LocalFrameIndex = environment.register_local(name.clone()).clone();
+                let index: LocalFrameIndex = environment.register_local(name.to_str()).clone();
                 program.emit_code(OpCode::GetLocal { index });
             }
 
             AST::LocalMutation { local: name, value } => {
-                let index: LocalFrameIndex = environment.register_local(name.clone()).clone();
+                let index: LocalFrameIndex = environment.register_local(name.to_str()).clone();
                 (**value).compile_into(program, environment);    // FIXME scoping!!!
                 program.emit_code(OpCode::SetLocal { index })
             }
@@ -201,7 +201,35 @@ impl Compiled for AST {
             }
 
             AST::FunctionDefinition { function: Identifier(name), parameters, body } => {
+                let end_label_index = program.generate_new_label_name("function_guard");
 
+                program.emit_code(OpCode::Jump { label: end_label_index });
+                let start_address = program.get_upcoming_address();
+
+                environment.add_frame();
+                for parameter in parameters.into_iter() {
+                    environment.register_local(parameter.to_str());
+                }
+
+                (**body).compile_into(program, environment);
+
+                let locals_in_frame = environment.count_locals();
+                environment.remove_frame();
+
+                program.emit_code(OpCode::Return);
+                program.emit_code(OpCode::Label { name: end_label_index });
+                let end_address = program.get_current_address();
+
+                let name = ProgramObject::String(name.to_string());
+                let name_index = program.register_constant(name);
+
+                let method = ProgramObject::Method {
+                    name: name_index,
+                    locals: Size::from_usize(locals_in_frame - parameters.len()),
+                    arguments: Arity::from_usize(parameters.len()),
+                    code: AddressRange::from_addresses(start_address, end_address),
+                };
+                program.register_constant(method);
             }
 
             AST::FunctionApplication { function: Identifier(name), arguments } => {
@@ -210,10 +238,13 @@ impl Compiled for AST {
                     argument.compile_into(program, environment);
                 }
                 let arity = Arity::from_usize(arguments.len());
-                program.emit_code(OpCode::CallMethod { name: index, arguments: arity });
+                program.emit_code(OpCode::CallFunction { name: index, arguments: arity });
             }
 
-            AST::ObjectDefinition { extends: _, members: _ } => { unimplemented!() }
+            AST::ObjectDefinition { extends: _, members: _ } => {
+
+            }
+
             AST::FieldMutation { field_path: _, value: _ } => { unimplemented!() }
             AST::OperatorDefinition { operator: _, parameters: _, body: _ } => { unimplemented!() }
             AST::MethodCall { method_path: _, arguments: _ } => { unimplemented!() }

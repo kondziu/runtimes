@@ -21,6 +21,13 @@ impl Arity {
     }
 }
 
+impl Size {
+    pub fn from_usize(value: usize) -> Size {
+        assert!(value <= 65535usize);
+        Size(value as u16)
+    }
+}
+
 impl LocalFrameIndex {
     pub fn from_usize(value: usize) -> LocalFrameIndex {
         assert!(value <= 65535usize);
@@ -42,6 +49,10 @@ impl AddressRange {
 
     pub fn from (start: usize, length: usize) -> Self {
         AddressRange { start: Address::from_usize(start), length }
+    }
+
+    pub fn from_addresses (start: Address, end: Address) -> Self {
+        AddressRange { start, length: end.value_usize() - start.value_usize() + 1 }
     }
 
     pub fn start(&self) -> &Address {
