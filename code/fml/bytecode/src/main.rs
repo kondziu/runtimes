@@ -2803,6 +2803,101 @@ mod compiler_tests {
         assert_eq!(program, expected_program);
         assert_eq!(bookkeeping, expected_bookkeeping);
     }
+
+    #[test] fn block_many () {
+        let ast = AST::Block(vec!(
+            Box::new(AST::Unit),
+            Box::new(AST::Number(1)),
+            Box::new(AST::Number(42)),
+            Box::new(AST::Number(0)),
+            Box::new(AST::Boolean(true)),
+            Box::new(AST::Number(42))));
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
+            /* 1 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },
+            /* 3 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
+            /* 4 */ OpCode::Literal { index: ConstantPoolIndex::new(3) },
+            /* 5 */ OpCode::Literal { index: ConstantPoolIndex::new(4) },
+            /* 6 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::Null,
+            /* 1 */ ProgramObject::from_i32(1),
+            /* 2 */ ProgramObject::from_i32(42),
+            /* 3 */ ProgramObject::from_i32(0),
+            /* 4 */ ProgramObject::from_bool(true),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn block_one () {
+        let ast = AST::Block(vec!(Box::new(AST::Unit)));
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::Null,
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn block_zero () {
+        let ast = AST::Block(vec!());
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!());
+
+        let expected_constants: Vec<ProgramObject> = vec!();
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
 }
 
 

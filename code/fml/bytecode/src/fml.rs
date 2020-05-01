@@ -313,11 +313,17 @@ impl Compiled for AST {
                 program.emit_code(OpCode::Object { class: class_index })
             }
 
+            AST::Block(children) => {
+                for child in children {
+                    child.deref().compile_into(program, environment)
+                }
+            }
+
             AST::FieldMutation { field_path: _, value: _ } => { unimplemented!() }
             AST::MethodCall { method_path: _, arguments: _ } => { unimplemented!() }
             AST::FieldAccess { object: _, field: _ } => { unimplemented!() }
             AST::OperatorAccess { object: _, operator: _ } => { unimplemented!() }
-            AST::Block(_) => { unimplemented!() }
+
             AST::Operation { operator: _, left: _, right: _ } => { unimplemented!() }
         }
     }
