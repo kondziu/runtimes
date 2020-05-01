@@ -2529,7 +2529,7 @@ mod compiler_tests {
     }
 
     #[test] fn function_application_test_three () {
-        let ast = AST::FunctionApplication {
+        let ast = AST::FunctionCall {
             function: Identifier("f".to_string()),
             arguments: vec!(
                 Box::new(AST::Unit),
@@ -2570,7 +2570,7 @@ mod compiler_tests {
     }
 
     #[test] fn function_application_test_one () {
-        let ast = AST::FunctionApplication {
+        let ast = AST::FunctionCall {
             function: Identifier("f".to_string()),
             arguments: vec!(Box::new(AST::Number(42))),
         };
@@ -2603,7 +2603,7 @@ mod compiler_tests {
     }
 
     #[test] fn function_application_test_zero () {
-        let ast = AST::FunctionApplication {
+        let ast = AST::FunctionCall {
             function: Identifier("f".to_string()),
             arguments: vec!()
         };
@@ -2888,6 +2888,73 @@ mod compiler_tests {
         let expected_code = Code::from(vec!());
 
         let expected_constants: Vec<ProgramObject> = vec!();
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn field_access_test () {
+        let ast = AST::FieldAccess {
+            object: Box::new(AST::LocalAccess { local: Identifier::from("obj") }),
+            field: Identifier::from("x"),
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            /* 1 */ OpCode::GetSlot { name: ConstantPoolIndex::new(0) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::from_str("x"),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn field_mutation_test () {
+        let ast = AST::FieldMutation {
+            object: Box::new(AST::LocalAccess { local: Identifier::from("obj") }),
+            field: Identifier::from("x"),
+            value: Box::new(AST::Number(42)),
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+
+        let expected_code = Code::from(vec!(
+            /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
+            /* 1 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            /* 2 */ OpCode::SetSlot { name: ConstantPoolIndex::new(1) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::from_i32(42),
+            /* 1 */ ProgramObject::from_str("x"),
+        );
 
         let expected_globals: Vec<ConstantPoolIndex> = vec!();
         let expected_entry = ConstantPoolIndex::new(0);

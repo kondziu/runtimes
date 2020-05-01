@@ -17,19 +17,19 @@ pub enum AST {
     ObjectDefinition { extends: Option<Box<AST>>, members: Vec<Box<AST>> },
 
     LocalMutation { local: Identifier, value: Box<AST> },
-    FieldMutation { field_path: Box<AST>, value: Box<AST> },
+    FieldMutation { object: Box<AST>, field: Identifier, value: Box<AST> },
     ArrayMutation { array: Box<AST>, index: Box<AST>, value: Box<AST> },
 
     FunctionDefinition { function: Identifier, parameters: Vec<Identifier>, body: Box<AST> },
     OperatorDefinition { operator: Operator, parameters: Vec<Identifier>, body: Box<AST> },
 
-    FunctionApplication { function: Identifier, arguments: Vec<Box<AST>> },
-    MethodCall { method_path: Box<AST>, arguments: Vec<Box<AST>> },
+    FunctionCall { function: Identifier, arguments: Vec<Box<AST>> },
+    MethodCall { object: Box<AST>, method: Identifier, arguments: Vec<Box<AST>> },
+    OperatorCall { object: Box<AST>, operator: Operator, arguments: Vec<Box<AST>> },
     Print { format: String, arguments: Vec<Box<AST>> },
 
     LocalAccess { local: Identifier },
     FieldAccess { object: Box<AST>, field: Identifier },
-    OperatorAccess { object: Box<AST>, operator: Operator },
     ArrayAccess { array: Box<AST>, index: Box<AST> },
 
     Block (Vec<Box<AST>>),

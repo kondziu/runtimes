@@ -87,14 +87,14 @@ fn compile_tree(ast: AST,
         AST::LocalDefinition { local: _, value: _ } => {  }
         AST::ArrayDefinition { size: _, value: _ } => {  }
         AST::LocalMutation { local: _, value: _ } => {  }
-        AST::FieldMutation { field_path: _, value: _ } => {  }
+        AST::FieldMutation { object: _, field: _, value: _ } => {  }
         AST::ArrayMutation { array: _, index: _, value: _ } => {  }
-        AST::FunctionApplication { function: _, arguments: _ } => {    }
-        AST::MethodCall { method_path: _, arguments: _ } => {  }
+        AST::FunctionCall { function: _, arguments: _ } => {    }
+        AST::MethodCall { object: _, method: _, arguments: _ } => {  }
+        AST::OperatorCall { object: _, operator: _, arguments: _ } => {  }
         AST::Print { format: _, arguments: _ } => {  }
         AST::LocalAccess { local: _ } => {  }
         AST::FieldAccess { object: _, field: _ } => {  }
-        AST::OperatorAccess { object: _, operator: _ } => {  }
         AST::ArrayAccess { array: _, index: _ } => {  }
         AST::Block(children) => {
             for child in children {

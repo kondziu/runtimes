@@ -7,6 +7,7 @@ use crate::types::{LocalFrameIndex, ConstantPoolIndex, Arity, Size, AddressRange
 use std::collections::HashMap;
 use crate::bytecode::OpCode::Literal;
 use std::ops::Deref;
+use fml_ast::AST::OperatorDefinition;
 
 #[derive(PartialEq,Debug,Clone)]
 pub struct Bookkeeping { // TODO rename
@@ -267,7 +268,7 @@ impl Compiled for AST {
                 program.register_constant(method);
             }
 
-            AST::FunctionApplication { function: Identifier(name), arguments } => {
+            AST::FunctionCall { function: Identifier(name), arguments } => {
                 let index = program.register_constant(ProgramObject::String(name.to_string()));
                 for argument in arguments.iter() {
                     argument.compile_into(program, environment);
@@ -319,12 +320,30 @@ impl Compiled for AST {
                 }
             }
 
-            AST::FieldMutation { field_path: _, value: _ } => { unimplemented!() }
-            AST::MethodCall { method_path: _, arguments: _ } => { unimplemented!() }
-            AST::FieldAccess { object: _, field: _ } => { unimplemented!() }
-            AST::OperatorAccess { object: _, operator: _ } => { unimplemented!() }
+            AST::FieldAccess { object, field: Identifier(name) } => {
+                object.deref().compile_into(program, environment);
+                let index = program.register_constant(ProgramObject::from_str(name));
+                program.emit_code(OpCode::GetSlot { name: index })
+            }
 
-            AST::Operation { operator: _, left: _, right: _ } => { unimplemented!() }
+            AST::FieldMutation { object, field: Identifier(name), value } => {
+                value.deref().compile_into(program, environment);
+                object.deref().compile_into(program, environment);
+                let index = program.register_constant(ProgramObject::from_str(name));
+                program.emit_code(OpCode::SetSlot { name: index })
+            }
+
+            AST::MethodCall { object, method, arguments } => {
+                unimplemented!()
+            }
+
+            AST::OperatorCall { object, operator, arguments } => {
+                unimplemented!()
+            }
+
+            AST::Operation { operator, left, right } => {
+                unimplemented!()
+            }
         }
     }
 }
