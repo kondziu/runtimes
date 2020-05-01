@@ -2965,6 +2965,26 @@ mod compiler_tests {
         assert_eq!(program, expected_program);
         assert_eq!(bookkeeping, expected_bookkeeping);
     }
+
+    #[test] fn method_call_test_three () {
+        unimplemented!()
+    }
+
+    #[test] fn method_call_test_one () {
+        unimplemented!()
+    }
+
+    #[test] fn method_call_test_zero () {
+        unimplemented!()
+    }
+
+    #[test] fn operator_call_test () {
+        unimplemented!()
+    }
+
+    #[test] fn operation_test () {
+        unimplemented!()
+    }
 }
 
 

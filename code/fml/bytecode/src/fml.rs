@@ -333,16 +333,32 @@ impl Compiled for AST {
                 program.emit_code(OpCode::SetSlot { name: index })
             }
 
-            AST::MethodCall { object, method, arguments } => {
-                unimplemented!()
+            AST::MethodCall { object, method: Identifier(name), arguments } => {
+                let index = program.register_constant(ProgramObject::from_str(name));
+                for argument in arguments.iter() {
+                    argument.compile_into(program, environment);
+                }
+                object.deref().compile_into(program, environment);
+                let arity = Arity::from_usize(arguments.len() + 1);
+                program.emit_code(OpCode::CallMethod { name: index, arguments: arity });
             }
 
             AST::OperatorCall { object, operator, arguments } => {
-                unimplemented!()
+                let index = program.register_constant(ProgramObject::from_str(operator.to_str()));
+                for argument in arguments.iter() {
+                    argument.compile_into(program, environment);
+                }
+                object.deref().compile_into(program, environment);
+                let arity = Arity::from_usize(arguments.len() + 1);
+                program.emit_code(OpCode::CallMethod { name: index, arguments: arity });
             }
 
             AST::Operation { operator, left, right } => {
-                unimplemented!()
+                let index = program.register_constant(ProgramObject::from_str(operator.to_str()));
+                right.deref().compile_into(program, environment);
+                left.deref().compile_into(program, environment);
+                let arity = Arity::from_usize(2);
+                program.emit_code(OpCode::CallMethod { name: index, arguments: arity });
             }
         }
     }
