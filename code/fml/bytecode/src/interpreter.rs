@@ -72,8 +72,10 @@ impl LocalFrame {
         match index.value() {
             index if index as usize >= self.slots.len() =>
                 Err(format!("No local at index {} in frame", index)),
-            index =>
-                { self.slots[index as usize] = local; Ok(()) },
+            index => {
+                self.slots[index as usize] = local;
+                Ok(())
+            },
         }
     }
 
