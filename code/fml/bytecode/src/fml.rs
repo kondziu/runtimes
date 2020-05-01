@@ -5,6 +5,8 @@ use crate::program::Program;
 use crate::objects::ProgramObject;
 use crate::types::{LocalFrameIndex, ConstantPoolIndex, Arity, Size, AddressRange};
 use std::collections::HashMap;
+use crate::bytecode::OpCode::Literal;
+use std::ops::Deref;
 
 #[derive(PartialEq,Debug,Clone)]
 pub struct Bookkeeping { // TODO rename
@@ -28,7 +30,7 @@ impl Bookkeeping {
     }
 
     fn register_local(&mut self, id: &str) -> LocalFrameIndex {
-        let mut locals = self.locals.last_mut()
+        let locals = self.locals.last_mut()
             .expect("Bookkeeping: cannot register local, no frame on stack");
 
         if let Some(index) = locals.get(id) {
@@ -41,7 +43,7 @@ impl Bookkeeping {
     }
 
     fn count_locals(&self) -> usize {
-        let mut locals = self.locals.last()
+        let locals = self.locals.last()
             .expect("Bookkeeping: cannot count locals, no frame on stack");
 
         locals.len()
@@ -200,6 +202,39 @@ impl Compiled for AST {
                 program.emit_code(OpCode::Print { format, arguments });
             }
 
+            AST::OperatorDefinition { operator, parameters, body } => {
+                let name = operator.to_str();
+                let end_label_index = program.generate_new_label_name("function_guard"); // FIXME merge with FunctionDefinition
+
+                program.emit_code(OpCode::Jump { label: end_label_index });
+                let start_address = program.get_upcoming_address();
+
+                environment.add_frame();
+                for parameter in parameters.into_iter() {
+                    environment.register_local(parameter.to_str());
+                }
+
+                (**body).compile_into(program, environment);
+
+                let locals_in_frame = environment.count_locals();
+                environment.remove_frame();
+
+                program.emit_code(OpCode::Return);
+                program.emit_code(OpCode::Label { name: end_label_index });
+                let end_address = program.get_current_address();
+
+                let name = ProgramObject::String(name.to_string());
+                let name_index = program.register_constant(name);
+
+                let method = ProgramObject::Method {
+                    name: name_index,
+                    locals: Size::from_usize(locals_in_frame - parameters.len()),
+                    arguments: Arity::from_usize(parameters.len()),
+                    code: AddressRange::from_addresses(start_address, end_address),
+                };
+                program.register_constant(method);
+            }
+
             AST::FunctionDefinition { function: Identifier(name), parameters, body } => {
                 let end_label_index = program.generate_new_label_name("function_guard");
 
@@ -241,12 +276,44 @@ impl Compiled for AST {
                 program.emit_code(OpCode::CallFunction { name: index, arguments: arity });
             }
 
-            AST::ObjectDefinition { extends: _, members: _ } => {
+            AST::ObjectDefinition { extends, members } => {
 
+                let slots: Vec<ConstantPoolIndex> = members.iter().map(|m| m.deref()).map(|m| match m {
+                    AST::FunctionDefinition { function, parameters, body } => {
+                        compile_function_definition(function.to_str(), parameters, body.deref(),
+                                                    program, environment)
+
+                    }
+                    AST::OperatorDefinition { operator, parameters, body } => {
+                        compile_function_definition(operator.to_str(), parameters, body.deref(),
+                                                    program, environment)
+
+                    }
+                    AST::LocalDefinition { local: Identifier(name), value } => {
+                        (*value).compile_into(program, environment);
+                        let index = program.register_constant(ProgramObject::from_str(name));
+                        program.register_constant(ProgramObject::slot_from_index(index))
+                    },
+                    _ => panic!("Object definition: cannot define a member from {:?}", m)
+                }).collect();
+
+                let class = ProgramObject::Class(slots);
+                let class_index = program.register_constant(class);
+
+                match extends {
+                    Some(parent) => {
+                        (**parent).compile_into(program, environment)
+                    },
+                    None => {
+                        let index = program.register_constant(ProgramObject::Null);
+                        program.emit_code(Literal { index })
+                    },
+                }
+
+                program.emit_code(OpCode::Object { class: class_index })
             }
 
             AST::FieldMutation { field_path: _, value: _ } => { unimplemented!() }
-            AST::OperatorDefinition { operator: _, parameters: _, body: _ } => { unimplemented!() }
             AST::MethodCall { method_path: _, arguments: _ } => { unimplemented!() }
             AST::FieldAccess { object: _, field: _ } => { unimplemented!() }
             AST::OperatorAccess { object: _, operator: _ } => { unimplemented!() }
@@ -254,4 +321,45 @@ impl Compiled for AST {
             AST::Operation { operator: _, left: _, right: _ } => { unimplemented!() }
         }
     }
+}
+
+fn compile_function_definition(name: &str,
+                               parameters: &Vec<Identifier>,
+                               body: &AST,
+                               program: &mut Program,
+                               environment: &mut Bookkeeping) -> ConstantPoolIndex {
+
+    let end_label_index = program.generate_new_label_name("function_guard");
+    program.emit_code(OpCode::Jump { label: end_label_index });
+
+    let expected_arguments = parameters.len();
+
+    let start_address = program.get_upcoming_address();
+
+    environment.add_frame();
+    for parameter in parameters.into_iter() {
+        environment.register_local(parameter.to_str());
+    }
+
+    body.compile_into(program, environment);
+
+    let locals_in_frame = environment.count_locals();
+    environment.remove_frame();
+
+    program.emit_code(OpCode::Return);
+    let end_address = program.get_current_address();
+
+    program.emit_code(OpCode::Label { name: end_label_index });
+
+    let name = ProgramObject::String(name.to_string());
+    let name_index = program.register_constant(name);
+
+    let method = ProgramObject::Method {
+        name: name_index,
+        locals: Size::from_usize(locals_in_frame - expected_arguments),
+        arguments: Arity::from_usize(expected_arguments),
+        code: AddressRange::from_addresses(start_address, end_address),
+    };
+
+    program.register_constant(method)
 }

@@ -264,7 +264,7 @@ impl Program {
                 let constant = self.get_constant(&index);
                 match constant {
                     Some(ProgramObject::String(name)) => {
-                        let result = self.labels.insert(name.to_string(), address);
+                        let result = self.labels.insert(name.to_string(), address);                 // FIXME
 
                         if result.is_some() {
                             panic!("Emit code error: cannot create label {:?}, \

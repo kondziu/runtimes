@@ -2097,6 +2097,8 @@ mod compiler_tests {
     use crate::fml::Bookkeeping;
     use crate::objects::ProgramObject;
     use crate::types::{ConstantPoolIndex, LocalFrameIndex, Arity, Size, AddressRange};
+    use crate::objects::ProgramObject::Method;
+    use fml_ast::AST::Boolean;
 
     #[test] fn number () {
         let ast = AST::Number(1);
@@ -2674,37 +2676,135 @@ mod compiler_tests {
         assert_eq!(program, expected_program);
         assert_eq!(bookkeeping, expected_bookkeeping);
     }
-}
 
-#[cfg(test)]
-mod doom {
-    use fml_ast::{AST, Identifier};
-    use fml_ast::AST::FunctionDefinition;
-    use crate::compiler::{compile, Blueprint};
+    #[test] fn object_with_methods_and_fields () {
+        let ast = AST::ObjectDefinition {
+            extends: Some(Box::new(Boolean(true))),
+            members: vec!(
+                Box::new(AST::FunctionDefinition {
+                    function: Identifier::from("implies"),
+                    parameters: vec!(Identifier::from("x")),
+                    body: Box::new(AST::Boolean(true))}),
 
-    #[test] fn doom () {
-        let ast: AST = AST::Block(vec!(
-            Box::new(FunctionDefinition {function: Identifier::from("id"), parameters: vec!(Identifier::from("x")), body: Box::new(AST::LocalAccess {local: Identifier::from("x")}) }),
-            Box::new(FunctionDefinition { function: Identifier::from("x"), parameters: vec!(Identifier::from("x")), body: Box::new(AST::Block(vec!(
-                Box::new(FunctionDefinition {function: Identifier::from("id"), parameters: vec!(Identifier::from("x")), body: Box::new(AST::LocalAccess {local: Identifier::from("x")}) }),
-                Box::new(FunctionDefinition {function: Identifier::from("left"), parameters: vec!(Identifier::from("x"), Identifier::from("y")), body: Box::new(AST::LocalAccess {local: Identifier::from("x")}) }),
-                Box::new(FunctionDefinition {function: Identifier::from("right"), parameters: vec!(Identifier::from("x"), Identifier::from("y")), body: Box::new(AST::LocalAccess {local: Identifier::from("y")}) }),
-                Box::new(FunctionDefinition {function: Identifier::from("f"), parameters: vec!(Identifier::from("x"), Identifier::from("x")), body:
-                    Box::new(FunctionDefinition {function: Identifier::from("g"), parameters: vec!(Identifier::from("x"), Identifier::from("x")), body:
-                        Box::new(FunctionDefinition {function: Identifier::from("h"), parameters: vec!(Identifier::from("x"), Identifier::from("x")), body:
-                            Box::new(AST::Number(-1))
-                        })
-                    })
-                }),
-            )))}),
+                Box::new(AST::LocalDefinition {
+                    local: Identifier::from("id"),
+                    value: Box::new(AST::Number(1))}),
+
+                Box::new(AST::FunctionDefinition {
+                    function: Identifier::from("identity"),
+                    parameters: vec!(),
+                    body: Box::new(AST::Boolean(true))}),
+
+                Box::new(AST::FunctionDefinition {
+                    function: Identifier::from("or"),
+                    parameters: vec!(Identifier::from("x")),
+                    body: Box::new(AST::Boolean(true))}),
+
+                Box::new(AST::FunctionDefinition {
+                    function: Identifier::from("and"),
+                    parameters: vec!(Identifier::from("x")),
+                    body: Box::new(AST::LocalAccess {local: Identifier::from("x")})}),
+
+                Box::new(AST::LocalDefinition {
+                    local: Identifier::from("hash"),
+                    value: Box::new(AST::Number(1))}),
+            )
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::empty();
+
+        let expected_code = Code::from(vec!(
+            /*  0 */ OpCode::Jump { label: ConstantPoolIndex::new(0) },      // function_guard_0 - implies
+            /*  1 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true
+            /*  2 */ OpCode::Return,
+            /*  3 */ OpCode::Label { name: ConstantPoolIndex::new(0) },      // function_guard_0
+
+            /*  4 */ OpCode::Literal { index: ConstantPoolIndex::new(4) },   // 1 - slot id
+
+            /*  5 */ OpCode::Jump { label: ConstantPoolIndex::new(7) },      // function_guard_1 - identity
+            /*  6 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true
+            /*  7 */ OpCode::Return,
+            /*  8 */ OpCode::Label { name: ConstantPoolIndex::new(7) },      // function_guard_1
+
+            /*  9 */ OpCode::Jump { label: ConstantPoolIndex::new(10) },     // function_guard_2 - or
+            /* 10 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true
+            /* 11 */ OpCode::Return,
+            /* 12 */ OpCode::Label { name: ConstantPoolIndex::new(10) },     // function_guard_2
+
+            /* 13 */ OpCode::Jump { label: ConstantPoolIndex::new(13) },     // function_guard_3 - or
+            /* 14 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },    // x
+            /* 15 */ OpCode::Return,
+            /* 16 */ OpCode::Label { name: ConstantPoolIndex::new(13) },     // function_guard_3
+
+            /* 17 */ OpCode::Literal { index: ConstantPoolIndex::new(4) },   // 1 - hash
+
+            /* 18 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true - parent
+            /* 19 */ OpCode::Object { class: ConstantPoolIndex:: new(18) },
         ));
 
-        let mut blueprint = Blueprint::new();
-        compile(ast, &mut blueprint);
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 00 */ ProgramObject::from_str("function_guard_0"),
+            /* 01 */ ProgramObject::from_bool(true),
+            /* 02 */ ProgramObject::from_str("implies"),
+            /* 03 */ ProgramObject::Method {
+                name: ConstantPoolIndex::new(2),    // implies
+                arguments: Arity::new(1),
+                locals: Size::new(0),
+                code: AddressRange::from(1, 2),     // addresses: 1, 2
+            },
 
-        assert!(false);
+            /* 04 */ ProgramObject::from_i32(1),
+            /* 05 */ ProgramObject::from_str("id"),
+            /* 06 */ ProgramObject::slot_from_u16(5),
+
+            /* 07 */ ProgramObject::from_str("function_guard_1"),
+            /* 08 */ ProgramObject::from_str("identity"),
+            /* 09 */ ProgramObject::Method {
+                name: ConstantPoolIndex::new(8),    // identity
+                arguments: Arity::new(0),
+                locals: Size::new(0),
+                code: AddressRange::from(6, 2),     // addresses: 6, 7
+            },
+
+            /* 10 */ ProgramObject::from_str("function_guard_2"),
+            /* 11 */ ProgramObject::from_str("or"),
+            /* 12 */ ProgramObject::Method {
+                name: ConstantPoolIndex::new(11),    // or
+                arguments: Arity::new(1),
+                locals: Size::new(0),
+                code: AddressRange::from(10, 2),     // addresses: 10, 11
+            },
+
+            /* 13 */ ProgramObject::from_str("function_guard_3"),
+            /* 14 */ ProgramObject::from_str("and"),
+            /* 15 */ ProgramObject::Method {
+                name: ConstantPoolIndex::new(14),    // and
+                arguments: Arity::new(1),
+                locals: Size::new(0),
+                code: AddressRange::from(14, 2),     // addresses: 14, 15
+            },
+
+            /* 16 */ ProgramObject::from_str("hash"),
+            /* 17 */ ProgramObject::slot_from_u16(16),
+            /* 18 */ ProgramObject::class_from_vec(vec!(3, 6, 9, 12, 15, 17)),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
     }
 }
+
 
 fn main() {
 

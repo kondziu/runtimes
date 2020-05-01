@@ -144,6 +144,44 @@ impl SerializableWithContext for ProgramObject {
     }
 }
 
+impl ProgramObject {
+    pub fn null() -> Self {
+        ProgramObject::Null
+    }
+
+    pub fn from_bool(b: bool) -> Self {
+        ProgramObject::Boolean(b)
+    }
+
+    pub fn from_str(string: &str) -> Self {
+        ProgramObject::String(string.to_string())
+    }
+
+    pub fn from_string(string: String) -> Self {
+        ProgramObject::String(string)
+    }
+
+    pub fn from_i32(n: i32) -> Self {
+        ProgramObject::Integer(n)
+    }
+
+    pub fn from_usize(n: usize) -> Self {
+        ProgramObject::Integer(n as i32)
+    }
+
+    pub fn slot_from_index(index: ConstantPoolIndex) -> Self {
+        ProgramObject::Slot { name: index }
+    }
+
+    pub fn slot_from_u16(index: u16) -> Self {
+        ProgramObject::Slot { name: ConstantPoolIndex::new(index) }
+    }
+
+    pub fn class_from_vec(indices: Vec<u16>) -> Self {
+        ProgramObject::Class(indices.iter().map(|n| ConstantPoolIndex::new(*n)).collect())
+    }
+}
+
 pub type SharedRuntimeObject = Rc<RefCell<RuntimeObject>>;
 
 #[derive(PartialEq,Debug)]
