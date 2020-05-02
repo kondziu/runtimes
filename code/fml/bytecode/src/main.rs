@@ -2090,7 +2090,7 @@ Fib(19) = 6765
 
 #[cfg(test)]
 mod compiler_tests {
-    use fml_ast::{AST, Identifier};
+    use fml_ast::{AST, Identifier, Operator};
     use crate::fml::Compiled;
     use crate::program::{Program, Code};
     use crate::bytecode::OpCode;
@@ -2098,7 +2098,7 @@ mod compiler_tests {
     use crate::objects::ProgramObject;
     use crate::types::{ConstantPoolIndex, LocalFrameIndex, Arity, Size, AddressRange};
     use crate::objects::ProgramObject::Method;
-    use fml_ast::AST::Boolean;
+    use fml_ast::AST::{Boolean, LocalAccess};
 
     #[test] fn number () {
         let ast = AST::Number(1);
@@ -2416,7 +2416,75 @@ mod compiler_tests {
     }
 
     #[test] fn array_definition_complex_test() {
-        unimplemented!()
+        let ast = AST::ArrayDefinition {
+            size: Box::new(AST::Number((10))),
+            value: Box::new(AST::FunctionCall {
+                function: Identifier::from("f"),
+                arguments: vec!()
+            }),
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from(vec!(
+            "?size_0".to_string(),
+            "?array_1".to_string(),
+            "?i_2".to_string()));
+
+        let expected_code = Code::from(vec!(
+            OpCode::Literal { index: ConstantPoolIndex::new(2) },   // size
+            OpCode::SetLocal { index: LocalFrameIndex::new(0) },    // ?size
+            OpCode::Literal { index: ConstantPoolIndex::new(3) },   // null
+            OpCode::Array,                                          // array(size, null)
+            OpCode::SetLocal { index: LocalFrameIndex::new(1) },    // ?array
+            OpCode::Literal { index: ConstantPoolIndex::new(4) },   // 0
+            OpCode::SetLocal { index: LocalFrameIndex::new(2) },    // ?i
+            OpCode::Label { name: ConstantPoolIndex::new(0) },      // label start
+            OpCode::GetLocal { index: LocalFrameIndex::new(0) },    // ?size
+            OpCode::CallMethod { name: ConstantPoolIndex::new(5),
+                                 arguments: Arity::new(2) },        // ?i.ge(?size)
+            OpCode::Branch { label: ConstantPoolIndex::new(1) },    // if true goto end
+            OpCode::GetLocal { index: LocalFrameIndex::new(2) },    // ?i
+            OpCode::CallFunction { name: ConstantPoolIndex::new(6),
+                                   arguments: Arity::new(0) },      // value
+            OpCode::CallMethod { name: ConstantPoolIndex::new(7),
+                                 arguments: Arity::new(3) },        // ?array[?i] = value
+            OpCode::Drop,
+            OpCode::Literal { index: ConstantPoolIndex::new(8) },   // 1
+            OpCode::GetLocal { index: LocalFrameIndex::new(2) },    // ?i
+            OpCode::CallMethod { name: ConstantPoolIndex::new(9),
+                                 arguments: Arity::new(2) },        // ?i + 1
+            OpCode::SetLocal { index: LocalFrameIndex::new(2) },    // ?i = ?i + 1
+            OpCode::Drop,
+            OpCode::GetLocal { index: LocalFrameIndex::new(1) },    // ?array
+            OpCode::Jump { label: ConstantPoolIndex::new(0) },      // goto start
+            OpCode::Label { name: ConstantPoolIndex::new(1) },      // label end
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::from_str("array_init_start_0"),
+            /* 1 */ ProgramObject::from_str("array_init_end_0"),
+            /* 2 */ ProgramObject::from_i32(10),
+            /* 3 */ ProgramObject::Null,
+            /* 4 */ ProgramObject::from_i32(0),
+            /* 5 */ ProgramObject::from_str("ge"),
+            /* 6 */ ProgramObject::from_str("f"),
+            /* 7 */ ProgramObject::from_str("set"),
+            /* 8 */ ProgramObject::from_i32(1),
+            /* 9 */ ProgramObject::from_str("add"),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
     }
 
     #[test] fn array_access_test() {
@@ -2967,23 +3035,184 @@ mod compiler_tests {
     }
 
     #[test] fn method_call_test_three () {
-        unimplemented!()
+        let ast = AST::MethodCall {
+            method: Identifier::from("f"),
+            arguments: vec!(Box::new(AST::Number(1)),
+                            Box::new(AST::Number(2)),
+                            Box::new(AST::Number(3))),
+            object: Box::new(LocalAccess { local: Identifier::from("obj") })
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+
+        let expected_code = Code::from(vec!(
+            OpCode::Literal { index: ConstantPoolIndex::new(1) },
+            OpCode::Literal { index: ConstantPoolIndex::new(2) },
+            OpCode::Literal { index: ConstantPoolIndex::new(3) },
+            OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(4) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::from_str("f"),
+            /* 1 */ ProgramObject::from_i32(1),
+            /* 2 */ ProgramObject::from_i32(2),
+            /* 3 */ ProgramObject::from_i32(3),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
     }
 
     #[test] fn method_call_test_one () {
-        unimplemented!()
+        let ast = AST::MethodCall {
+            method: Identifier::from("f"),
+            arguments: vec!(Box::new(AST::Number(42))),
+            object: Box::new(LocalAccess { local: Identifier::from("obj") })
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+
+        let expected_code = Code::from(vec!(
+            OpCode::Literal { index: ConstantPoolIndex::new(1) },
+            OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(2) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::from_str("f"),
+            /* 1 */ ProgramObject::from_i32(42),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
     }
 
     #[test] fn method_call_test_zero () {
-        unimplemented!()
+        let ast = AST::MethodCall {
+            method: Identifier::from("f"),
+            arguments: vec!(),
+            object: Box::new(LocalAccess { local: Identifier::from("obj") })
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+
+        let expected_code = Code::from(vec!(
+            OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(1) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::from_str("f"),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
     }
 
     #[test] fn operator_call_test () {
-        unimplemented!()
+        let ast = AST::OperatorCall {
+            operator: Operator::Subtraction,
+            arguments: vec!(Box::new(AST::Number(1))),
+            object: Box::new(AST::Number(7)),
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!());
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from(vec!());
+
+        let expected_code = Code::from(vec!(
+            OpCode::Literal { index: ConstantPoolIndex::new(1) },
+            OpCode::Literal { index: ConstantPoolIndex::new(2) },
+            OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(2) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::from_str("-"),
+            /* 1 */ ProgramObject::from_i32(1),
+            /* 2 */ ProgramObject::from_i32(7),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
     }
 
     #[test] fn operation_test () {
-        unimplemented!()
+        let ast = AST::Operation {
+            operator: Operator::Subtraction,
+            right: Box::new(AST::Number(1)),
+            left: Box::new(AST::Number(7)),
+        };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!());
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from(vec!());
+
+        let expected_code = Code::from(vec!(
+            OpCode::Literal { index: ConstantPoolIndex::new(1) },
+            OpCode::Literal { index: ConstantPoolIndex::new(2) },
+            OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(2) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::from_str("-"),
+            /* 1 */ ProgramObject::from_i32(1),
+            /* 2 */ ProgramObject::from_i32(7),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
     }
 }
 

@@ -63,7 +63,7 @@ impl Bookkeeping {
             .expect("Bookkeeping: cannot generate local, no frame on stack");
 
         let index = LocalFrameIndex::from_usize(locals.len());
-        let result = locals.insert(format!("${}_{}", name, locals.len()), index);
+        let result = locals.insert(format!("?{}_{}", name, locals.len()), index);
         assert!(result.is_none());
         index
     }
@@ -143,27 +143,29 @@ impl Compiled for AST {
                         size.deref().compile_into(program, environment);
                         value.deref().compile_into(program, environment);
                         program.emit_code(OpCode::Array);
-                    }
+                    },
                     _ => {
+                        let body_label_index = program.generate_new_label_name("array_init_start"); //                                                                                                              constants:[null,array_init_start_0]
+                        let end_label_index = program.generate_new_label_name("array_init_end");    //                                                                                                              constants:[null,array_init_start_0,ge,array_init_end_0]
+
                         size.deref().compile_into(program, environment);                            // <compile SIZE>           stack:[SIZE]                                    locals:[]                           constants:[]
-                        let size_local_index = environment.generate_new_local("?size");
+                        let size_local_index = environment.generate_new_local("size");
                         program.emit_code(OpCode::SetLocal { index: size_local_index });            // set local 0              stack:[SIZE]                                    locals:[SIZE]                       constants:[]
 
                         let null_index = program.register_constant(ProgramObject::Null);            //                                                                                                              constants:[null]
                         program.emit_code(OpCode::Literal { index: null_index });                   // literal 0                stack:[SIZE,null]                               locals:[SIZE]                       constants:[null]
 
-                        let array_local_index = environment.generate_new_local("?array");
+                        let array_local_index = environment.generate_new_local("array");
                         program.emit_code(OpCode::Array);                                           // array                    stack:[array(SIZE,null)]                        locals:[SIZE]                       constants:[null]
                         program.emit_code(OpCode::SetLocal { index: array_local_index });           // set local 1              stack:[array(SIZE,null)]                        locals:[SIZE,array(SIZE,null)]      constants:[null]
 
                         let zero_index = program.register_constant(ProgramObject::Integer(0));      //                                                                                                              constants:[null,0]
                         program.emit_code(OpCode::Literal { index: zero_index });                   // literal 0                stack:[array(SIZE,null),0]                      locals:[SIZE,array(SIZE,null)]      constants:[null,0]
 
-                        let iterator_local_index = environment.generate_new_local("?i");
+                        let iterator_local_index = environment.generate_new_local("i");
                         program.emit_code(OpCode::SetLocal { index: iterator_local_index });        // set local 2              stack:[array(SIZE,null),0]                      locals:[SIZE,array(SIZE,null),0]    constants:[null,0]
 
-                        let body_label_index =
-                            program.register_constant(ProgramObject::from_str("array_init_start")); //                                                                                                              constants:[null,array_init_start_0]
+
                         program.emit_code(OpCode::Label { name: body_label_index });                // label array_init_start   stack:[array(SIZE,null),0]                      locals:[SIZE,array(SIZE,null),0]    constants:[null,0,array_init_start_0]
 
                         program.emit_code(OpCode::GetLocal { index: size_local_index });            // get local 0              stack:[array(SIZE,null),0,SIZE]                 locals:[SIZE,array(SIZE,null),0]    constants:[null,0,array_init_start_0]
@@ -172,19 +174,28 @@ impl Compiled for AST {
                             program.register_constant(ProgramObject::from_str("ge"));               //                                                                                                              constants:[null,array_init_start_0,ge]
                         program.emit_code(OpCode::CallMethod { name: ge_label_index ,
                                                                arguments: Arity::new(2) });         // call method 3 2          stack:[array(SIZE,null),false]                  locals:[SIZE,array(SIZE,null),0]    constants:[null,0,array_init_start_0,ge]
-                        let end_label_index =
-                            program.register_constant(ProgramObject::from_str("array_init_end"));   //                                                                                                              constants:[null,array_init_start_0,ge,array_init_end_0]
+
                         program.emit_code(OpCode::Branch { label: end_label_index });               // branch 4                 stack:[array(SIZE,null)]                        locals:[SIZE,array(SIZE,null),0]    constants:[null,0,array_init_start_0,ge,array_init_end_0]
 
                         program.emit_code(OpCode::GetLocal { index: iterator_local_index });        // get local 2              stack:[array(SIZE,null),0]                      locals:[SIZE,array(SIZE,null),0]    constants:[null,0,array_init_start_0,ge,array_init_end_0]
                         value.deref().compile_into(program, environment);                           // <compile VALUE>          stack:[array(SIZE,null),0,VALUE]                locals:[SIZE,array(SIZE,null),0]    constants:[null,0,array_init_start_0,ge,array_init_end_0]
 
-                        let set_label_index =
+                        let set_index =
                             program.register_constant(ProgramObject::from_str("set"));              //                                                                                                              constants:[null,array_init_start_0,ge,array_init_end_0,set]
-                        program.emit_code(OpCode::CallMethod { name: set_label_index ,
+                        program.emit_code(OpCode::CallMethod { name: set_index ,
                                                                arguments: Arity::new(3) });         // call method 4 3          stack:[null]                                     locals:[SIZE,array(SIZE,null),0]   constants:[null,0,array_init_start_0,ge,array_init_end_0,set]
                         program.emit_code(OpCode::Drop);                                            // drop                     stack:[]                                         locals:[SIZE,array(SIZE,null),0]   constants:[null,0,array_init_start_0,ge,array_init_end_0,set]
-                        program.emit_code(OpCode::GetLocal { index: array_local_index });           // get local 1              stack:[array(SIZE,null,0)]                       locals:[SIZE,array(SIZE,null),0]   constants:[null,0,array_init_start_0,ge,array_init_end_0,set]
+
+                        let one_index = program.register_constant(ProgramObject::from_i32(1));      //                                                                                                              constants:[null,0,array_init_start_0,ge,array_init_end_0,set,1]
+                        program.emit_code(OpCode::Literal { index: one_index });                    // literal 5                stack:[1]                                        locals:[SIZE,array(SIZE,null),0]   constants:[null,0,array_init_start_0,ge,array_init_end_0,set,1]
+                        program.emit_code(OpCode::GetLocal { index: iterator_local_index });        // get local 2              stack:[1,0]                                      locals:[SIZE,array(SIZE,null),0]   constants:[null,0,array_init_start_0,ge,array_init_end_0,set,1]
+                        let add_index = program.register_constant(ProgramObject::from_str("add"));  //                                                                                                              constants:[null,0,array_init_start_0,ge,array_init_end_0,set,1,add]
+                        program.emit_code(OpCode::CallMethod { name: add_index,
+                                                               arguments: Arity::new(2) });         // call method 7 2          stack:[1=1+0]                                    locals:[SIZE,array(SIZE,null),0]   constants:[null,0,array_init_start_0,ge,array_init_end_0,set,1,add]
+                        program.emit_code(OpCode::SetLocal { index: iterator_local_index });        // set local 2              stack:[1=1+0]                                    locals:[SIZE,array(SIZE,null),1]   constants:[null,0,array_init_start_0,ge,array_init_end_0,set,1,add]
+                        program.emit_code(OpCode::Drop);                                            // drop                     stack:[]                                         locals:[SIZE,array(SIZE,null),1]   constants:[null,0,array_init_start_0,ge,array_init_end_0,set,1,add]
+
+                        program.emit_code(OpCode::GetLocal { index: array_local_index });           // get local 1              stack:[array(SIZE,null,0)]                       locals:[SIZE,array(SIZE,null),1]   constants:[null,0,array_init_start_0,ge,array_init_end_0,set,1,add]
                         program.emit_code(OpCode::Jump { label: body_label_index });                // jump 2
                         program.emit_code(OpCode::Label { name: end_label_index} );                 // label 4
                     }
