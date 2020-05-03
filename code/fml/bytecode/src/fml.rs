@@ -4,7 +4,7 @@ use fml_ast::{AST, Identifier};
 use crate::program::Program;
 use crate::objects::ProgramObject;
 use crate::types::{LocalFrameIndex, ConstantPoolIndex, Arity, Size, AddressRange};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use crate::bytecode::OpCode::Literal;
 use std::ops::Deref;
 use fml_ast::AST::OperatorDefinition;
@@ -12,22 +12,77 @@ use fml_ast::AST::OperatorDefinition;
 #[derive(PartialEq,Debug,Clone)]
 pub struct Bookkeeping { // TODO rename
     locals: Vec<HashMap<String, LocalFrameIndex>>,
+    globals: HashSet<String>,
 //    labels: HashMap<String, ConstantPoolIndex>,
 }
 
+enum VariableIndex {
+    Global(ConstantPoolIndex),
+    Local(LocalFrameIndex),
+}
+
 impl Bookkeeping {
-    pub fn empty() -> Bookkeeping {
-        Bookkeeping { locals: vec!(HashMap::new()) }
+    pub fn with_frame() -> Bookkeeping {
+        Bookkeeping { locals: vec!(HashMap::new()), globals: HashSet::new() }
     }
 
-    pub fn from(locals: Vec<String>) -> Bookkeeping {
+    pub fn without_frame() -> Bookkeeping {
+        Bookkeeping { locals: vec!(), globals: HashSet::new() }
+    }
+
+    pub fn from(locals: Vec<String>, globals: Vec<String>) -> Bookkeeping {
         let mut local_map: HashMap<String, LocalFrameIndex> = HashMap::new();
 
         for (i, local) in locals.into_iter().enumerate() {
             local_map.insert(local, LocalFrameIndex::from_usize(i));
         }
 
-        Bookkeeping { locals: vec!(local_map) }
+        Bookkeeping { locals: vec!(local_map), globals: globals.into_iter().collect() }
+    }
+
+    pub fn from_locals(locals: Vec<String>) -> Bookkeeping {
+        let mut local_map: HashMap<String, LocalFrameIndex> = HashMap::new();
+
+        for (i, local) in locals.into_iter().enumerate() {
+            local_map.insert(local, LocalFrameIndex::from_usize(i));
+        }
+
+        Bookkeeping { locals: vec!(local_map), globals: HashSet::new() }
+    }
+
+    pub fn from_globals(globals: Vec<String>) -> Bookkeeping {
+        Bookkeeping { locals: vec!(), globals: globals.into_iter().collect() }
+    }
+
+    fn has_frame(&self) -> bool {
+        !self.locals.is_empty()
+    }
+
+    fn has_local(&self, id: &str) -> bool {
+        if self.locals.is_empty() {
+            false
+        } else {
+            self.locals.last().unwrap().contains_key(id)
+        }
+    }
+
+//    fn register_variable(&mut self, id: &str) -> VariableIndex {
+//        match self.locals.last_mut() {
+//            Some(locals) => VariableIndex::Local(self.register_local(id)),
+//            None => VariableIndex::Global(self.register_global(id)),
+//        }
+//    }
+
+    fn register_global(&mut self, id: &str) {
+        self.globals.insert(id.to_string());
+//        match self.globals.get(id) {
+//            Some(index) => *index,
+//            None => {
+//                let index = ConstantPoolIndex::from_usize(self.globals.len());
+//                self.globals.insert(id.to_string(), index);
+//                index
+//            },
+//        }
     }
 
     fn register_local(&mut self, id: &str) -> LocalFrameIndex {
@@ -94,21 +149,41 @@ impl Compiled for AST {
                 program.emit_code(OpCode::Literal { index });
             }
 
-            AST::LocalDefinition { local: name, value } => {
-                let index: LocalFrameIndex = environment.register_local(name.to_str()).clone();
-                (**value).compile_into(program, environment);    // FIXME scoping!!!
-                program.emit_code(OpCode::SetLocal { index });
+            AST::VariableDefinition { name: Identifier(name), value } => {
+                if environment.has_frame() {
+                    let index = environment.register_local(name).clone();   // FIXME error if not new
+                    value.deref().compile_into(program, environment);    // FIXME scoping!!!
+                    program.emit_code(OpCode::SetLocal { index });
+                } else {
+                    let index = program.register_constant(ProgramObject::from_str(name));
+                    environment.register_global(name);                  // TODO necessary?
+                    value.deref().compile_into(program, environment);
+                    program.emit_code(OpCode::SetGlobal { name: index });
+                }
             }
 
-            AST::LocalAccess { local: name } => {
-                let index: LocalFrameIndex = environment.register_local(name.to_str()).clone();
-                program.emit_code(OpCode::GetLocal { index });
+            AST::VariableAccess { name: Identifier(name) } => {
+                if environment.has_local(name) {
+                    let index = environment.register_local(name).clone();   // FIXME error if does not exists
+                    program.emit_code(OpCode::GetLocal { index });      // FIXME scoping!!!
+                } else {
+                    let index = program.register_constant(ProgramObject::from_str(name));
+                    environment.register_global(name);                  // TODO necessary?
+                    program.emit_code(OpCode::GetGlobal { name: index });
+                }
             }
 
-            AST::LocalMutation { local: name, value } => {
-                let index: LocalFrameIndex = environment.register_local(name.to_str()).clone();
-                (**value).compile_into(program, environment);    // FIXME scoping!!!
-                program.emit_code(OpCode::SetLocal { index })
+            AST::VariableMutation { name: Identifier(name), value } => {
+                if environment.has_frame() {
+                    let index = environment.register_local(name).clone(); // FIXME error if does not exists
+                    value.deref().compile_into(program, environment);    // FIXME scoping!!!
+                    program.emit_code(OpCode::SetLocal { index });
+                } else {
+                    let index = program.register_constant(ProgramObject::from_str(name));
+                    environment.register_global(name);                  // TODO necessary?
+                    value.deref().compile_into(program, environment);
+                    program.emit_code(OpCode::SetGlobal { name: index });
+                }
             }
 
             AST::Conditional { condition, consequent, alternative } => {
@@ -139,7 +214,7 @@ impl Compiled for AST {
             AST::ArrayDefinition { size, value } => {
                 match value.deref() {
                     AST::Boolean(_) | AST::Number(_) | AST::Unit |
-                    AST::LocalAccess { local:_ } | AST::FieldAccess { object:_, field:_ } => {
+                    AST::VariableAccess { name:_ } | AST::FieldAccess { object:_, field:_ } => {
                         size.deref().compile_into(program, environment);
                         value.deref().compile_into(program, environment);
                         program.emit_code(OpCode::Array);
@@ -316,7 +391,7 @@ impl Compiled for AST {
                                                     program, environment)
 
                     }
-                    AST::LocalDefinition { local: Identifier(name), value } => {
+                    AST::VariableDefinition { name: Identifier(name), value } => {
                         (*value).compile_into(program, environment);
                         let index = program.register_constant(ProgramObject::from_str(name));
                         program.register_constant(ProgramObject::slot_from_index(index))

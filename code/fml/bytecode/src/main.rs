@@ -2098,17 +2098,17 @@ mod compiler_tests {
     use crate::objects::ProgramObject;
     use crate::types::{ConstantPoolIndex, LocalFrameIndex, Arity, Size, AddressRange};
     use crate::objects::ProgramObject::Method;
-    use fml_ast::AST::{Boolean, LocalAccess};
+    use fml_ast::AST::{Boolean, VariableAccess};
 
     #[test] fn number () {
         let ast = AST::Number(1);
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) }
@@ -2132,13 +2132,13 @@ mod compiler_tests {
         let asts = vec!(AST::Number(1), AST::Number(42), AST::Number(0), AST::Number(42));
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         for ast in asts {
             ast.compile_into(&mut program, &mut bookkeeping);
         }
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
@@ -2167,11 +2167,11 @@ mod compiler_tests {
         let ast = AST::Boolean(true);
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) }
@@ -2195,11 +2195,11 @@ mod compiler_tests {
         let ast = AST::Unit;
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) }
@@ -2220,15 +2220,15 @@ mod compiler_tests {
     }
 
     #[test] fn local_definition () {
-        let ast = AST::LocalDefinition { local: Identifier::from("x"),
+        let ast = AST::VariableDefinition { name: Identifier::from("x"),
                                          value: Box::new(AST::Number(1)) };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from(vec!("x".to_string()));
+        let expected_bookkeeping = Bookkeeping::from_locals(vec!("x".to_string()));
 
         let expected_code = Code::from(vec!(
             OpCode::Literal { index: ConstantPoolIndex::new(0) },    // value
@@ -2249,15 +2249,46 @@ mod compiler_tests {
         assert_eq!(bookkeeping, expected_bookkeeping);
     }
 
-    #[test] fn local_access_x () {
-        let ast = AST::LocalAccess { local: Identifier::from("x") };
+    #[test] fn global_definition () {
+        let ast = AST::VariableDefinition { name: Identifier::from("x"),
+            value: Box::new(AST::Number(1)) };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("x".to_string(), "y".to_string()));
+        let mut bookkeeping: Bookkeeping = Bookkeeping::without_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from(vec!("x".to_string(), "y".to_string()));
+        let expected_bookkeeping = Bookkeeping::from_globals(vec!("x".to_string()));
+
+        let expected_code = Code::from(vec!(
+            OpCode::Literal { index: ConstantPoolIndex::new(1) },    // value
+            OpCode::SetGlobal { name: ConstantPoolIndex::new(0) },
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::from_str("x"),
+            /* 1 */ ProgramObject::from_i32(1),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn local_access_x () {
+        let ast = AST::VariableAccess { name: Identifier::from("x") };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("x".to_string(), "y".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping = Bookkeeping::from_locals(vec!("x".to_string(), "y".to_string()));
 
         let expected_code = Code::from(vec!(
             OpCode::GetLocal { index: LocalFrameIndex::new(0) }
@@ -2276,16 +2307,16 @@ mod compiler_tests {
     }
 
     #[test] fn local_access_y () {
-        let ast = AST::LocalAccess { local: Identifier::from("y") };
+        let ast = AST::VariableAccess { name: Identifier::from("y") };
 
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping =
-            Bookkeeping::from(vec!("x".to_string(), "y".to_string()));
+            Bookkeeping::from_locals(vec!("x".to_string(), "y".to_string()));
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping =
-            Bookkeeping::from(vec!("x".to_string(), "y".to_string()));
+            Bookkeeping::from_locals(vec!("x".to_string(), "y".to_string()));
 
         let expected_code = Code::from(vec!(
             OpCode::GetLocal { index: LocalFrameIndex::new(1) }
@@ -2303,15 +2334,75 @@ mod compiler_tests {
         assert_eq!(bookkeeping, expected_bookkeeping);
     }
 
+    #[test] fn global_access () {
+        let ast = AST::VariableAccess { name: Identifier::from("x") };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping =
+            Bookkeeping::from_globals(vec!("x".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping =
+            Bookkeeping::from_globals(vec!("x".to_string()));
+
+        let expected_code = Code::from(vec!(
+            OpCode::GetGlobal { name: ConstantPoolIndex::new(0) }
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            ProgramObject::from_str("x")
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
+    #[test] fn global_access_from_elsewhere () {
+        let ast = AST::VariableAccess { name: Identifier::from("z") };
+
+        let mut program: Program = Program::empty();
+        let mut bookkeeping: Bookkeeping =
+            Bookkeeping::from(vec!("x".to_string()), vec!("z".to_string()));
+
+        ast.compile_into(&mut program, &mut bookkeeping);
+
+        let expected_bookkeeping =
+            Bookkeeping::from(vec!("x".to_string()), vec!("z".to_string()));
+
+        let expected_code = Code::from(vec!(
+            OpCode::GetGlobal { name: ConstantPoolIndex::new(0) }
+        ));
+
+        let expected_constants: Vec<ProgramObject> = vec!(
+            /* 0 */ ProgramObject::from_str("z"),
+        );
+
+        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_entry = ConstantPoolIndex::new(0);
+
+        let expected_program =
+            Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        assert_eq!(program, expected_program);
+        assert_eq!(bookkeeping, expected_bookkeeping);
+    }
+
     #[test] fn loop_de_loop () {
         let ast = AST::Loop { condition: Box::new(AST::Boolean(false)), body: Box::new(AST::Unit) };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Jump { label: ConstantPoolIndex::new(1) },
@@ -2347,11 +2438,11 @@ mod compiler_tests {
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
@@ -2388,11 +2479,11 @@ mod compiler_tests {
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
@@ -2425,11 +2516,11 @@ mod compiler_tests {
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from(vec!(
+        let expected_bookkeeping = Bookkeeping::from_locals(vec!(
             "?size_0".to_string(),
             "?array_1".to_string(),
             "?i_2".to_string()));
@@ -2489,16 +2580,16 @@ mod compiler_tests {
 
     #[test] fn array_access_test() {
         let ast = AST::ArrayAccess {
-            array: Box::new(AST::LocalAccess { local: Identifier("x".to_string()) }),
+            array: Box::new(AST::VariableAccess { name: Identifier("x".to_string()) }),
             index: Box::new(AST::Number(1)),
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("x".to_string()));
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("x".to_string()));
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::from(vec!("x".to_string()));
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("x".to_string()));
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },
@@ -2523,17 +2614,17 @@ mod compiler_tests {
 
     #[test] fn array_mutation_test() {
         let ast = AST::ArrayMutation {
-            array: Box::new(AST::LocalAccess { local: Identifier("x".to_string()) }),
+            array: Box::new(AST::VariableAccess { name: Identifier("x".to_string()) }),
             index: Box::new(AST::Number(1)),
             value: Box::new(AST::Number(42)),
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("x".to_string()));
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("x".to_string()));
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::from(vec!("x".to_string()));
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("x".to_string()));
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },
@@ -2568,11 +2659,11 @@ mod compiler_tests {
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index:  ConstantPoolIndex::new(1) },
@@ -2607,11 +2698,11 @@ mod compiler_tests {
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index:  ConstantPoolIndex::new(1) },
@@ -2644,11 +2735,11 @@ mod compiler_tests {
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index:  ConstantPoolIndex::new(1) },
@@ -2677,11 +2768,11 @@ mod compiler_tests {
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::CallFunction { name: ConstantPoolIndex::new(0), arguments: Arity::new(0) },
@@ -2707,15 +2798,15 @@ mod compiler_tests {
             parameters: vec!(Identifier::from("left"),
                              Identifier::from("middle"),
                              Identifier::from("right")),
-            body: Box::new(AST::LocalAccess {local: Identifier::from("left")})
+            body: Box::new(AST::VariableAccess { name: Identifier::from("left") })
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Jump { label: ConstantPoolIndex::new(0) },
@@ -2754,8 +2845,8 @@ mod compiler_tests {
                     parameters: vec!(Identifier::from("x")),
                     body: Box::new(AST::Boolean(true))}),
 
-                Box::new(AST::LocalDefinition {
-                    local: Identifier::from("id"),
+                Box::new(AST::VariableDefinition {
+                    name: Identifier::from("id"),
                     value: Box::new(AST::Number(1))}),
 
                 Box::new(AST::FunctionDefinition {
@@ -2771,20 +2862,20 @@ mod compiler_tests {
                 Box::new(AST::FunctionDefinition {
                     function: Identifier::from("and"),
                     parameters: vec!(Identifier::from("x")),
-                    body: Box::new(AST::LocalAccess {local: Identifier::from("x")})}),
+                    body: Box::new(AST::VariableAccess { name: Identifier::from("x") })}),
 
-                Box::new(AST::LocalDefinition {
-                    local: Identifier::from("hash"),
+                Box::new(AST::VariableDefinition {
+                    name: Identifier::from("hash"),
                     value: Box::new(AST::Number(1))}),
             )
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /*  0 */ OpCode::Jump { label: ConstantPoolIndex::new(0) },      // function_guard_0 - implies
@@ -2882,11 +2973,11 @@ mod compiler_tests {
             Box::new(AST::Number(42))));
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
@@ -2919,11 +3010,11 @@ mod compiler_tests {
         let ast = AST::Block(vec!(Box::new(AST::Unit)));
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
@@ -2947,11 +3038,11 @@ mod compiler_tests {
         let ast = AST::Block(vec!());
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::empty();
+        let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!());
 
@@ -2969,16 +3060,16 @@ mod compiler_tests {
 
     #[test] fn field_access_test () {
         let ast = AST::FieldAccess {
-            object: Box::new(AST::LocalAccess { local: Identifier::from("obj") }),
+            object: Box::new(AST::VariableAccess { name: Identifier::from("obj") }),
             field: Identifier::from("x"),
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+        let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },
@@ -3001,17 +3092,17 @@ mod compiler_tests {
 
     #[test] fn field_mutation_test () {
         let ast = AST::FieldMutation {
-            object: Box::new(AST::LocalAccess { local: Identifier::from("obj") }),
+            object: Box::new(AST::VariableAccess { name: Identifier::from("obj") }),
             field: Identifier::from("x"),
             value: Box::new(AST::Number(42)),
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+        let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
@@ -3040,15 +3131,15 @@ mod compiler_tests {
             arguments: vec!(Box::new(AST::Number(1)),
                             Box::new(AST::Number(2)),
                             Box::new(AST::Number(3))),
-            object: Box::new(LocalAccess { local: Identifier::from("obj") })
+            object: Box::new(VariableAccess { name: Identifier::from("obj") })
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+        let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         let expected_code = Code::from(vec!(
             OpCode::Literal { index: ConstantPoolIndex::new(1) },
@@ -3079,15 +3170,15 @@ mod compiler_tests {
         let ast = AST::MethodCall {
             method: Identifier::from("f"),
             arguments: vec!(Box::new(AST::Number(42))),
-            object: Box::new(LocalAccess { local: Identifier::from("obj") })
+            object: Box::new(VariableAccess { name: Identifier::from("obj") })
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+        let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         let expected_code = Code::from(vec!(
             OpCode::Literal { index: ConstantPoolIndex::new(1) },
@@ -3114,15 +3205,15 @@ mod compiler_tests {
         let ast = AST::MethodCall {
             method: Identifier::from("f"),
             arguments: vec!(),
-            object: Box::new(LocalAccess { local: Identifier::from("obj") })
+            object: Box::new(VariableAccess { name: Identifier::from("obj") })
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from(vec!("obj".to_string()));
+        let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         let expected_code = Code::from(vec!(
             OpCode::GetLocal { index: LocalFrameIndex::new(0) },
@@ -3151,11 +3242,11 @@ mod compiler_tests {
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!());
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!());
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from(vec!());
+        let expected_bookkeeping = Bookkeeping::from_locals(vec!());
 
         let expected_code = Code::from(vec!(
             OpCode::Literal { index: ConstantPoolIndex::new(1) },
@@ -3187,11 +3278,11 @@ mod compiler_tests {
         };
 
         let mut program: Program = Program::empty();
-        let mut bookkeeping: Bookkeeping = Bookkeeping::from(vec!());
+        let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!());
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from(vec!());
+        let expected_bookkeeping = Bookkeeping::from_locals(vec!());
 
         let expected_code = Code::from(vec!(
             OpCode::Literal { index: ConstantPoolIndex::new(1) },
