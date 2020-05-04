@@ -8,7 +8,7 @@ mod serializable;
 mod program;
 mod debug;
 mod io;
-mod fml;
+mod compiler;
 mod compiler;
 
 #[cfg(test)]
@@ -2091,10 +2091,10 @@ Fib(19) = 6765
 #[cfg(test)]
 mod compiler_tests {
     use fml_ast::{AST, Identifier, Operator};
-    use crate::fml::Compiled;
+    use crate::compiler::Compiled;
     use crate::program::{Program, Code};
     use crate::bytecode::OpCode;
-    use crate::fml::Bookkeeping;
+    use crate::compiler::Bookkeeping;
     use crate::objects::ProgramObject;
     use crate::types::{ConstantPoolIndex, LocalFrameIndex, Arity, Size, AddressRange};
     use crate::objects::ProgramObject::Method;
