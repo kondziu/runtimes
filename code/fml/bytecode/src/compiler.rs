@@ -7,7 +7,6 @@ use crate::types::{LocalFrameIndex, ConstantPoolIndex, Arity, Size, AddressRange
 use std::collections::{HashMap, HashSet};
 use crate::bytecode::OpCode::Literal;
 use std::ops::Deref;
-use fml_ast::AST::OperatorDefinition;
 
 #[derive(PartialEq,Debug,Clone)]
 pub struct Bookkeeping { // TODO rename

@@ -1,12 +1,9 @@
 use std::collections::HashMap;
 
-use crate::types::{Address, LocalFrameIndex};
-use crate::objects::{RuntimeObject, ProgramObject, SharedRuntimeObject};
+use crate::types::{Address, LocalFrameIndex, Arity};
+use crate::objects::{Pointer, Object, ProgramObject};
 use crate::bytecode::OpCode;
 use crate::program::Program;
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::ops::{Deref, DerefMut};
 use std::fmt::Write;
 
 /**
@@ -37,7 +34,7 @@ use std::fmt::Write;
  */
 #[derive(PartialEq,Debug)]
 pub struct LocalFrame {
-    slots: Vec<SharedRuntimeObject>, /* ProgramObject::Slot */
+    slots: Vec<Pointer>, /* ProgramObject::Slot */
     return_address: Option<Address>, /* address */
     //parent_frame: u64, /* index to local frame stack */
 }
@@ -50,7 +47,7 @@ impl LocalFrame {
         }
     }
 
-    pub fn from(return_address: Option<Address>, slots: Vec<SharedRuntimeObject>) -> Self {
+    pub fn from(return_address: Option<Address>, slots: Vec<Pointer>) -> Self {
         LocalFrame {
             return_address,
             slots,
@@ -61,14 +58,14 @@ impl LocalFrame {
         &self.return_address
     }
 
-    pub fn get_local(&self, index: &LocalFrameIndex) -> Option<SharedRuntimeObject> {
+    pub fn get_local(&self, index: &LocalFrameIndex) -> Option<Pointer> {
         match index.value() {
             index if index as usize >= self.slots.len() => None,
             index => Some(self.slots[index as usize].clone()), // new ref
         }
     }
 
-    pub fn update_local(&mut self, index: &LocalFrameIndex, local: SharedRuntimeObject) -> Result<(), String> {
+    pub fn update_local(&mut self, index: &LocalFrameIndex, local: Pointer) -> Result<(), String> {
         match index.value() {
             index if index as usize >= self.slots.len() =>
                 Err(format!("No local at index {} in frame", index)),
@@ -79,7 +76,7 @@ impl LocalFrame {
         }
     }
 
-    pub fn push_local(&mut self, local: SharedRuntimeObject) -> LocalFrameIndex {
+    pub fn push_local(&mut self, local: Pointer) -> LocalFrameIndex {
         self.slots.push(local);
         assert!(self.slots.len() <= 65_535usize);
         LocalFrameIndex::new(self.slots.len() as u16 - 1u16)
@@ -117,12 +114,118 @@ impl LocalFrame {
 //    fn interpret(&self);
 //}
 
+pub struct Memory {
+    memory: HashMap<Pointer, Object>,
+    sequence: usize,
+}
+
+impl Memory {
+    pub fn new() -> Self {
+        Memory { memory: HashMap::new(), sequence: 0 }
+    }
+
+    pub fn allocate(&mut self, object: Object) -> Pointer {
+        let pointer = Pointer::from(self.sequence);
+        self.sequence += 1;
+        let result = self.memory.insert(pointer.clone(), object);
+        assert!(result.is_none());
+        pointer
+    }
+
+    pub fn lookup(&self, pointer: &Pointer) -> Option<&Object> {
+        self.memory.get(pointer)
+    }
+
+    pub fn lookup_mut(&mut self, pointer: &Pointer) -> Option<&mut Object> {
+        self.memory.get_mut(pointer)
+    }
+
+//    pub fn lookup_two_mut(&mut self,
+//                          pointer_1: &Pointer,
+//                          pointer_2: &Pointer) -> (Option<&mut Object>, Option<&Object>) {
+//
+//        let x = self.memory.get(pointer_2);
+//        let y = self.memory.get_mut(pointer_1);
+//        (x, y)
+//    }
+
+//    pub fn lookup_many_mut(&mut self, pointers: Vec<&Pointer>) -> Vec<Option<&mut Object>> {
+//        pointers.iter().map(|p| self.memory.get_mut(p)).collect()
+//    }
+
+    pub fn copy(&mut self, pointer: &Pointer) -> Option<Pointer> {
+        let new_object = match self.memory.get(pointer) {
+            Some(object) => Some(object.clone()),
+            None => None,
+        };
+
+        match new_object {
+            Some(object) => Some(self.allocate(object)),
+            None => None,
+        }
+    }
+
+    pub fn write_over(&mut self, pointer: Pointer, object: Object) -> Result<(),String> {
+        let previous_value = self.memory.insert(pointer, object);
+        match previous_value {
+            Some(_) => Ok(()),
+            None =>
+                Err(format!("Expected an object at {:?} to write over, but none was found",
+                             pointer)),
+        }
+    }
+
+    pub fn dereference_to_string(&self, pointer: &Pointer) -> String {
+        let object = self.lookup(&pointer)
+            .expect(&format!("Expected object at {:?} to convert to string, but none was found",
+                              pointer));
+
+        match object {
+            Object::Null => "null".to_string(),
+            Object::Integer(n) => n.to_string(),
+            Object::Boolean(b) => b.to_string(),
+            Object::Array(elements) => {
+                let mut buffer = String::new();
+                buffer.push('[');
+                for (i, e) in elements.iter().enumerate() {
+                    buffer.push_str(&self.dereference_to_string(e));
+                    if i < elements.len() {
+                        buffer.push_str(", ")
+                    }
+                }
+                buffer.push(']');
+                buffer
+            },
+            Object::Object { parent, fields, methods:_ } => {
+                let mut buffer = String::from("object(");
+
+                buffer.push_str("..=");
+                buffer.push_str(&self.dereference_to_string(parent));
+                buffer.push_str(", ");
+
+                for (i, (name, field)) in fields.iter().enumerate() {
+                    buffer.push_str(name);
+                    buffer.push_str("=");
+                    buffer.push_str(&self.dereference_to_string(field));
+                    if i < fields.len() {
+                        buffer.push_str(", ")
+                    }
+                }
+
+                buffer.push_str(")");
+                buffer
+            }
+        }
+    }
+}
+
 pub struct State {
     pub instruction_pointer: Option<Address>,
     pub frames: Vec<LocalFrame>,
-    pub operands: Vec<SharedRuntimeObject>,
-    pub globals: HashMap<String, SharedRuntimeObject>,
+    pub operands: Vec<Pointer>,
+    pub globals: HashMap<String, Pointer>,
     pub functions: HashMap<String, ProgramObject>,
+    //pub memory: Memory,
 }
 
 impl State {
@@ -137,51 +240,52 @@ impl State {
             _ => panic!("State init error: entry method is not a Method {:?}", entry_method),
         };
 
-        let (globals, functions) = {
-            let mut globals: HashMap<String, SharedRuntimeObject> = HashMap::new();
-            let mut functions: HashMap<String, ProgramObject> = HashMap::new();
 
-            for index in program.globals() {
-                let thing = program.get_constant(index)
-                    .expect(&format!("State init error: no such entry at index pool: {:?}", index));
+        let mut globals: HashMap<String, Pointer> = HashMap::new();
+        let mut functions: HashMap<String, ProgramObject> = HashMap::new();
+        let mut memory: Memory = Memory::new();
 
-                match thing {
-                    ProgramObject::Slot { name: index } => {
-                        let constant = program.get_constant(index)
-                            .expect(&format!("State init error: no such entry at index pool: {:?} \
-                                     (expected by slot: {:?})", index, thing));
-                        let name = match constant {
-                            ProgramObject::String(string) => string,
-                            constant => panic!("State init error: name of global at index {:?} is \
-                                                not a String {:?}", index, constant),
-                        };
-                        if globals.contains_key(name) {
-                            panic!("State init error: duplicate name for global {:?}", name)
-                        }
-                        globals.insert(name.to_string(), RuntimeObject::null());
+        for index in program.globals() {
+            let thing = program.get_constant(index)
+                .expect(&format!("State init error: no such entry at index pool: {:?}", index));
+
+            match thing {
+                ProgramObject::Slot { name: index } => {
+                    let constant = program.get_constant(index)
+                        .expect(&format!("State init error: no such entry at index pool: {:?} \
+                                 (expected by slot: {:?})", index, thing));
+                    let name = match constant {
+                        ProgramObject::String(string) => string,
+                        constant => panic!("State init error: name of global at index {:?} is \
+                                            not a String {:?}", index, constant),
+                    };
+                    if globals.contains_key(name) {
+                        panic!("State init error: duplicate name for global {:?}", name)
                     }
 
-                    ProgramObject::Method { name: index, arguments:_, locals:_, code:_ } => {
-                        let constant = program.get_constant(index)
-                            .expect(&format!("State init error: no such entry at index pool: {:?} \
-                                     (expected by method: {:?})", index, thing));
-                        let name = match constant {
-                            ProgramObject::String(string) => string,
-                            constant => panic!("State init error: name of function at index {:?} \
-                                                is not a String {:?}", index, constant),
-                        };
-                        if functions.contains_key(name) {
-                            panic!("State init error: duplicate name for function {:?}", name)
-                        }
-                        functions.insert(name.to_string(), thing.clone());
-                    }
-                    _ => panic!("State init error: name of global at index {:?} is not a String \
-                                 {:?}", index, thing),
-                };
+                    let pointer = memory.allocate(Object::Null);
+                    globals.insert(name.to_string(), pointer);
+                }
 
-            }
-            (globals, functions)
-        };
+                ProgramObject::Method { name: index, arguments:_, locals:_, code:_ } => {
+                    let constant = program.get_constant(index)
+                        .expect(&format!("State init error: no such entry at index pool: {:?} \
+                                 (expected by method: {:?})", index, thing));
+                    let name = match constant {
+                        ProgramObject::String(string) => string,
+                        constant => panic!("State init error: name of function at index {:?} \
+                                            is not a String {:?}", index, constant),
+                    };
+                    if functions.contains_key(name) {
+                        panic!("State init error: duplicate name for function {:?}", name)
+                    }
+                    functions.insert(name.to_string(), thing.clone());
+                }
+                _ => panic!("State init error: name of global at index {:?} is not a String \
+                             {:?}", index, thing),
+            };
+
+        }
 
         let frames = vec!(LocalFrame::empty());
 
@@ -189,9 +293,9 @@ impl State {
             instruction_pointer: Some(instruction_pointer),
             frames,
             operands: Vec::new(),
-//            labels: HashMap::new(),
             globals,
             functions,
+            //memory,
         }
     }
 
@@ -200,9 +304,9 @@ impl State {
             instruction_pointer: None,
             frames: Vec::new(),
             operands: Vec::new(),
-//            labels: HashMap::new(),
             globals: HashMap::new(),
             functions: HashMap::new(),
+            //memory: Memory::new(),
         }
     }
 
@@ -211,9 +315,9 @@ impl State {
             instruction_pointer: Some(Address::from_usize(0)),
             frames: vec!(LocalFrame::empty()),
             operands: Vec::new(),
-//            labels: HashMap::new(),
             globals: HashMap::new(),
             functions: HashMap::new(),
+            //memory: Memory::new(),
         }
     }
 
@@ -243,19 +347,19 @@ impl State {
         self.frames.pop()
     }
 
-    pub fn new_frame(&mut self, return_address: Option<Address>, slots: Vec<SharedRuntimeObject>,) {
+    pub fn new_frame(&mut self, return_address: Option<Address>, slots: Vec<Pointer>,) {
         self.frames.push(LocalFrame{ slots, return_address });
     }
 
-    pub fn peek_operand(&mut self) -> Option<&SharedRuntimeObject> {
+    pub fn peek_operand(&mut self) -> Option<&Pointer> {
         self.operands.last()
     }
 
-    pub fn pop_operand(&mut self) -> Option<SharedRuntimeObject> {
+    pub fn pop_operand(&mut self) -> Option<Pointer> {
         self.operands.pop()
     }
 
-    pub fn push_operand(&mut self, object: SharedRuntimeObject) -> () {
+    pub fn push_operand(&mut self, object: Pointer) -> () {
         self.operands.push(object)
     }
 
@@ -263,11 +367,11 @@ impl State {
         self.functions.get(name)
     }
 
-    pub fn get_global(&self, name: &str) -> Option<&SharedRuntimeObject> {
+    pub fn get_global(&self, name: &str) -> Option<&Pointer> {
         self.globals.get(name)
     }
 
-    pub fn register_global(&mut self, name: String, object: SharedRuntimeObject) -> Result<(), String> {
+    pub fn register_global(&mut self, name: String, object: Pointer) -> Result<(), String> {
         if self.globals.contains_key(&name) {
             Err(format!("Global {} already registered (with value {:?})",
                         &name, self.globals.get(&name).unwrap()))
@@ -277,7 +381,7 @@ impl State {
         }
     }
 
-    pub fn update_global(&mut self, name: String, object: SharedRuntimeObject) -> Result<(), String> {
+    pub fn update_global(&mut self, name: String, object: Pointer) -> Result<(), String> {
         if self.globals.contains_key(&name) {
             self.globals.insert(name, object);
             Ok(())
@@ -285,36 +389,6 @@ impl State {
             Err(format!("Global {} does not exist and cannot be updated", &name))
         }
     }
-
-//    pub fn get_label_address(&self, name: &str) -> Option<&Address> {
-//        self.labels.get(name)
-//    }
-
-//    pub fn add_label(&mut self, name: String, address: Address) -> Result<(), String> {
-//        if self.labels.contains_key(&name) {
-//            Err(format!("Label {} already registered (with value {:?})",
-//                        &name, self.labels.get(&name).unwrap()))
-//        } else {
-//            self.labels.insert(name, address);
-//            Ok(())
-//        }
-//    }
-
-//    pub fn create_label_at_instruction_pointer(&mut self, name: String) -> Result<(), String> {
-//        let address: Option<Address> = self.instruction_pointer;
-//        if self.labels.contains_key(&name) {
-//            Err(format!("Label {} already registered (with value {:?})",
-//                        &name, self.labels.get(&name).unwrap()))
-//        } else {
-//            match address {
-//                Some(address) => {
-//                    self.labels.insert(name, address);
-//                    Ok(())
-//                },
-//                None => panic!("Cannot set label address to nothing"),
-//            }
-//        }
-//    }
 
     pub fn set_instruction_pointer_from_label(&mut self, program: &Program, name: &str) -> Result<(), String> {
         match program.get_label(name) {
@@ -336,7 +410,7 @@ impl State {
     }
 }
 
-pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Program)
+pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Memory, program: &Program)
     where /*Input : Read,*/ Output : Write {
     let opcode: &OpCode = {
         let address = state.instruction_pointer()
@@ -362,29 +436,27 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                              or Boolean, but is {:?}", index, constant),
             }
 
-            let object = RuntimeObject::from_constant(constant);
-            state.push_operand(object);
+            let pointer = memory.allocate(Object::from_constant(constant));
+            state.push_operand(pointer);
 
             state.bump_instruction_pointer(program);
-//                .expect("Literal error: cannot bump instruction pointer");
         }
 
         OpCode::GetLocal { index } => {
             let frame: &LocalFrame = state.current_frame()
                 .expect("Get local error: no frame on stack.");
 
-            let local: SharedRuntimeObject = frame.get_local(&index)
+            let local: Pointer = frame.get_local(&index)
                 .expect(&format!("Get local error: there is no local at index {:?} in the current \
                                   frame", index));
 
             state.push_operand(local);
 
             state.bump_instruction_pointer(program);
-//                .expect("Get local error: cannot bump instruction pointer");
         }
 
         OpCode::SetLocal { index } => {
-            let operand: SharedRuntimeObject = state.peek_operand()
+            let operand: Pointer = state.peek_operand()
                 .expect("Set local error: cannot pop from empty operand stack")
                 .clone();
 
@@ -396,7 +468,6 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                                   frame", index));
 
             state.bump_instruction_pointer(program);
-//                .expect("Set local error: cannot bump instruction pointer");
         }
 
         OpCode::GetGlobal { name: index } => {
@@ -415,7 +486,6 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
             state.push_operand(global);
 
             state.bump_instruction_pointer(program);
-//                .expect("Get global error: cannot bump instruction pointer");
         }
 
         OpCode::SetGlobal { name: index } => {
@@ -428,14 +498,13 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                              but it is {:?}", index.value(), constant),
             };
 
-            let operand: SharedRuntimeObject = state.peek_operand().map(|o| o.clone())
+            let operand: Pointer = state.peek_operand().map(|o| o.clone())
                 .expect("Set global: cannot pop operand from empty operand stack");
 
             state.update_global(name.to_string(), operand)
                 .expect(&format!("Set global: cannot update global {}, no such global", name));
 
             state.bump_instruction_pointer(program);
-//                .expect("Set global error: cannot bump instruction pointer");
         }
 
         OpCode::Object { class: index } => {
@@ -460,8 +529,8 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
             }); // XXX this will work even if the member definitions are not sorted, which is
                 // contrary to the spec
 
-            let fields: HashMap<String, SharedRuntimeObject> = {
-                let mut map: HashMap<String, SharedRuntimeObject> = HashMap::new();
+            let fields: HashMap<String, Pointer> = {
+                let mut map: HashMap<String, Pointer> = HashMap::new();
                 for slot in slots {
                     if let ProgramObject::Slot {name: index} = slot {
                         let object = state.pop_operand()
@@ -502,7 +571,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                             let name: &str = match constant {
                                 ProgramObject::String(s) => s,
                                 _ => panic!("Object error: constant at index {:?} must be a String, \
-                                         but it is {:?}", index.value(), constant),
+                                             but it is {:?}", index.value(), constant),
                             };
                             let result = map.insert(name.to_string(), method.clone());
 
@@ -522,25 +591,25 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
             let parent = state.pop_operand()
                 .expect("Object error: cannot pop operand (parent) from empty operand stack");
 
-            let object = Rc::new(RefCell::new(RuntimeObject::Object {
-                parent, fields, methods: method_map
-            }));
-
-            state.push_operand(object);
+            let pointer = memory.allocate(Object::from(parent, fields, method_map));
+            state.push_operand(pointer);
 
             state.bump_instruction_pointer(program);
-//                .expect("Object error: cannot bump instruction pointer");
         }
 
         OpCode::Array => {
             let initializer = state.pop_operand()
                 .expect(&format!("Array error: cannot pop initializer from empty operand stack"));
 
-            let size_object = state.pop_operand()
+            let size_pointer = state.pop_operand()
                 .expect(&format!("Array error: cannot pop size from empty operand stack"));
 
-            let size: usize = match size_object.as_ref().borrow().deref() {
-                RuntimeObject::Integer(n) => {
+            let size_object: &Object = memory.lookup(&size_pointer)
+                .expect(&format!("Array error: pointer does not reference an object in memory {:?}",
+                                 size_pointer));
+
+            let size: usize = match size_object {
+                Object::Integer(n) => {
                     if *n < 0 {
                         panic!("Array error: negative value cannot be used to specify the size of \
                                 an array {:?}", size_object);
@@ -552,41 +621,21 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                              {:?}", size_object),
             };
 
-            let elements = {
-                let mut elements: Vec<SharedRuntimeObject> = Vec::new();
+            let array_pointer = {
+                let mut elements: Vec<Pointer> = Vec::new();
                 for _ in 0..size {
-                    elements.push(initializer.clone());
+                    let pointer = memory.copy(&initializer)
+                        .expect(&format!("Array error: no initializer to copy from at {:?}",
+                                         initializer));
+                    elements.push(pointer);
                 }
-                elements
+                let object = Object::from_pointers(elements);
+                memory.allocate(object)
             };
 
-            let object = Rc::new(RefCell::new(RuntimeObject::Array(elements)));
-
-            state.push_operand(object);
-
+            state.push_operand(array_pointer);
             state.bump_instruction_pointer(program);
-//                .expect("Array error: cannot bump instruction pointer");
         }
-
-//        OpCode::ArrayN { size } => {
-//            let elements = {
-//                let mut elements: Vec<SharedRuntimeObject> = Vec::new();
-//                for index in 0..size.value() {
-//                    let element = state.pop_operand()
-//                        .expect(&format!("Array error: cannot pop operand {} from empty operand \
-//                                          stack", index));
-//                    elements.push(element);
-//                }
-//                elements
-//            };
-//
-//            let object = Rc::new(RefCell::new(RuntimeObject::Array(elements)));
-//
-//            state.push_operand(object);
-//
-//            state.bump_instruction_pointer(program);
-////                .expect("Array error: cannot bump instruction pointer");
-//        }
 
         OpCode::GetSlot { name: index } => {
             let constant: &ProgramObject = program.get_constant(index)
@@ -599,14 +648,16 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                             index, constant),
             };
 
-            let operand: SharedRuntimeObject = state.pop_operand()
+            let operand_pointer: Pointer = state.pop_operand()
                 .expect(&format!("Get slot error: cannot pop operand from empty operand stack"));
 
-            match operand.as_ref().borrow().deref() {
-                RuntimeObject::Object { parent:_, fields, methods:_ } => {
-                    let slot: &SharedRuntimeObject = fields.get(name)
-                        .expect(&format!("Get slot error: no field {} in object {:?}",
-                                         name, operand));
+            let operand = memory.lookup(&operand_pointer)
+                .expect(&format!("Get slot error: no operand object at {:?}", operand_pointer));
+
+            match operand {
+                Object::Object { parent:_, fields, methods:_ } => {
+                    let slot: &Pointer = fields.get(name)
+                        .expect(&format!("Get slot error: no field {} in object", name));
 
                     state.push_operand(slot.clone())
                 }
@@ -615,7 +666,6 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                // how temporaries work https://github.com/rust-lang/rust/issues/22449
 
             state.bump_instruction_pointer(program);
-//                .expect("Get slot error: cannot bump instruction pointer");
         }
 
         OpCode::SetSlot { name: index } => {
@@ -629,16 +679,19 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                             index, constant),
             };
 
-            let value: SharedRuntimeObject = state.pop_operand()
+            let value: Pointer = state.pop_operand()
                 .expect(&format!("Set slot error: cannot pop operand (value) from empty operand \
                                   stack"));
 
-            let host: SharedRuntimeObject = state.pop_operand().clone()
+            let host_pointer: Pointer = state.pop_operand().clone()
                 .expect(&format!("Set slot error: cannot pop operand (host) from empty operand \
                                   stack"));
 
-            match host.as_ref().borrow_mut().deref_mut() {
-                RuntimeObject::Object { parent:_, fields, methods:_ } => {
+            let host = memory.lookup_mut(&host_pointer)
+                .expect(&format!("Set slot error: no operand object at {:?}", host_pointer));
+
+            match host {
+                Object::Object { parent:_, fields, methods:_ } => {
                     if !(fields.contains_key(name)) {
                         panic!("Set slot error: no field {} in object {:?}", name, host)
                     }
@@ -651,7 +704,6 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                // how temporaries work https://github.com/rust-lang/rust/issues/22449
 
             state.bump_instruction_pointer(program);
-//                .expect("Get slot error: cannot bump instruction pointer");
         }
 
         OpCode::CallMethod { name: index, arguments: parameters } => {
@@ -659,7 +711,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                 panic!("Call method error: method must have at least one parameter (receiver)");
             }
 
-            let mut arguments: Vec<SharedRuntimeObject> = Vec::with_capacity(parameters.value() as usize);
+            let mut arguments: Vec<Pointer> = Vec::with_capacity(parameters.value() as usize);
             for index in 0..(parameters.value() - 1) {
                 let element = state.pop_operand()
                     .expect(&format!("Call method error: cannot pop argument {} from empty operand \
@@ -667,7 +719,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                 arguments.push(element);
             }
 
-            let object: SharedRuntimeObject = state.pop_operand()
+            let object_pointer: Pointer = state.pop_operand()
                 .expect(&format!("Call method error: cannot pop host object from empty operand \
                                   stack"));
 
@@ -681,176 +733,20 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                              {:?}", index, constant),
             };
 
-            match object.as_ref().borrow_mut().deref_mut() {
-                RuntimeObject::Null => {
-                    if arguments.len() != 1 {
-                        panic!("Call method error: Null method {} takes 1 argument, but {} were \
-                                supplied", name, arguments.len())
-                    }
+            let object: &mut Object = memory.lookup_mut(&object_pointer)
+                .expect(&format!("Call method error: no operand object at {:?}", object_pointer));
 
-                    let operand_is_null: bool = match arguments[0].as_ref().borrow().deref() {
-                        RuntimeObject::Null => true,
-                        _ => false,
-                    };
-                    let result = match name {
-                        "eq"  | "==" => RuntimeObject::from_bool(operand_is_null),
-                        "neq" | "!=" => RuntimeObject::from_bool(!operand_is_null),
-                        _ => panic!("Call method error: Null type does not implement method {}",
-                                    name),
-                    };
-                    state.push_operand(result);
-                    state.bump_instruction_pointer(program);
-                },
-                RuntimeObject::Integer(i) => {
-                    if arguments.len() != 1 {
-                        panic!("Call method error: Integer method {} takes 1 argument, but {} were \
-                                supplied", name, arguments.len())
-                    }
-                    let result = match (name, arguments[0].as_ref().borrow().deref()) {
-                        ("+",   RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i +  *j),
-                        ("-",   RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i -  *j),
-                        ("*",   RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i *  *j),
-                        ("/",   RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i /  *j),
-                        ("%",   RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i %  *j),
-                        ("<=",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i <= *j),
-                        (">=",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i >= *j),
-                        ("<",   RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i <  *j),
-                        (">",   RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i >  *j),
-                        ("==",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i == *j),
-                        ("!=",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i != *j),
-                        ("==",  _)                         => RuntimeObject::from_bool(false),
-                        ("!=",  _)                         => RuntimeObject::from_bool(true),
-
-                        ("add", RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i +  *j),
-                        ("sub", RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i -  *j),
-                        ("mul", RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i *  *j),
-                        ("div", RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i /  *j),
-                        ("mod", RuntimeObject::Integer(j)) => RuntimeObject::from_i32 (*i %  *j),
-                        ("le",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i <= *j),
-                        ("ge",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i >= *j),
-                        ("lt",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i <  *j),
-                        ("gt",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i >  *j),
-                        ("eq",  RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i == *j),
-                        ("neq", RuntimeObject::Integer(j)) => RuntimeObject::from_bool(*i != *j),
-                        ("eq",  _)                         => RuntimeObject::from_bool(false),
-                        ("neq", _)                         => RuntimeObject::from_bool(true),
-
-                        _ => panic!("Call method error: Integer type does not implement method {} for operand {:?}",
-                                    name, arguments[0]),
-                    };
-
-                    state.push_operand(result);
-                    state.bump_instruction_pointer(program);
-                }
-                RuntimeObject::Boolean(p) => {
-                    if arguments.len() != 1 {
-                        panic!("Call method error: Boolean method {} takes 1 argument, but {} were \
-                                supplied", name, arguments.len())
-                    }
-                    let result = match (name, arguments[0].as_ref().borrow().deref()) {
-                        ("and", RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p && *q),
-                        ("or",  RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p || *q),
-                        ("eq",  RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p == *q),
-                        ("neq", RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p != *q),
-                        ("eq",  _)                         => RuntimeObject::from_bool(false),
-                        ("neq", _)                         => RuntimeObject::from_bool(true),
-
-                        ("&",   RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p && *q),
-                        ("|",   RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p || *q),
-                        ("==",  RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p == *q),
-                        ("!=",  RuntimeObject::Boolean(q)) => RuntimeObject::from_bool(*p != *q),
-                        ("==",  _)                         => RuntimeObject::from_bool(false),
-                        ("!=",  _)                         => RuntimeObject::from_bool(true),
-
-                        _ => panic!("Call method error: Boolean type does not implement method {}",
-                                    name),
-                    };
-                    state.push_operand(result);
-                    state.bump_instruction_pointer(program);
-                }
-                RuntimeObject::Array(elements) => {
-                    if arguments.len() != (parameters.value() - 1) as usize {
-                        panic!("Call method error: Array method {} takes {} argument, but {} were \
-                                supplied", name, parameters.value(), arguments.len())
-                    }
-
-                    let result: SharedRuntimeObject = match name {
-                        "get"  => {
-                            if parameters.value() as usize != 2 {
-                                panic!("Call method error: Array method get takes {} argument, but \
-                                        it should take 1", parameters.value() - 1)
-                            }
-                            match arguments[0].as_ref().borrow().deref() {
-                                RuntimeObject::Integer(n) => {
-                                    if (*n as usize) >= elements.len() {
-                                        panic!("Call method error: array index {} is out of bounds",
-                                               n)
-                                    }
-
-                                    elements[*n as usize].clone()
-                                },
-                                _ => panic!("Call method error: cannot apply Array method {} with \
-                                     argument {:?}", name, arguments[0]),
-                            }
-                        },
-                        "set"  => {
-                            if parameters.value() as usize != 3 {
-                                panic!("Call method error: Array method set takes {} argument, but \
-                                        it should take 2", parameters.value() - 1)
-                            }
-                            match arguments[0].as_ref().borrow().deref() {
-                                RuntimeObject::Integer(n) => {
-                                    if (*n as usize) >= elements.len() {
-                                        panic!("Call method error: array index {} is out of bounds",
-                                               n)
-                                    }
-
-                                    elements[*n as usize] = arguments[1].clone();
-                                    RuntimeObject::null()
-                                },
-                                _ => panic!("Call method error: cannot apply Array method {} with \
-                                     argument {:?}", name, arguments[0]),
-                            }
-                        }
-                        _ => panic!("Call method error: Array type does not implement method {}",
-                                    name),
-                    };
-                    state.push_operand(result);
-                    state.bump_instruction_pointer(program);
-                }
-                RuntimeObject::Object { parent, fields:_, methods } => {
-                    let constant = methods.get(name)                                                // FIXME dispatch though
-                        .expect(&format!("Call method error: there is no method {} in object{:?}",
-                                          name, object));
-                    match constant {
-                        ProgramObject::Method { name:_, arguments: parameters, locals, code } => {
-                            if arguments.len() != (parameters.value() - 1) as usize {
-                                panic!("Call method error: method {} from object {:?} takes {} \
-                                        arguments, but {} were supplied",
-                                        name, object, parameters.value(), arguments.len())
-                            }
-
-                            let slots = {
-                                let mut slots: Vec<SharedRuntimeObject> =
-                                    Vec::with_capacity(1 + parameters.value() as usize
-                                                         + locals.value() as usize);
-                                slots.push(object.clone());
-                                slots.extend(arguments);
-                                for _ in 0..locals.value() {
-                                    slots.push(RuntimeObject::null())
-                                }
-                                slots
-                            };
-
-                            state.bump_instruction_pointer(program);
-                            state.new_frame(*state.instruction_pointer(), slots);
-                            state.set_instruction_pointer(Some(*code.start()));
-                        },
-                        thing => panic!("Call method error: member {} in object definition {:?}
-                                         should have type Method, but it is {:?}",
-                                         name, object, thing),
-                    };
-                }
+            match object {
+                Object::Null =>
+                    interpret_null_method(object_pointer, name, &arguments, state, output, memory, program),
+                Object::Integer(_) =>
+                    interpret_integer_method(object_pointer, name, &arguments, state, output, memory, program),
+                Object::Boolean(_) =>
+                    interpret_boolean_method(object_pointer, name, &arguments, state, output, memory, program),
+                Object::Array(_) =>
+                    interpret_array_method(object_pointer, name, &arguments, *parameters, state, output, memory, program),
+                Object::Object { parent:_, fields:_, methods:_ } =>
+                    dispatch_object_method(object_pointer, name, &arguments, *parameters, state, output, memory, program),
             };
         }
 
@@ -879,7 +775,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                                but {} were supplied", parameters.value(), arguments.value())
                     }
 
-                    let mut slots: Vec<SharedRuntimeObject> =
+                    let mut slots: Vec<Pointer> =
                         Vec::with_capacity(parameters.value() as usize + locals.value() as usize);
 
                     for index in 0..arguments.value() {
@@ -890,7 +786,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                     }
 
                     for _ in 0..locals.value() {
-                        slots.push(RuntimeObject::null())
+                        slots.push(memory.allocate(Object::Null))
                     }
 
                     state.bump_instruction_pointer(program);
@@ -904,7 +800,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
 
         OpCode::Print { format: index, arguments } => {
             let mut argument_values = {
-                let mut argument_values: Vec<SharedRuntimeObject> = Vec::new();
+                let mut argument_values: Vec<Pointer> = Vec::new();
                 for index in 0..arguments.value() {
                     let element = state.pop_operand()
                         .expect(&format!("Print error: cannot pop argument {} from empty operand \
@@ -927,7 +823,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                 match character {
                     '~' => {
                         let string = &argument_values.pop()
-                            .map(|e| RuntimeObject::to_string(&e))
+                            .map(|e| memory.dereference_to_string(&e))
                             .expect(&format!("Print error: Not enough arguments for format {}",
                                              format));
 
@@ -945,28 +841,14 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
                 panic!("Print error: Unused arguments for format {}", format)
             }
 
-            state.push_operand(RuntimeObject::from_constant(&ProgramObject::Null));
+            let null = Object::from_constant(&ProgramObject::Null);
+            state.push_operand(memory.allocate(null));
 
             state.bump_instruction_pointer(program);
-//                .expect("Print error: cannot bump instruction pointer");
         }
 
         OpCode::Label { name: _ } => {
-//            let constant: &ProgramObject = program.get_constant(label)
-//                .expect(&format!("Label error: no constant to serve as label name at index {:?}",
-//                                 label.value()));
-//
-//            let name: &str = match constant {
-//                ProgramObject::String(s) => s,
-//                _ => panic!("Label error: constant at index {:?} must be a String, but it is {:?}",
-//                            label, constant),
-//            };
-
             state.bump_instruction_pointer(program);
-//                .expect("Label error: cannot bump instruction pointer");
-
-//            state.create_label_at_instruction_pointer(name.to_string())
-//                .expect(&format!("Label error: a label with name {} already exists", name));
         }
 
         OpCode::Jump { label } => {
@@ -987,10 +869,13 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
             let operand = state.pop_operand()
                 .expect("Branch error: cannot pop operand from empty operand stack");
 
+            let jump_condition_object = memory.lookup(&operand)
+                .expect(&format!("Branch error: cannot find condition at {:?}", operand));
+
             let jump_condition = {
-                match *operand.as_ref().borrow() {
-                    RuntimeObject::Boolean(value) => value,
-                    RuntimeObject::Null => false,
+                match jump_condition_object {
+                    Object::Boolean(value) => *value,
+                    Object::Null => false,
                     _ => true,
                 }
             };
@@ -1026,13 +911,296 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, program: &Progr
             state.pop_operand()
                 .expect("Drop error: cannot pop operand from empty operand stack");
             state.bump_instruction_pointer(program);
-//                .expect("Drop error: cannot bump instruction pointer");
         },
 
         OpCode::Skip => {
             state.bump_instruction_pointer(program);
-//                .expect("Skip error: cannot bump instruction pointer");
         }
     }
 }
 
+macro_rules! check_arguments_one {
+    ($pointer: expr, $arguments: expr, $name: expr, $memory: expr) => {{
+        if $arguments.len() != 1 {
+            panic!("Call method error: method {} takes 1 argument, but {} were supplied",
+                    $name, $arguments.len())
+        }
+
+        let argument_pointer: &Pointer = &$arguments[0];
+        let argument = $memory.lookup(argument_pointer)
+            .expect(&format!("Call method error: no operand object at {:?}", argument_pointer));
+
+        let object = $memory.lookup(&$pointer).unwrap(); /*checked earlier*/
+        (object, argument)
+    }}
+}
+
+macro_rules! push_result_and_finish {
+    ($result: expr, $state: expr, $memory: expr, $program: expr) => {{
+        let pointer = $memory.allocate($result);
+        $state.push_operand(pointer);
+        $state.bump_instruction_pointer($program);
+    }}
+}
+
+macro_rules! push_pointer_and_finish {
+    ($result: expr, $state: expr, $memory: expr, $program: expr) => {{
+        $state.push_operand(*$result);
+        $state.bump_instruction_pointer($program);
+    }}
+}
+
+pub fn interpret_null_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
+                                     state: &mut State, output: &mut Output,
+                                     memory: &mut Memory, program: &Program) {
+
+    let (object, operand) = check_arguments_one!(pointer, arguments, name, memory);
+    let result = match (name, operand) {
+        ("eq", Object::Null)  => Object::from_bool(true),
+        ("eq", _)             => Object::from_bool(false),
+        ("neq", Object::Null) => Object::from_bool(false),
+        ("neq", _)            => Object::from_bool(true),
+
+        _ => panic!("Call method error: object {:?} has no method {} for operand {:?}",
+                     object, name, operand),
+    };
+    push_result_and_finish!(result, state, memory, program);
+}
+
+pub fn interpret_integer_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
+                                        state: &mut State, output: &mut Output, memory: &mut Memory,
+                                        program: &Program) {
+
+    let (object, operand) = check_arguments_one!(pointer, arguments, name, memory);
+    let result = match (object, name, operand) {
+        (Object::Integer(i), "+",   Object::Integer(j)) => Object::from_i32 (*i +  *j),
+        (Object::Integer(i), "-",   Object::Integer(j)) => Object::from_i32 (*i -  *j),
+        (Object::Integer(i), "*",   Object::Integer(j)) => Object::from_i32 (*i *  *j),
+        (Object::Integer(i), "/",   Object::Integer(j)) => Object::from_i32 (*i /  *j),
+        (Object::Integer(i), "%",   Object::Integer(j)) => Object::from_i32 (*i %  *j),
+        (Object::Integer(i), "<=",  Object::Integer(j)) => Object::from_bool(*i <= *j),
+        (Object::Integer(i), ">=",  Object::Integer(j)) => Object::from_bool(*i >= *j),
+        (Object::Integer(i), "<",   Object::Integer(j)) => Object::from_bool(*i <  *j),
+        (Object::Integer(i), ">",   Object::Integer(j)) => Object::from_bool(*i >  *j),
+        (Object::Integer(i), "==",  Object::Integer(j)) => Object::from_bool(*i == *j),
+        (Object::Integer(i), "!=",  Object::Integer(j)) => Object::from_bool(*i != *j),
+        (Object::Integer(i), "==",  _)                  => Object::from_bool(false),
+        (Object::Integer(i), "!=",  _)                  => Object::from_bool(true),
+
+        (Object::Integer(i), "add", Object::Integer(j)) => Object::from_i32 (*i +  *j),
+        (Object::Integer(i), "sub", Object::Integer(j)) => Object::from_i32 (*i -  *j),
+        (Object::Integer(i), "mul", Object::Integer(j)) => Object::from_i32 (*i *  *j),
+        (Object::Integer(i), "div", Object::Integer(j)) => Object::from_i32 (*i /  *j),
+        (Object::Integer(i), "mod", Object::Integer(j)) => Object::from_i32 (*i %  *j),
+        (Object::Integer(i), "le",  Object::Integer(j)) => Object::from_bool(*i <= *j),
+        (Object::Integer(i), "ge",  Object::Integer(j)) => Object::from_bool(*i >= *j),
+        (Object::Integer(i), "lt",  Object::Integer(j)) => Object::from_bool(*i <  *j),
+        (Object::Integer(i), "gt",  Object::Integer(j)) => Object::from_bool(*i >  *j),
+        (Object::Integer(i), "eq",  Object::Integer(j)) => Object::from_bool(*i == *j),
+        (Object::Integer(i), "neq", Object::Integer(j)) => Object::from_bool(*i != *j),
+        (Object::Integer(i), "eq",  _)                  => Object::from_bool(false),
+        (Object::Integer(i), "neq", _)                  => Object::from_bool(true),
+
+        _ => panic!("Call method error: object {:?} has no method {} for operand {:?}",
+                     object, name, operand),
+    };
+    push_result_and_finish!(result, state, memory, program);
+}
+
+pub fn interpret_boolean_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
+                                        state: &mut State, output: &mut Output, memory: &mut Memory,
+                                        program: &Program) {
+
+    let (object, operand) = check_arguments_one!(pointer, arguments, name, memory);
+    let result = match (object, name, operand) {
+        (Object::Boolean(p), "and", Object::Boolean(q)) => Object::from_bool(*p && *q),
+        (Object::Boolean(p), "or",  Object::Boolean(q)) => Object::from_bool(*p || *q),
+        (Object::Boolean(p), "eq",  Object::Boolean(q)) => Object::from_bool(*p == *q),
+        (Object::Boolean(p), "neq", Object::Boolean(q)) => Object::from_bool(*p != *q),
+        (Object::Boolean(p), "eq",  _)                  => Object::from_bool(false),
+        (Object::Boolean(p), "neq", _)                  => Object::from_bool(true),
+
+        (Object::Boolean(p), "&",   Object::Boolean(q)) => Object::from_bool(*p && *q),
+        (Object::Boolean(p), "|",   Object::Boolean(q)) => Object::from_bool(*p || *q),
+        (Object::Boolean(p), "==",  Object::Boolean(q)) => Object::from_bool(*p == *q),
+        (Object::Boolean(p), "!=",  Object::Boolean(q)) => Object::from_bool(*p != *q),
+        (Object::Boolean(p), "==",  _)                  => Object::from_bool(false),
+        (Object::Boolean(p), "!=",  _)                  => Object::from_bool(true),
+
+        _ => panic!("Call method error: object {:?} has no method {} for operand {:?}",
+                    object, name, operand),
+    };
+    push_result_and_finish!(result, state, memory, program);
+}
+
+pub fn interpret_array_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<Pointer>, arity: Arity,
+                                        state: &mut State, output: &mut Output, memory: &mut Memory,
+                                        program: &Program) {
+
+    if arguments.len() != arity.to_usize() {
+        panic!("Call method error: Array method {} takes {} argument, but {} were supplied",
+                name, arity.value(), arguments.len())
+    }
+
+    if name == "get" {
+        let (object, operand) = check_arguments_one!(pointer, arguments, name, memory);
+        let result = match (object, operand) {
+            (Object::Array(element_pointers), Object::Integer(index)) => {
+                if (*index as usize) >= element_pointers.len() {
+                    panic!("Call method error: array index {} is out of bounds (should be < {})",
+                            index, element_pointers.len())
+                }
+                element_pointers.get(*index as usize)
+                    .expect("Call method error: no array element object at {:?}")
+            },
+            _ => panic!("Call method error: object {:?} has no method {} for operand {:?}",
+                         object, name, operand),
+        };
+
+        push_pointer_and_finish!(result, state, memory, program);
+    }
+
+    if name == "set" {
+        if arguments.len() != 1 {
+            panic!("Call method error: method {} takes 1 argument, but {} were supplied",
+                   name, arguments.len())
+        }
+
+        let operand_1_pointer: &Pointer = &arguments[0];
+        let operand_2_pointer: &Pointer = &arguments[1];
+
+        let index: usize = match memory.lookup(operand_1_pointer) {
+            Some(Object::Integer(index)) => *index as usize,
+            Some(object) => panic!("Call method error: cannot index array with {:?}", object),
+            None => panic!("Call method error: no operand (1) object at {:?}", operand_1_pointer),
+        };
+
+        let object : &mut Object = memory.lookup_mut(&pointer).unwrap(); /* pre-checked elsewhere */
+        let result = match object {
+            Object::Array(element_pointers) => {
+                if index >= element_pointers.len() {
+                    panic!("Call method error: array index {} is out of bounds (should be < {})",
+                           index, element_pointers.len())
+                }
+                element_pointers[index] = *operand_2_pointer;
+                Object::Null
+            },
+            _ => panic!("Call method error: object {:?} has no method {}", object, name),
+        };
+
+        push_result_and_finish!(result, state, memory, program)
+    }
+}
+
+fn dispatch_object_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
+                                  arity: Arity, state: &mut State, output: &mut Output,
+                                  memory: &mut Memory, program: &Program) {
+    let mut cursor: Pointer = pointer;
+    loop {
+        let object = memory.lookup(&cursor)
+            .expect("Call method error: no object at {:?}");
+
+        match object {
+            Object::Object { parent, fields: _, methods } => {
+                if let Some(method) = methods.get(name) {
+
+                } else {
+                    cursor = *parent;
+                }
+            },
+            Object::Null =>
+                interpret_null_method(pointer, name, arguments, state, output, memory, program),
+            Object::Boolean(_) =>
+                interpret_boolean_method(pointer, name, arguments, state, output, memory, program),
+            Object::Integer(_) =>
+                interpret_integer_method(pointer, name, arguments, state, output, memory, program),
+            Object::Array(_) =>
+                interpret_array_method(pointer, name, arguments, arity, state, output, memory, program),
+        };
+    }
+}
+
+
+
+//    let dispatch = find_method_for_dispatch(&pointer, name, memory, program);
+//    match dispatch {
+//        DispatchInstruction::Method(_) => {
+//
+//        },
+//        DispatchInstruction::NullInternal(pointer) =>
+//
+//        DispatchInstruction::BooleanInternal(pointer) =>
+//            interpret_boolean_method(pointer, name, arguments, state, output, memory, program),
+//        DispatchInstruction::IntegerInternal(pointer) =>
+//            interpret_integer_method(pointer, name, arguments, state, output, memory, program),
+//        DispatchInstruction::ArrayInternal(pointer) =>
+//            interpret_array_method(pointer, name, arguments, arity, state, output, memory, program),
+//        DispatchInstruction::Missing =>
+//            panic!("Call method error: object {:?} has no method {}", memory.lookup(&pointer), name),
+//    }
+
+    //Object::Object { parent:_, fields:_, methods:_ }
+
+//    let constant = methods.get(name)                                                // FIXME dispatch though
+//     .expect(&format!("Call method error: there is no method {} in object{:?}",
+//                       name, object));
+// match constant {
+//     ProgramObject::Method { name:_, arguments: parameters, locals, code } => {
+//         if arguments.len() != (parameters.value() - 1) as usize {
+//             panic!("Call method error: method {} from object {:?} takes {} \
+//                     arguments, but {} were supplied",
+//                     name, object, parameters.value(), arguments.len())
+//         }
+//
+//         let slots = {
+//             let mut slots: Vec<Pointer> =
+//                 Vec::with_capacity(1 + parameters.value() as usize
+//                                      + locals.value() as usize);
+//             slots.push(object_pointer);
+//             slots.extend(arguments);
+//             for _ in 0..locals.value() {
+//                 slots.push(memory.allocate(Object::Null))
+//             }
+//             slots
+//         };
+//
+//         state.bump_instruction_pointer(program);
+//         state.new_frame(*state.instruction_pointer(), slots);
+//         state.set_instruction_pointer(Some(*code.start()));
+//     },
+//     thing => panic!("Call method error: member {} in object definition {:?}
+//                      should have type Method, but it is {:?}",
+//                      name, object, thing),
+// };
+
+fn interpret_object_method<Output>(method: ProgramObject, pointer: Pointer, name: &str,
+                                   arguments: &Vec<Pointer>, arity: Arity, state: &mut State,
+                                   output: &mut Output, memory: &mut Memory, program: &Program) {
+
+    match method {
+        ProgramObject::Method { name: _, locals, arguments: arity, code } => {
+            if arguments.len() != arity.to_usize() - 1 {
+                panic!("Call method error: method {} takes {} arguments, but {} were supplied",
+                        name, arity.value(), arguments.len())
+            }
+
+            let mut slots: Vec<Pointer> =
+                Vec::with_capacity(1 + arity.to_usize() + locals.to_usize());
+
+            slots.push(pointer);
+            slots.extend(arguments); // TODO passes by reference... correct?
+
+            for _ in 0..locals.to_usize() {
+                slots.push(memory.allocate(Object::Null))
+            }
+
+            state.bump_instruction_pointer(program);
+            state.new_frame(*state.instruction_pointer(), slots);
+            state.set_instruction_pointer(Some(*code.start()));
+
+        },
+
+        thing => panic!("Call method error: member {} in object definition should have type \
+                         Method, but it is {:?}", name, thing),
+    }
+}

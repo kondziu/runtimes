@@ -19,12 +19,18 @@ impl Arity {
         assert!(value <= 255usize);
         Arity(value as u8)
     }
+    pub fn to_usize(&self) -> usize {
+        self.0 as usize
+    }
 }
 
 impl Size {
     pub fn from_usize(value: usize) -> Size {
         assert!(value <= 65535usize);
         Size(value as u16)
+    }
+    pub fn to_usize(&self) -> usize {
+        self.0 as usize
     }
 }
 

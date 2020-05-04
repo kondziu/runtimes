@@ -3,12 +3,8 @@ use crate::bytecode::OpCode;
 use crate::serializable::{Serializable, SerializableWithContext};
 use crate::serializable;
 use std::io::{Read, Write};
-use std::rc::Rc;
 use std::collections::HashMap;
-use std::cell::RefCell;
-use std::ops::Deref;
 use crate::program::Code;
-use crate::objects::RuntimeObject::Object;
 
 #[derive(PartialEq,Debug,Clone)]
 pub enum ProgramObject {
@@ -182,61 +178,62 @@ impl ProgramObject {
     }
 }
 
-pub type SharedRuntimeObject = Rc<RefCell<RuntimeObject>>;
+#[derive(PartialEq,Eq,Debug,Hash,Clone,Copy)]
+pub struct Pointer(usize);
 
-#[derive(PartialEq,Debug)]
-pub enum RuntimeObject {
+impl Pointer {
+    pub fn from(p: usize) -> Self {
+        Pointer(p)
+    }
+
+    pub fn to_string(&self) -> String {
+        format!("{:x}", self.0)
+    }
+}
+
+//pub type SharedRuntimeObject = Rc<RefCell<RuntimeObject>>;
+
+#[derive(PartialEq,Debug,Clone)]
+pub enum Object {
     Null,
     Integer(i32),
     Boolean(bool),
-    Array(Vec<SharedRuntimeObject>),
+    Array(Vec<Pointer>),
     Object {
-        parent: SharedRuntimeObject,
-        fields: HashMap<String, SharedRuntimeObject>,
+        parent: Pointer,
+        fields: HashMap<String, Pointer>,
         methods: HashMap<String, ProgramObject>,
     },
 }
 
-impl RuntimeObject {
-    pub fn from_vec(v: Vec<SharedRuntimeObject>) -> Rc<RefCell<RuntimeObject>> {
-        Rc::new(RefCell::new(RuntimeObject::Array(v)))
-    }
+impl Object {
+    pub fn from_pointers(v: Vec<Pointer>) -> Self { Object::Array(v)   }
+    pub fn from_i32(n :i32)               -> Self { Object::Integer(n) }
+    pub fn from_bool(b: bool)             -> Self { Object::Boolean(b) }
 
-    pub fn from_i32(n :i32) -> Rc<RefCell<RuntimeObject>> {
-        Rc::new(RefCell::new(RuntimeObject::Integer(n)))
-    }
-
-    pub fn from_bool(b: bool) -> Rc<RefCell<RuntimeObject>> {
-        Rc::new(RefCell::new(RuntimeObject::Boolean(b)))
-    }
-
-    pub fn from_constant(constant: &ProgramObject) -> Rc<RefCell<RuntimeObject>> {
+    pub fn from_constant(constant: &ProgramObject) -> Self {
         match constant {
-            ProgramObject::Null => Rc::new(RefCell::new(RuntimeObject::Null)),
-            ProgramObject::Integer(value) => Rc::new(RefCell::new(RuntimeObject::Integer(*value))),
-            ProgramObject::Boolean(value) => Rc::new(RefCell::new(RuntimeObject::Boolean(*value))),
+            ProgramObject::Null => Object::Null,
+            ProgramObject::Integer(value) => Object::Integer(*value),
+            ProgramObject::Boolean(value) => Object::Boolean(*value),
             _ => unimplemented!(),
         }
     }
 
-    pub fn object(parent: SharedRuntimeObject , fields: HashMap<String, SharedRuntimeObject>, methods: HashMap<String, ProgramObject>) -> Rc<RefCell<RuntimeObject>> {
-        Rc::new(RefCell::new(Object { parent, fields, methods }))
+    pub fn from(parent: Pointer, fields: HashMap<String, Pointer>, methods: HashMap<String, ProgramObject>) -> Self {
+        Object::Object { parent, fields, methods }
     }
 
-    pub fn null() -> Rc<RefCell<RuntimeObject>> {
-        Rc::new(RefCell::new(RuntimeObject::Null))
-    }
-
-    pub fn to_string(object: &SharedRuntimeObject) -> String {
-        match object.as_ref().borrow().deref() {
-            RuntimeObject::Null => "null".to_string(),
-            RuntimeObject::Integer(n) => n.to_string(),
-            RuntimeObject::Boolean(b) => b.to_string(),
-            RuntimeObject::Array(elements) => {
+    pub fn to_string(&self) -> String {
+        match self {
+            Object::Null => "null".to_string(),
+            Object::Integer(n) => n.to_string(),
+            Object::Boolean(b) => b.to_string(),
+            Object::Array(elements) => {
                 let mut buffer = String::new();
                 buffer.push('[');
                 for (i, e) in elements.iter().enumerate() {
-                    buffer.push_str(&RuntimeObject::to_string(e));
+                    buffer.push_str(&e.to_string());
                     if i < elements.len() {
                         buffer.push_str(", ")
                     }
@@ -244,17 +241,17 @@ impl RuntimeObject {
                 buffer.push(']');
                 buffer
             },
-            RuntimeObject::Object { parent, fields, methods:_ } => {
+            Object::Object { parent, fields, methods:_ } => {
                 let mut buffer = String::from("object(");
 
                 buffer.push_str("..=");
-                buffer.push_str(&RuntimeObject::to_string(parent));
+                buffer.push_str(&parent.to_string());
                 buffer.push_str(", ");
 
                 for (i, (name, field)) in fields.iter().enumerate() {
                     buffer.push_str(name);
                     buffer.push_str("=");
-                    buffer.push_str(&RuntimeObject::to_string(field));
+                    buffer.push_str(&field.to_string());
                     if i < fields.len() {
                         buffer.push_str(", ")
                     }

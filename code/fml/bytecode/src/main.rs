@@ -9,7 +9,6 @@ mod program;
 mod debug;
 mod io;
 mod compiler;
-mod compiler;
 
 #[cfg(test)]
 mod bytecode_deserialization_tests {
