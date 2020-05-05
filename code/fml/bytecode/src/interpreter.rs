@@ -114,47 +114,47 @@ impl LocalFrame {
 //    fn interpret(&self);
 //}
 
+#[derive(PartialEq,Debug)]
 pub struct Memory {
-    memory: HashMap<Pointer, Object>,
+    objects: HashMap<Pointer, Object>, // FIXME vec
     sequence: usize,
 }
 
 impl Memory {
     pub fn new() -> Self {
-        Memory { memory: HashMap::new(), sequence: 0 }
+        Memory { objects: HashMap::new(), sequence: 0 }
+    }
+
+    pub fn from(objects: Vec<Object>) -> Self {
+        let mut sequence = 0;
+        let mut object_map = HashMap::new();
+        for object in objects {
+            let pointer = Pointer::from(sequence);
+            sequence += 1;
+            let result = object_map.insert(pointer, object);
+            assert!(result.is_none());
+        }
+        Memory { sequence, objects: object_map }
     }
 
     pub fn allocate(&mut self, object: Object) -> Pointer {
         let pointer = Pointer::from(self.sequence);
         self.sequence += 1;
-        let result = self.memory.insert(pointer.clone(), object);
+        let result = self.objects.insert(pointer.clone(), object);
         assert!(result.is_none());
         pointer
     }
 
-    pub fn lookup(&self, pointer: &Pointer) -> Option<&Object> {
-        self.memory.get(pointer)
+    pub fn dereference(&self, pointer: &Pointer) -> Option<&Object> {
+        self.objects.get(pointer)
     }
 
-    pub fn lookup_mut(&mut self, pointer: &Pointer) -> Option<&mut Object> {
-        self.memory.get_mut(pointer)
+    pub fn dereference_mut(&mut self, pointer: &Pointer) -> Option<&mut Object> {
+        self.objects.get_mut(pointer)
     }
-
-//    pub fn lookup_two_mut(&mut self,
-//                          pointer_1: &Pointer,
-//                          pointer_2: &Pointer) -> (Option<&mut Object>, Option<&Object>) {
-//
-//        let x = self.memory.get(pointer_2);
-//        let y = self.memory.get_mut(pointer_1);
-//        (x, y)
-//    }
-
-//    pub fn lookup_many_mut(&mut self, pointers: Vec<&Pointer>) -> Vec<Option<&mut Object>> {
-//        pointers.iter().map(|p| self.memory.get_mut(p)).collect()
-//    }
 
     pub fn copy(&mut self, pointer: &Pointer) -> Option<Pointer> {
-        let new_object = match self.memory.get(pointer) {
+        let new_object = match self.objects.get(pointer) {
             Some(object) => Some(object.clone()),
             None => None,
         };
@@ -166,7 +166,7 @@ impl Memory {
     }
 
     pub fn write_over(&mut self, pointer: Pointer, object: Object) -> Result<(),String> {
-        let previous_value = self.memory.insert(pointer, object);
+        let previous_value = self.objects.insert(pointer, object);
         match previous_value {
             Some(_) => Ok(()),
             None =>
@@ -176,7 +176,7 @@ impl Memory {
     }
 
     pub fn dereference_to_string(&self, pointer: &Pointer) -> String {
-        let object = self.lookup(&pointer)
+        let object = self.dereference(&pointer)
             .expect(&format!("Expected object at {:?} to convert to string, but none was found",
                               pointer));
 
@@ -225,7 +225,7 @@ pub struct State {
     pub operands: Vec<Pointer>,
     pub globals: HashMap<String, Pointer>,
     pub functions: HashMap<String, ProgramObject>,
-    //pub memory: Memory,
+    pub memory: Memory,
 }
 
 impl State {
@@ -236,7 +236,7 @@ impl State {
                               at index {:?}", entry_index));
 
         let instruction_pointer = *match entry_method {
-            ProgramObject::Method { name:_, arguments:_, locals:_, code } => code.start(),
+            ProgramObject::Method { name: _, arguments: _, locals: _, code } => code.start(),
             _ => panic!("State init error: entry method is not a Method {:?}", entry_method),
         };
 
@@ -267,7 +267,7 @@ impl State {
                     globals.insert(name.to_string(), pointer);
                 }
 
-                ProgramObject::Method { name: index, arguments:_, locals:_, code:_ } => {
+                ProgramObject::Method { name: index, arguments: _, locals: _, code: _ } => {
                     let constant = program.get_constant(index)
                         .expect(&format!("State init error: no such entry at index pool: {:?} \
                                  (expected by method: {:?})", index, thing));
@@ -284,7 +284,6 @@ impl State {
                 _ => panic!("State init error: name of global at index {:?} is not a String \
                              {:?}", index, thing),
             };
-
         }
 
         let frames = vec!(LocalFrame::empty());
@@ -295,7 +294,7 @@ impl State {
             operands: Vec::new(),
             globals,
             functions,
-            //memory,
+            memory,
         }
     }
 
@@ -306,7 +305,7 @@ impl State {
             operands: Vec::new(),
             globals: HashMap::new(),
             functions: HashMap::new(),
-            //memory: Memory::new(),
+            memory: Memory::new(),
         }
     }
 
@@ -317,7 +316,7 @@ impl State {
             operands: Vec::new(),
             globals: HashMap::new(),
             functions: HashMap::new(),
-            //memory: Memory::new(),
+            memory: Memory::new(),
         }
     }
 
@@ -347,8 +346,8 @@ impl State {
         self.frames.pop()
     }
 
-    pub fn new_frame(&mut self, return_address: Option<Address>, slots: Vec<Pointer>,) {
-        self.frames.push(LocalFrame{ slots, return_address });
+    pub fn new_frame(&mut self, return_address: Option<Address>, slots: Vec<Pointer>, ) {
+        self.frames.push(LocalFrame { slots, return_address });
     }
 
     pub fn peek_operand(&mut self) -> Option<&Pointer> {
@@ -359,8 +358,12 @@ impl State {
         self.operands.pop()
     }
 
-    pub fn push_operand(&mut self, object: Pointer) -> () {
+    pub fn push_operand(&mut self, object: Pointer) {
         self.operands.push(object)
+    }
+
+    pub fn allocate_and_push_operand(&mut self, object: Object) {
+        self.operands.push(self.memory.allocate(object))
     }
 
     pub fn get_function(&self, name: &str) -> Option<&ProgramObject> {
@@ -381,6 +384,11 @@ impl State {
         }
     }
 
+    pub fn allocate_and_register_global(&mut self, name: String, object: Object) -> Result<(), String> {
+        let pointer = self.allocate(object);
+        self.register_global(name, pointer)
+    }
+
     pub fn update_global(&mut self, name: String, object: Pointer) -> Result<(), String> {
         if self.globals.contains_key(&name) {
             self.globals.insert(name, object);
@@ -393,7 +401,10 @@ impl State {
     pub fn set_instruction_pointer_from_label(&mut self, program: &Program, name: &str) -> Result<(), String> {
         match program.get_label(name) {
             None => Err(format!("Label {} does not exist", name)),
-            Some(address) => {self.instruction_pointer = Some(*address); Ok(())}
+            Some(address) => {
+                self.instruction_pointer = Some(*address);
+                Ok(())
+            }
         }
     }
 
@@ -401,16 +412,37 @@ impl State {
         let global = self.get_global(name).map(|e| e.clone());
         match global {
             Some(global) => {
-                self.push_operand(global); Ok(())
+                self.push_operand(global);
+                Ok(())
             },
             None => {
                 Err(format!("No such global {}", name))
             }
         }
     }
+
+    pub fn dereference_to_string(&self, pointer: &Pointer) -> String {
+        self.memory.dereference_to_string(pointer)
+    }
+
+    pub fn dereference_mut(&mut self, pointer: &Pointer) -> Option<&mut Object> {
+        self.memory.dereference_mut(pointer)
+    }
+
+    pub fn dereference(&self, pointer: &Pointer) -> Option<&Object> {
+        self.memory.dereference(pointer)
+    }
+
+    pub fn allocate(&mut self, object: Object) -> Pointer {
+        self.memory.allocate(object)
+    }
+
+    pub fn copy_memory(&mut self, pointer: &Pointer) -> Option<Pointer> {
+        self.memory.copy(pointer)
+    }
 }
 
-pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Memory, program: &Program)
+pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut Memory,*/ program: &Program)
     where /*Input : Read,*/ Output : Write {
     let opcode: &OpCode = {
         let address = state.instruction_pointer()
@@ -436,9 +468,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
                              or Boolean, but is {:?}", index, constant),
             }
 
-            let pointer = memory.allocate(Object::from_constant(constant));
-            state.push_operand(pointer);
-
+            state.allocate_and_push_operand(Object::from_constant(constant));
             state.bump_instruction_pointer(program);
         }
 
@@ -451,7 +481,6 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
                                   frame", index));
 
             state.push_operand(local);
-
             state.bump_instruction_pointer(program);
         }
 
@@ -484,7 +513,6 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
                 .expect(&format!("Get global error: no such global: {}", name));
 
             state.push_operand(global);
-
             state.bump_instruction_pointer(program);
         }
 
@@ -591,9 +619,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
             let parent = state.pop_operand()
                 .expect("Object error: cannot pop operand (parent) from empty operand stack");
 
-            let pointer = memory.allocate(Object::from(parent, fields, method_map));
-            state.push_operand(pointer);
-
+            state.allocate_and_push_operand(Object::from(parent, fields, method_map));
             state.bump_instruction_pointer(program);
         }
 
@@ -604,7 +630,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
             let size_pointer = state.pop_operand()
                 .expect(&format!("Array error: cannot pop size from empty operand stack"));
 
-            let size_object: &Object = memory.lookup(&size_pointer)
+            let size_object: &Object = state.dereference(&size_pointer)
                 .expect(&format!("Array error: pointer does not reference an object in memory {:?}",
                                  size_pointer));
 
@@ -621,19 +647,15 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
                              {:?}", size_object),
             };
 
-            let array_pointer = {
-                let mut elements: Vec<Pointer> = Vec::new();
-                for _ in 0..size {
-                    let pointer = memory.copy(&initializer)
-                        .expect(&format!("Array error: no initializer to copy from at {:?}",
-                                         initializer));
-                    elements.push(pointer);
-                }
-                let object = Object::from_pointers(elements);
-                memory.allocate(object)
-            };
+            let mut elements: Vec<Pointer> = Vec::new();
+            for _ in 0..size {
+                let pointer = state.copy_memory(&initializer)
+                    .expect(&format!("Array error: no initializer to copy from at {:?}",
+                                      initializer));
+                elements.push(pointer);
+            }
 
-            state.push_operand(array_pointer);
+            state.allocate_and_push_operand(Object::from_pointers(elements));
             state.bump_instruction_pointer(program);
         }
 
@@ -651,7 +673,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
             let operand_pointer: Pointer = state.pop_operand()
                 .expect(&format!("Get slot error: cannot pop operand from empty operand stack"));
 
-            let operand = memory.lookup(&operand_pointer)
+            let operand = state.dereference(&operand_pointer)
                 .expect(&format!("Get slot error: no operand object at {:?}", operand_pointer));
 
             match operand {
@@ -687,7 +709,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
                 .expect(&format!("Set slot error: cannot pop operand (host) from empty operand \
                                   stack"));
 
-            let host = memory.lookup_mut(&host_pointer)
+            let host = state.dereference_mut(&host_pointer)
                 .expect(&format!("Set slot error: no operand object at {:?}", host_pointer));
 
             match host {
@@ -733,20 +755,20 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
                              {:?}", index, constant),
             };
 
-            let object: &mut Object = memory.lookup_mut(&object_pointer)
+            let object: &mut Object = state.dereference_mut(&object_pointer)
                 .expect(&format!("Call method error: no operand object at {:?}", object_pointer));
 
             match object {
                 Object::Null =>
-                    interpret_null_method(object_pointer, name, &arguments, state, output, memory, program),
+                    interpret_null_method(object_pointer, name, &arguments, state, program),
                 Object::Integer(_) =>
-                    interpret_integer_method(object_pointer, name, &arguments, state, output, memory, program),
+                    interpret_integer_method(object_pointer, name, &arguments, state, program),
                 Object::Boolean(_) =>
-                    interpret_boolean_method(object_pointer, name, &arguments, state, output, memory, program),
+                    interpret_boolean_method(object_pointer, name, &arguments, state, program),
                 Object::Array(_) =>
-                    interpret_array_method(object_pointer, name, &arguments, *parameters, state, output, memory, program),
+                    interpret_array_method(object_pointer, name, &arguments, *parameters, state, program),
                 Object::Object { parent:_, fields:_, methods:_ } =>
-                    dispatch_object_method(object_pointer, name, &arguments, *parameters, state, output, memory, program),
+                    dispatch_object_method(object_pointer, name, &arguments, *parameters, state, output, program),
             };
         }
 
@@ -786,7 +808,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
                     }
 
                     for _ in 0..locals.value() {
-                        slots.push(memory.allocate(Object::Null))
+                        slots.push(state.allocate(Object::Null))
                     }
 
                     state.bump_instruction_pointer(program);
@@ -823,7 +845,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
                 match character {
                     '~' => {
                         let string = &argument_values.pop()
-                            .map(|e| memory.dereference_to_string(&e))
+                            .map(|e| state.dereference_to_string(&e))
                             .expect(&format!("Print error: Not enough arguments for format {}",
                                              format));
 
@@ -841,9 +863,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
                 panic!("Print error: Unused arguments for format {}", format)
             }
 
-            let null = Object::from_constant(&ProgramObject::Null);
-            state.push_operand(memory.allocate(null));
-
+            state.allocate_and_push_operand(Object::Null);
             state.bump_instruction_pointer(program);
         }
 
@@ -869,7 +889,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
             let operand = state.pop_operand()
                 .expect("Branch error: cannot pop operand from empty operand stack");
 
-            let jump_condition_object = memory.lookup(&operand)
+            let jump_condition_object = state.dereference(&operand)
                 .expect(&format!("Branch error: cannot find condition at {:?}", operand));
 
             let jump_condition = {
@@ -920,41 +940,39 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, memory: &mut Me
 }
 
 macro_rules! check_arguments_one {
-    ($pointer: expr, $arguments: expr, $name: expr, $memory: expr) => {{
+    ($pointer: expr, $arguments: expr, $name: expr, $state: expr) => {{
         if $arguments.len() != 1 {
             panic!("Call method error: method {} takes 1 argument, but {} were supplied",
                     $name, $arguments.len())
         }
 
         let argument_pointer: &Pointer = &$arguments[0];
-        let argument = $memory.lookup(argument_pointer)
+        let argument = $state.dereference(argument_pointer)
             .expect(&format!("Call method error: no operand object at {:?}", argument_pointer));
 
-        let object = $memory.lookup(&$pointer).unwrap(); /*checked earlier*/
+        let object = $state.dereference(&$pointer).unwrap(); /*checked earlier*/
         (object, argument)
     }}
 }
 
 macro_rules! push_result_and_finish {
-    ($result: expr, $state: expr, $memory: expr, $program: expr) => {{
-        let pointer = $memory.allocate($result);
-        $state.push_operand(pointer);
+    ($result: expr, $state: expr, $program: expr) => {{
+        $state.allocate_and_push_operand($result);
         $state.bump_instruction_pointer($program);
     }}
 }
 
 macro_rules! push_pointer_and_finish {
-    ($result: expr, $state: expr, $memory: expr, $program: expr) => {{
+    ($result: expr, $state: expr, $program: expr) => {{
         $state.push_operand(*$result);
         $state.bump_instruction_pointer($program);
     }}
 }
 
-pub fn interpret_null_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
-                                     state: &mut State, output: &mut Output,
-                                     memory: &mut Memory, program: &Program) {
+pub fn interpret_null_method(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
+                             state: &mut State, program: &Program) {
 
-    let (object, operand) = check_arguments_one!(pointer, arguments, name, memory);
+    let (object, operand) = check_arguments_one!(pointer, arguments, name, state);
     let result = match (name, operand) {
         ("eq", Object::Null)  => Object::from_bool(true),
         ("eq", _)             => Object::from_bool(false),
@@ -964,14 +982,13 @@ pub fn interpret_null_method<Output>(pointer: Pointer, name: &str, arguments: &V
         _ => panic!("Call method error: object {:?} has no method {} for operand {:?}",
                      object, name, operand),
     };
-    push_result_and_finish!(result, state, memory, program);
+    push_result_and_finish!(result, state, program);
 }
 
-pub fn interpret_integer_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
-                                        state: &mut State, output: &mut Output, memory: &mut Memory,
-                                        program: &Program) {
+pub fn interpret_integer_method(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
+                                state: &mut State, program: &Program) {
 
-    let (object, operand) = check_arguments_one!(pointer, arguments, name, memory);
+    let (object, operand) = check_arguments_one!(pointer, arguments, name, state);
     let result = match (object, name, operand) {
         (Object::Integer(i), "+",   Object::Integer(j)) => Object::from_i32 (*i +  *j),
         (Object::Integer(i), "-",   Object::Integer(j)) => Object::from_i32 (*i -  *j),
@@ -984,8 +1001,8 @@ pub fn interpret_integer_method<Output>(pointer: Pointer, name: &str, arguments:
         (Object::Integer(i), ">",   Object::Integer(j)) => Object::from_bool(*i >  *j),
         (Object::Integer(i), "==",  Object::Integer(j)) => Object::from_bool(*i == *j),
         (Object::Integer(i), "!=",  Object::Integer(j)) => Object::from_bool(*i != *j),
-        (Object::Integer(i), "==",  _)                  => Object::from_bool(false),
-        (Object::Integer(i), "!=",  _)                  => Object::from_bool(true),
+        (Object::Integer(_), "==",  _)                  => Object::from_bool(false),
+        (Object::Integer(_), "!=",  _)                  => Object::from_bool(true),
 
         (Object::Integer(i), "add", Object::Integer(j)) => Object::from_i32 (*i +  *j),
         (Object::Integer(i), "sub", Object::Integer(j)) => Object::from_i32 (*i -  *j),
@@ -998,52 +1015,50 @@ pub fn interpret_integer_method<Output>(pointer: Pointer, name: &str, arguments:
         (Object::Integer(i), "gt",  Object::Integer(j)) => Object::from_bool(*i >  *j),
         (Object::Integer(i), "eq",  Object::Integer(j)) => Object::from_bool(*i == *j),
         (Object::Integer(i), "neq", Object::Integer(j)) => Object::from_bool(*i != *j),
-        (Object::Integer(i), "eq",  _)                  => Object::from_bool(false),
-        (Object::Integer(i), "neq", _)                  => Object::from_bool(true),
+        (Object::Integer(_), "eq",  _)                  => Object::from_bool(false),
+        (Object::Integer(_), "neq", _)                  => Object::from_bool(true),
 
         _ => panic!("Call method error: object {:?} has no method {} for operand {:?}",
                      object, name, operand),
     };
-    push_result_and_finish!(result, state, memory, program);
+    push_result_and_finish!(result, state, program);
 }
 
-pub fn interpret_boolean_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
-                                        state: &mut State, output: &mut Output, memory: &mut Memory,
-                                        program: &Program) {
+pub fn interpret_boolean_method(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
+                                state: &mut State, program: &Program) {
 
-    let (object, operand) = check_arguments_one!(pointer, arguments, name, memory);
+    let (object, operand) = check_arguments_one!(pointer, arguments, name, state);
     let result = match (object, name, operand) {
         (Object::Boolean(p), "and", Object::Boolean(q)) => Object::from_bool(*p && *q),
         (Object::Boolean(p), "or",  Object::Boolean(q)) => Object::from_bool(*p || *q),
         (Object::Boolean(p), "eq",  Object::Boolean(q)) => Object::from_bool(*p == *q),
         (Object::Boolean(p), "neq", Object::Boolean(q)) => Object::from_bool(*p != *q),
-        (Object::Boolean(p), "eq",  _)                  => Object::from_bool(false),
-        (Object::Boolean(p), "neq", _)                  => Object::from_bool(true),
+        (Object::Boolean(_), "eq",  _)                  => Object::from_bool(false),
+        (Object::Boolean(_), "neq", _)                  => Object::from_bool(true),
 
         (Object::Boolean(p), "&",   Object::Boolean(q)) => Object::from_bool(*p && *q),
         (Object::Boolean(p), "|",   Object::Boolean(q)) => Object::from_bool(*p || *q),
         (Object::Boolean(p), "==",  Object::Boolean(q)) => Object::from_bool(*p == *q),
         (Object::Boolean(p), "!=",  Object::Boolean(q)) => Object::from_bool(*p != *q),
-        (Object::Boolean(p), "==",  _)                  => Object::from_bool(false),
-        (Object::Boolean(p), "!=",  _)                  => Object::from_bool(true),
+        (Object::Boolean(_), "==",  _)                  => Object::from_bool(false),
+        (Object::Boolean(_), "!=",  _)                  => Object::from_bool(true),
 
         _ => panic!("Call method error: object {:?} has no method {} for operand {:?}",
                     object, name, operand),
     };
-    push_result_and_finish!(result, state, memory, program);
+    push_result_and_finish!(result, state, program);
 }
 
-pub fn interpret_array_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<Pointer>, arity: Arity,
-                                        state: &mut State, output: &mut Output, memory: &mut Memory,
-                                        program: &Program) {
+pub fn interpret_array_method(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
+                              arity: Arity, state: &mut State, program: &Program) {
 
-    if arguments.len() != arity.to_usize() {
+    if arguments.len() != arity.to_usize() - 1 {
         panic!("Call method error: Array method {} takes {} argument, but {} were supplied",
                 name, arity.value(), arguments.len())
     }
 
     if name == "get" {
-        let (object, operand) = check_arguments_one!(pointer, arguments, name, memory);
+        let (object, operand) = check_arguments_one!(pointer, arguments, name, state);
         let result = match (object, operand) {
             (Object::Array(element_pointers), Object::Integer(index)) => {
                 if (*index as usize) >= element_pointers.len() {
@@ -1057,25 +1072,20 @@ pub fn interpret_array_method<Output>(pointer: Pointer, name: &str, arguments: &
                          object, name, operand),
         };
 
-        push_pointer_and_finish!(result, state, memory, program);
+        push_pointer_and_finish!(result, state, program);
     }
 
     if name == "set" {
-        if arguments.len() != 1 {
-            panic!("Call method error: method {} takes 1 argument, but {} were supplied",
-                   name, arguments.len())
-        }
-
         let operand_1_pointer: &Pointer = &arguments[0];
         let operand_2_pointer: &Pointer = &arguments[1];
 
-        let index: usize = match memory.lookup(operand_1_pointer) {
+        let index: usize = match state.dereference(operand_1_pointer) {
             Some(Object::Integer(index)) => *index as usize,
             Some(object) => panic!("Call method error: cannot index array with {:?}", object),
             None => panic!("Call method error: no operand (1) object at {:?}", operand_1_pointer),
         };
 
-        let object : &mut Object = memory.lookup_mut(&pointer).unwrap(); /* pre-checked elsewhere */
+        let object : &mut Object = state.dereference_mut(&pointer).unwrap(); /* pre-checked elsewhere */
         let result = match object {
             Object::Array(element_pointers) => {
                 if index >= element_pointers.len() {
@@ -1088,94 +1098,42 @@ pub fn interpret_array_method<Output>(pointer: Pointer, name: &str, arguments: &
             _ => panic!("Call method error: object {:?} has no method {}", object, name),
         };
 
-        push_result_and_finish!(result, state, memory, program)
+        push_result_and_finish!(result, state, program)
     }
 }
 
 fn dispatch_object_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
                                   arity: Arity, state: &mut State, output: &mut Output,
-                                  memory: &mut Memory, program: &Program) {
+                                  program: &Program) {
+
     let mut cursor: Pointer = pointer;
     loop {
-        let object = memory.lookup(&cursor)
+        let object = state.dereference(&cursor)
             .expect("Call method error: no object at {:?}");
 
         match object {
             Object::Object { parent, fields: _, methods } => {
                 if let Some(method) = methods.get(name) {
-
+                    unimplemented!()
                 } else {
                     cursor = *parent;
                 }
             },
             Object::Null =>
-                interpret_null_method(pointer, name, arguments, state, output, memory, program),
+                interpret_null_method(pointer, name, arguments, state, program),
             Object::Boolean(_) =>
-                interpret_boolean_method(pointer, name, arguments, state, output, memory, program),
+                interpret_boolean_method(pointer, name, arguments, state, program),
             Object::Integer(_) =>
-                interpret_integer_method(pointer, name, arguments, state, output, memory, program),
+                interpret_integer_method(pointer, name, arguments, state, program),
             Object::Array(_) =>
-                interpret_array_method(pointer, name, arguments, arity, state, output, memory, program),
+                interpret_array_method(pointer, name, arguments, arity, state, program),
         };
     }
 }
 
-
-
-//    let dispatch = find_method_for_dispatch(&pointer, name, memory, program);
-//    match dispatch {
-//        DispatchInstruction::Method(_) => {
-//
-//        },
-//        DispatchInstruction::NullInternal(pointer) =>
-//
-//        DispatchInstruction::BooleanInternal(pointer) =>
-//            interpret_boolean_method(pointer, name, arguments, state, output, memory, program),
-//        DispatchInstruction::IntegerInternal(pointer) =>
-//            interpret_integer_method(pointer, name, arguments, state, output, memory, program),
-//        DispatchInstruction::ArrayInternal(pointer) =>
-//            interpret_array_method(pointer, name, arguments, arity, state, output, memory, program),
-//        DispatchInstruction::Missing =>
-//            panic!("Call method error: object {:?} has no method {}", memory.lookup(&pointer), name),
-//    }
-
-    //Object::Object { parent:_, fields:_, methods:_ }
-
-//    let constant = methods.get(name)                                                // FIXME dispatch though
-//     .expect(&format!("Call method error: there is no method {} in object{:?}",
-//                       name, object));
-// match constant {
-//     ProgramObject::Method { name:_, arguments: parameters, locals, code } => {
-//         if arguments.len() != (parameters.value() - 1) as usize {
-//             panic!("Call method error: method {} from object {:?} takes {} \
-//                     arguments, but {} were supplied",
-//                     name, object, parameters.value(), arguments.len())
-//         }
-//
-//         let slots = {
-//             let mut slots: Vec<Pointer> =
-//                 Vec::with_capacity(1 + parameters.value() as usize
-//                                      + locals.value() as usize);
-//             slots.push(object_pointer);
-//             slots.extend(arguments);
-//             for _ in 0..locals.value() {
-//                 slots.push(memory.allocate(Object::Null))
-//             }
-//             slots
-//         };
-//
-//         state.bump_instruction_pointer(program);
-//         state.new_frame(*state.instruction_pointer(), slots);
-//         state.set_instruction_pointer(Some(*code.start()));
-//     },
-//     thing => panic!("Call method error: member {} in object definition {:?}
-//                      should have type Method, but it is {:?}",
-//                      name, object, thing),
-// };
-
 fn interpret_object_method<Output>(method: ProgramObject, pointer: Pointer, name: &str,
-                                   arguments: &Vec<Pointer>, arity: Arity, state: &mut State,
-                                   output: &mut Output, memory: &mut Memory, program: &Program) {
+                                   arguments: &Vec<Pointer>, _arity: Arity, state: &mut State,
+                                   output: &mut Output, program: &Program) {
 
     match method {
         ProgramObject::Method { name: _, locals, arguments: arity, code } => {
@@ -1191,13 +1149,12 @@ fn interpret_object_method<Output>(method: ProgramObject, pointer: Pointer, name
             slots.extend(arguments); // TODO passes by reference... correct?
 
             for _ in 0..locals.to_usize() {
-                slots.push(memory.allocate(Object::Null))
+                slots.push(state.allocate(Object::Null))
             }
 
             state.bump_instruction_pointer(program);
             state.new_frame(*state.instruction_pointer(), slots);
             state.set_instruction_pointer(Some(*code.start()));
-
         },
 
         thing => panic!("Call method error: member {} in object definition should have type \
