@@ -1286,7 +1286,7 @@ mod interpreter_test {
             OpCode::Skip,
         ));
 
-        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("+".to_string()));
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("f".to_string()));
         let globals: Vec<ConstantPoolIndex> = vec!();
         let entry = ConstantPoolIndex::new(0);
         let program = Program::new(code, constants, globals, entry);
@@ -1296,7 +1296,7 @@ mod interpreter_test {
 
         let receiver = Object::from(Pointer::from(0),
                                     HashMap::new(),
-                                    hashmap!("+".to_string(), ProgramObject::Method { name: ConstantPoolIndex::new(0),
+                                    hashmap!("f".to_string(), ProgramObject::Method { name: ConstantPoolIndex::new(0),
                                                                                       arguments: Arity::new(0 + 1),
                                                                                       locals: Size::new(0),
                                                                                       code: AddressRange::from(0, 1) }));
@@ -1335,7 +1335,7 @@ mod interpreter_test {
         let receiver = Object::from(Pointer::from(0),
                                     HashMap::new(),
                                     hashmap!("+".to_string(), ProgramObject::Method { name: ConstantPoolIndex::new(0),
-                                                                                      arguments: Arity::new(0 + 1),
+                                                                                      arguments: Arity::new(1 + 1),
                                                                                       locals: Size::new(0),
                                                                                       code: AddressRange::from(0, 1) }));
 
@@ -1352,9 +1352,10 @@ mod interpreter_test {
         assert_eq!(state.instruction_pointer, Some(Address::from_usize(0)), "test instruction pointer");
         assert_eq!(state.frames, vec!(LocalFrame::empty(),
                                       LocalFrame::from(Some(Address::from_usize(2)),
-                                                       vec!(Pointer::from(0),
-                                                            Pointer::from(1)))), "test frames");
-        assert_eq!(state.memory, Memory::from(vec!(receiver.clone(),
+                                                       vec!(Pointer::from(1),
+                                                            Pointer::from(2)))), "test frames");
+        assert_eq!(state.memory, Memory::from(vec!(Object::Null,
+                                                   receiver.clone(),
                                                    Object::from_i32(1))))
     }
 
@@ -1365,7 +1366,7 @@ mod interpreter_test {
             OpCode::Skip,
         ));
 
-        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("+".to_string()));
+        let constants: Vec<ProgramObject> = vec!(ProgramObject::String("g".to_string()));
         let globals: Vec<ConstantPoolIndex> = vec!();
         let entry = ConstantPoolIndex::new(0);
         let program = Program::new(code, constants, globals, entry);
@@ -1375,13 +1376,13 @@ mod interpreter_test {
 
         let receiver = Object::from(Pointer::from(0),
                                     HashMap::new(),
-                                    hashmap!("+".to_string(), ProgramObject::Method { name: ConstantPoolIndex::new(0),
+                                    hashmap!("g".to_string(), ProgramObject::Method { name: ConstantPoolIndex::new(0),
                                                                                       arguments: Arity::new(3 + 1),
                                                                                       locals: Size::new(0),
                                                                                       code: AddressRange::from(0, 1) }));
 
         state.set_instruction_pointer(Some(Address::from_usize(1)));
-        state.allocate_and_push_operand(Object::Null);
+        state.allocate(Object::Null);
         state.allocate_and_push_operand(receiver.clone());
         state.allocate_and_push_operand(Object::from_i32(3));
         state.allocate_and_push_operand(Object::from_i32(2));
@@ -1395,14 +1396,15 @@ mod interpreter_test {
         assert_eq!(state.instruction_pointer, Some(Address::from_usize(0)), "test instruction pointer");
         assert_eq!(state.frames, vec!(LocalFrame::empty(),
                                       LocalFrame::from(Some(Address::from_usize(2)),
-                                                       vec!(Pointer::from(0),
-                                                            Pointer::from(1),
-                                                            Pointer::from(2),
-                                                            Pointer::from(3),))), "test frames");
-        assert_eq!(state.memory, Memory::from(vec!(receiver.clone(),
-                                                   Object::from_i32(1),
+                                                       vec!(Pointer::from(1),
+                                                            Pointer::from(4),
+                                                            Pointer::from(3),
+                                                            Pointer::from(2),))), "test frames");
+        assert_eq!(state.memory, Memory::from(vec!(Object::Null,
+                                                   receiver.clone(),
+                                                   Object::from_i32(3),
                                                    Object::from_i32(2),
-                                                   Object::from_i32(3))))
+                                                   Object::from_i32(1))))
     }
 
     fn call_method(receiver: Object, argument: Object, operation: &str, result: Object) {

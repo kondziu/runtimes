@@ -5,6 +5,7 @@ use crate::objects::{Pointer, Object, ProgramObject};
 use crate::bytecode::OpCode;
 use crate::program::Program;
 use std::fmt::Write;
+use std::ops::Deref;
 
 /**
  * A name-to-value table that holds the current value of all the global variables used in the
@@ -440,6 +441,28 @@ impl State {
     pub fn copy_memory(&mut self, pointer: &Pointer) -> Option<Pointer> {
         self.memory.copy(pointer)
     }
+
+    pub fn pass_by_value_or_reference(&mut self, pointer: &Pointer) -> Option<Pointer> {
+        let object = self.dereference(pointer);
+
+        if object.is_none() {
+            return None
+        }
+
+        let pass_by_value = match object.unwrap() {
+            Object::Object { parent:_, methods:_, fields:_ } => false,
+            Object::Array(_) => false,
+            Object::Integer(_) => true,
+            Object::Boolean(_) => true,
+            Object::Null => true,
+        };
+
+        if pass_by_value {
+            Some(self.allocate(object.unwrap().clone()))
+        } else {
+            Some(*pointer)
+        }
+    }
 }
 
 pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut Memory,*/ program: &Program)
@@ -485,9 +508,8 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
         }
 
         OpCode::SetLocal { index } => {
-            let operand: Pointer = state.peek_operand()
-                .expect("Set local error: cannot pop from empty operand stack")
-                .clone();
+            let operand: Pointer = *state.peek_operand()
+                .expect("Set local error: cannot pop from empty operand stack");
 
             let frame: &mut LocalFrame = state.current_frame_mut()
                 .expect("Set local error: no frame on stack.");
@@ -974,6 +996,10 @@ pub fn interpret_null_method(pointer: Pointer, name: &str, arguments: &Vec<Point
 
     let (object, operand) = check_arguments_one!(pointer, arguments, name, state);
     let result = match (name, operand) {
+        ("==", Object::Null)  => Object::from_bool(true),
+        ("==", _)             => Object::from_bool(false),
+        ("!=", Object::Null)  => Object::from_bool(false),
+        ("!=", _)             => Object::from_bool(true),
         ("eq", Object::Null)  => Object::from_bool(true),
         ("eq", _)             => Object::from_bool(false),
         ("neq", Object::Null) => Object::from_bool(false),
@@ -1054,7 +1080,7 @@ pub fn interpret_array_method(pointer: Pointer, name: &str, arguments: &Vec<Poin
 
     if arguments.len() != arity.to_usize() - 1 {
         panic!("Call method error: Array method {} takes {} argument, but {} were supplied",
-                name, arity.value(), arguments.len())
+                name, arity.value() - 1, arguments.len())
     }
 
     if name == "get" {
@@ -1111,35 +1137,47 @@ fn dispatch_object_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<
         let object = state.dereference(&cursor)
             .expect("Call method error: no object at {:?}");
 
-        match object {
+        let method: ProgramObject = match object {
             Object::Object { parent, fields: _, methods } => {
                 if let Some(method) = methods.get(name) {
-                    unimplemented!()
+                    method.clone()
                 } else {
                     cursor = *parent;
+                    continue
                 }
             },
-            Object::Null =>
-                interpret_null_method(pointer, name, arguments, state, program),
-            Object::Boolean(_) =>
-                interpret_boolean_method(pointer, name, arguments, state, program),
-            Object::Integer(_) =>
-                interpret_integer_method(pointer, name, arguments, state, program),
-            Object::Array(_) =>
-                interpret_array_method(pointer, name, arguments, arity, state, program),
+            Object::Null => {
+                interpret_null_method(pointer, name, arguments, state, program);
+                break
+            },
+            Object::Boolean(_) => {
+                interpret_boolean_method(pointer, name, arguments, state, program);
+                break
+            },
+            Object::Integer(_) => {
+                interpret_integer_method(pointer, name, arguments, state, program);
+                break
+            },
+            Object::Array(_) => {
+                interpret_array_method(pointer, name, arguments, arity, state, program);
+                break
+            },
         };
+
+        interpret_object_method(method, pointer, name, arguments, state, output, program);
+        break
     }
 }
 
 fn interpret_object_method<Output>(method: ProgramObject, pointer: Pointer, name: &str,
-                                   arguments: &Vec<Pointer>, _arity: Arity, state: &mut State,
+                                   arguments: &Vec<Pointer>, state: &mut State,
                                    output: &mut Output, program: &Program) {
 
     match method {
         ProgramObject::Method { name: _, locals, arguments: arity, code } => {
             if arguments.len() != arity.to_usize() - 1 {
                 panic!("Call method error: method {} takes {} arguments, but {} were supplied",
-                        name, arity.value(), arguments.len())
+                        name, arity.value() - 1, arguments.len())
             }
 
             let mut slots: Vec<Pointer> =
