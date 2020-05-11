@@ -50,12 +50,12 @@ mod tests {
     #[test] fn test_negative_042() { parse_ok("-042", AST::Number(-42)); }
     #[test] fn test_negative_00()  { parse_ok("-00",  AST::Number(0));   }
 
-    #[test] fn test_underscore()             { parse_ok("_",     AST::LocalAccess { local: Identifier::from("_")});     }
-    #[test] fn test_underscore_identifier()  { parse_ok("_x",    AST::LocalAccess { local: Identifier::from("_x")});    }
-    #[test] fn test_identifier()             { parse_ok("x",     AST::LocalAccess { local: Identifier::from("x")});     }
-    #[test] fn test_identifier_with_number() { parse_ok("x1",    AST::LocalAccess { local: Identifier::from("x1")});    }
-    #[test] fn test_multiple_underscores()   { parse_ok("___",   AST::LocalAccess { local: Identifier::from("___")});   }
-    #[test] fn test_long_identifier()        { parse_ok("stuff", AST::LocalAccess { local: Identifier::from("stuff")}); }
+    #[test] fn test_underscore()             { parse_ok("_",     AST::VariableAccess { name: Identifier::from("_")});     }
+    #[test] fn test_underscore_identifier()  { parse_ok("_x",    AST::VariableAccess { name: Identifier::from("_x")});    }
+    #[test] fn test_identifier()             { parse_ok("x",     AST::VariableAccess { name: Identifier::from("x")});     }
+    #[test] fn test_identifier_with_number() { parse_ok("x1",    AST::VariableAccess { name: Identifier::from("x1")});    }
+    #[test] fn test_multiple_underscores()   { parse_ok("___",   AST::VariableAccess { name: Identifier::from("___")});   }
+    #[test] fn test_long_identifier()        { parse_ok("stuff", AST::VariableAccess { name: Identifier::from("stuff")}); }
 
     #[test] fn test_true()  { parse_ok("true", AST::Boolean(true));  }
     #[test] fn test_false() { parse_ok("false", AST::Boolean(false)); }
@@ -66,14 +66,14 @@ mod tests {
 
     #[test] fn test_local_definition() {
         parse_ok("let x = 1",
-                 AST::LocalDefinition {
-                     local: Identifier::from("x"),
+                 AST::VariableDefinition {
+                     name: Identifier::from("x"),
                      value: Box::new(AST::Number(1))});
     }
 
     #[test] fn test_mutation()   {
-        parse_ok("x <- 1", AST::LocalMutation {
-            local: Identifier::from("x"),
+        parse_ok("x <- 1", AST::VariableMutation {
+            name: Identifier::from("x"),
             value: Box::new(AST::Number(1))});
     }
 
@@ -89,7 +89,7 @@ mod tests {
                  AST::FunctionDefinition {
                      function: Identifier::from("f"),
                      parameters: vec!(Identifier::from("x")),
-                     body: Box::new(AST::LocalAccess { local: Identifier::from("x") })});
+                     body: Box::new(AST::VariableAccess { name: Identifier::from("x") })});
     }
 
     #[test] fn test_function_many_args() {
@@ -99,35 +99,35 @@ mod tests {
                      parameters: vec!(Identifier::from("x"),
                                       Identifier::from("y"),
                                       Identifier::from("z")),
-                     body: Box::new(AST::LocalAccess { local: Identifier::from("x") })});
+                     body: Box::new(AST::VariableAccess { name: Identifier::from("x") })});
     }
 
     #[test] fn test_application_no_args() {
         parse_ok("f ()",
-                 AST::FunctionApplication {
+                 AST::FunctionCall {
                      function: Identifier::from("f"),
                      arguments: vec!()});
     }
 
     #[test] fn test_application_one_arg() {
         parse_ok("f (0)",
-                 AST::FunctionApplication {
+                 AST::FunctionCall {
                      function: Identifier::from("f"),
                      arguments: vec!(Box::new(AST::Number(0)))});
     }
 
     #[test] fn test_application_more_args() {
         parse_ok("f (1, x, true)",
-                 AST::FunctionApplication {
+                 AST::FunctionCall {
                      function: Identifier::from("f"),
                      arguments: vec!(Box::new(AST::Number(1)),
-                                     Box::new(AST::LocalAccess { local: Identifier::from("x") }),
+                                     Box::new(AST::VariableAccess { name: Identifier::from("x") }),
                                      Box::new(AST::Boolean(true)))});
     }
 
     #[test] fn test_application_no_spaces() {
         parse_ok("f(0,-1)",
-                 AST::FunctionApplication {
+                 AST::FunctionCall {
                      function: Identifier::from("f"),
                      arguments: vec!(Box::new(AST::Number(0)),
                                      Box::new(AST::Number(-1)))});
@@ -135,7 +135,7 @@ mod tests {
 
     #[test] fn test_application_more_spaces() {
         parse_ok("f    (   0    , -1 )",
-                 AST::FunctionApplication {
+                 AST::FunctionCall {
                      function: Identifier::from("f"),
                      arguments: vec!(Box::new(AST::Number(0)),
                                      Box::new(AST::Number(-1)))});
@@ -143,7 +143,7 @@ mod tests {
 
     #[test] fn test_application_extra_comma() {
         parse_ok("f(0,-1,)",
-                 AST::FunctionApplication {
+                 AST::FunctionCall {
                      function: Identifier::from("f"),
                      arguments: vec!(Box::new(AST::Number(0)),
                                      Box::new(AST::Number(-1)))});
@@ -203,15 +203,15 @@ mod tests {
                     else \
                         if y then 1 else 0",
                  AST::Conditional{
-                     condition: Box::new(AST::LocalAccess { local: Identifier::from("x") }),
+                     condition: Box::new(AST::VariableAccess { name: Identifier::from("x") }),
                      consequent: Box::new(
                          AST::Conditional{
-                             condition: Box::new(AST::LocalAccess { local: Identifier::from("y") }),
+                             condition: Box::new(AST::VariableAccess { name: Identifier::from("y") }),
                              consequent: Box::new(AST::Number(3)),
                              alternative: Box::new(AST::Number(2))}),
                      alternative: Box::new(
                          AST::Conditional{
-                             condition: Box::new(AST::LocalAccess { local: Identifier::from("y") }),
+                             condition: Box::new(AST::VariableAccess { name: Identifier::from("y") }),
                              consequent: Box::new(AST::Number(1)),
                              alternative: Box::new(AST::Number(0))})})
     }
@@ -244,7 +244,7 @@ mod tests {
     fn test_empty_object_with_superobject() {
         parse_ok("object extends y begin end",
                  AST::ObjectDefinition {
-                     extends: Some(Box::new(AST::LocalAccess { local: Identifier::from("y") })),
+                     extends: Some(Box::new(AST::VariableAccess { name: Identifier::from("y") })),
                      members: vec!()})
     }
 
@@ -253,7 +253,7 @@ mod tests {
         parse_ok("object extends if y then 1 else true begin end",
                  AST::ObjectDefinition {
                      extends: Some(Box::new(AST::Conditional{
-                         condition: Box::new(AST::LocalAccess { local: Identifier::from("y") }),
+                         condition: Box::new(AST::VariableAccess { name: Identifier::from("y") }),
                          consequent: Box::new(AST::Number(1)),
                          alternative: Box::new(AST::Boolean(true))})),
                      members: vec!()})
@@ -275,9 +275,9 @@ mod tests {
                  AST::ObjectDefinition {
                      extends: None,
                      members: vec!(Box::new(
-                         AST::LocalDefinition {
-                             local: Identifier::from("y"),
-                             value: Box::new(AST::LocalAccess { local: Identifier::from("x")}) }))})
+                         AST::VariableDefinition {
+                             name: Identifier::from("y"),
+                             value: Box::new(AST::VariableAccess { name: Identifier::from("x")}) }))})
     }
 
     #[test]
@@ -291,7 +291,7 @@ mod tests {
                              parameters: vec!(Identifier::from("x"),
                                               Identifier::from("y"),
                                               Identifier::from("z")),
-                             body: Box::new(AST::LocalAccess { local: Identifier::from("y")}) }))})
+                             body: Box::new(AST::VariableAccess { name: Identifier::from("y")}) }))})
     }
 
     #[test]
@@ -303,7 +303,7 @@ mod tests {
                          AST::OperatorDefinition {
                              operator: Operator::Addition,
                              parameters: vec!(Identifier::from("y")),
-                             body: Box::new(AST::LocalAccess { local: Identifier::from("y")}) }))})
+                             body: Box::new(AST::VariableAccess { name: Identifier::from("y")}) }))})
     }
 
     #[test]
@@ -318,32 +318,32 @@ mod tests {
                  AST::ObjectDefinition {
                      extends: None,
                      members: vec!(
-                         Box::new(AST::LocalDefinition {
-                             local: Identifier::from("a"),
-                             value: Box::new(AST::LocalAccess { local: Identifier::from("x")})}),
-                         Box::new(AST::LocalDefinition {
-                             local: Identifier::from("b"),
+                         Box::new(AST::VariableDefinition {
+                             name: Identifier::from("a"),
+                             value: Box::new(AST::VariableAccess { name: Identifier::from("x")})}),
+                         Box::new(AST::VariableDefinition {
+                             name: Identifier::from("b"),
                              value: Box::new(AST::Boolean(true))}),
                          Box::new(AST::FunctionDefinition {
                              function: Identifier::from("m"),
                              parameters: vec!(Identifier::from("x"),
                                               Identifier::from("y"),
                                               Identifier::from("z")),
-                             body: Box::new(AST::LocalAccess { local: Identifier::from("y")})}),
+                             body: Box::new(AST::VariableAccess { name: Identifier::from("y")})}),
                          Box::new(AST::FunctionDefinition {
                              function: Identifier::from("id"),
                              parameters: vec!(Identifier::from("x")),
-                             body: Box::new(AST::LocalAccess { local: Identifier::from("x")})}),
+                             body: Box::new(AST::VariableAccess { name: Identifier::from("x")})}),
                          Box::new(AST::FunctionDefinition {
                              function: Identifier::from("me"),
                              parameters: vec!(),
-                             body: Box::new(AST::LocalAccess { local: Identifier::from("this")})}))})
+                             body: Box::new(AST::VariableAccess { name: Identifier::from("this")})}))})
     }
 
     #[test] fn test_field_access_from_identifier () {
         parse_ok("a.b",
                  AST::FieldAccess {
-                     object: Box::new(AST::LocalAccess { local: Identifier::from("a")}),
+                     object: Box::new(AST::VariableAccess { name: Identifier::from("a")}),
                      field: Identifier::from("b")});
     }
 
@@ -366,7 +366,7 @@ mod tests {
                  AST::FieldAccess {
                      object: Box::new(
                          AST::Conditional{
-                             condition: Box::new(AST::LocalAccess { local: Identifier::from("x") }),
+                             condition: Box::new(AST::VariableAccess { name: Identifier::from("x") }),
                              consequent: Box::new(AST::Number(1)),
                              alternative: Box::new(AST::Number(2))}),
                      field: Identifier::from("b")});
@@ -378,7 +378,7 @@ mod tests {
                      object: Box::new(
                          AST::FieldAccess {
                              object: Box::new(AST::FieldAccess {
-                                 object: Box::new(AST::LocalAccess { local: Identifier::from("a") }),
+                                 object: Box::new(AST::VariableAccess { name: Identifier::from("a") }),
                                  field: Identifier::from("b")}),
                              field: Identifier::from("c")}),
                      field: Identifier::from("d")});
@@ -387,34 +387,31 @@ mod tests {
     #[test] fn test_field_mutation_from_identifier () {
         parse_ok("a.b <- 1",
                  AST::FieldMutation {
-                     field_path: Box::new(AST::FieldAccess {
-                         object: Box::new(AST::LocalAccess { local: Identifier::from("a") }),
-                         field: Identifier::from("b")}),
+                     object: Box::new(AST::VariableAccess { name: Identifier::from("a") }),
+                     field: Identifier::from("b"),
                      value: Box::new(AST::Number(1))});
     }
 
     #[test] fn test_method_call_from_identifier () {
         parse_ok("a.b (1)",
                  AST::MethodCall {
-                     method_path: Box::new(AST::FieldAccess {
-                         object: Box::new(AST::LocalAccess { local: Identifier::from("a") }),
-                         field: Identifier::from("b")}),
+                     object: Box::new(AST::VariableAccess { name: Identifier::from("a") }),
+                     method: Identifier::from("b"),
                      arguments: vec!(Box::new(AST::Number(1)))});
     }
 
     #[test] fn test_method_call_to_operator () {
         parse_ok("a.+(1)",
-                 AST::MethodCall {
-                     method_path: Box::new(AST::OperatorAccess {
-                         object: Box::new(AST::LocalAccess { local: Identifier::from("a") }),
-                         operator: Operator::Addition}),
+                 AST::OperatorCall {
+                     object: Box::new(AST::VariableAccess { name: Identifier::from("a") }),
+                     operator: Operator::Addition,
                      arguments: vec!(Box::new(AST::Number(1)))});
     }
 
     #[test] fn test_array_access () {
         parse_ok("a[1]",
                  AST::ArrayAccess {
-                     array: Box::new(AST::LocalAccess { local: Identifier::from("a") }),
+                     array: Box::new(AST::VariableAccess { name: Identifier::from("a") }),
                      index: Box::new(AST::Number(1))});
     }
 
@@ -423,7 +420,7 @@ mod tests {
                  AST::ArrayAccess {
                      array: Box::new(
                          AST::FieldAccess {
-                             object: Box::new(AST::LocalAccess { local: Identifier::from("a") }),
+                             object: Box::new(AST::VariableAccess { name: Identifier::from("a") }),
                              field: Identifier::from("b")}),
                      index: Box::new(AST::Number(1))});
     }
@@ -433,19 +430,20 @@ mod tests {
                  AST::ArrayAccess {
                      array: Box::new(
                          AST::ArrayAccess {
-                             array: Box::new(AST::LocalAccess { local: Identifier::from("a") }),
-                             index: Box::new(AST::LocalAccess { local: Identifier::from("b") }) }),
+                             array: Box::new(AST::VariableAccess { name: Identifier::from("a") }),
+                             index: Box::new(AST::VariableAccess { name: Identifier::from("b") }) }),
                      index: Box::new(AST::Number(1))});
     }
 
     #[test] fn test_array_call_method_on_member () {
-        parse_ok("a[b](1)",
+        parse_ok("a[b].c(1)",
                  {
                      AST::MethodCall {
-                         method_path: Box::new(
-                             AST::ArrayAccess {
-                                 array: Box::new(AST::LocalAccess { local: Identifier::from("a") }),
-                                 index: Box::new(AST::LocalAccess { local: Identifier::from("b")})}),
+                         object: Box::new(AST::ArrayAccess {
+                                 array: Box::new(AST::VariableAccess { name: Identifier::from("a") }),
+                                 index: Box::new(AST::VariableAccess { name: Identifier::from("b") })
+                         }),
+                         method: Identifier::from("c"),
                          arguments: vec!(Box::new(AST::Number(1)))}});
     }
 
@@ -455,95 +453,88 @@ mod tests {
                      AST::FieldAccess {
                          object: Box::new(
                              AST::ArrayAccess {
-                                 array: Box::new(AST::LocalAccess { local: Identifier::from("a") }),
-                                 index: Box::new(AST::LocalAccess { local: Identifier::from("b")})}),
+                                 array: Box::new(AST::VariableAccess { name: Identifier::from("a") }),
+                                 index: Box::new(AST::VariableAccess { name: Identifier::from("b")})}),
                          field: Identifier::from("a")}});
     }
 
     #[test] fn test_array_access_with_array_access_as_index () {
         parse_ok("a[b[c]]",
                  AST::ArrayAccess {
-                     array: Box::new(AST::LocalAccess { local: Identifier::from("a") }),
+                     array: Box::new(AST::VariableAccess { name: Identifier::from("a") }),
                      index: Box::new(
                          AST::ArrayAccess {
-                             array: Box::new(AST::LocalAccess { local: Identifier::from("b") }),
-                             index: Box::new(AST::LocalAccess { local: Identifier::from("c") })})});
+                             array: Box::new(AST::VariableAccess { name: Identifier::from("b") }),
+                             index: Box::new(AST::VariableAccess { name: Identifier::from("c") })})});
     }
 
     #[test] fn test_array_access_from_function_call () {
         parse_ok("f(0,0)[x]",
                  AST::ArrayAccess {
                      array: Box::new(
-                         AST::FunctionApplication {
+                         AST::FunctionCall {
                              function: Identifier::from("f"),
                              arguments: vec!(Box::new(AST::Number(0)),
                                              Box::new(AST::Number(0)))}),
-                     index: Box::new(AST::LocalAccess { local: Identifier::from("x")})});
+                     index: Box::new(AST::VariableAccess { name: Identifier::from("x")})});
     }
 
     #[test] fn test_print_call_with_arguments() {
         parse_ok("print(\"~ ~ ~\", 1, true, x)",
                  AST::Print {
-                     format: Box::new(AST::String("~ ~ ~".to_string())),
+                     format: "~ ~ ~".to_string(),
                      arguments: vec!(
                          Box::new(AST::Number(1)),
                          Box::new(AST::Boolean(true)),
-                         Box::new(AST::LocalAccess { local: Identifier::from("x") }) )});
+                         Box::new(AST::VariableAccess { name: Identifier::from("x") }) )});
     }
 
     #[test] fn test_print_call_without_arguments() {
         parse_ok("print(\"~ ~ ~\")",
                  AST::Print {
-                     format: Box::new(AST::String("~ ~ ~".to_string())),
+                     format: "~ ~ ~".to_string(),
                      arguments: vec!()});
     }
 
     #[test] fn test_print_call_string() {
         parse_ok("print(\"hello world\")",
                  AST::Print {
-                     format: Box::new(AST::String("hello world".to_string())),
+                     format: "hello world".to_string(),
                      arguments: vec!()});
     }
 
     #[test] fn test_print_call_empty_string() {
         parse_ok("print(\"\")",
                  AST::Print {
-                     format: Box::new(AST::String("".to_string())),
+                     format: String::new(),
                      arguments: vec!()});
     }
 
     #[test] fn test_print_call_escape_newline() {
         parse_ok("print(\"\\n\")",
                  AST::Print {
-                     format: Box::new(AST::String("\\n".to_string())),
+                     format: "\\n".to_string(),
                      arguments: vec!()});
     }
 
     #[test] fn test_print_call_escape_tab() {
         parse_ok("print(\"\\t\")",
                  AST::Print {
-                     format: Box::new(AST::String("\\t".to_string())),
+                     format: "\\t".to_string(),
                      arguments: vec!()});
     }
-
-//    #[test] fn test_print_call_escape_backspace() {
-//        parse_ok("print(\"\\b\")",
-//                 AST::Print {
-//                     format: Box::new(AST::String("\\b".to_string())),
-//                     arguments: vec!()});
-//    }
 
     #[test] fn test_print_call_escape_return() {
         parse_ok("print(\"\\r\")",
                  AST::Print {
-                     format: Box::new(AST::String("\\r".to_string())),
+                     format: "\\r".to_string(),
                      arguments: vec!()});
     }
 
     #[test] fn test_print_call_escape_backslash() {
         parse_ok("print(\"\\\\\")",
                  AST::Print {
-                     format: Box::new(AST::String("\\\\".to_string())),
+                     format: "\\\\".to_string(),
                      arguments: vec!()});
     }
 
@@ -716,7 +707,7 @@ mod tests {
                      operator: Operator::Addition,
                      left: Box::new(AST::FieldAccess {
                          field: Identifier::from("x"),
-                         object: Box::new(AST::LocalAccess { local: Identifier::from("a")})}),
+                         object: Box::new(AST::VariableAccess { name: Identifier::from("a")})}),
                      right: Box::new(AST::Number(2))});
     }
 

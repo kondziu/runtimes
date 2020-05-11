@@ -100,12 +100,12 @@ Accessible: AST = {
     Application                       => <>, // function application
     ArrayDefinition                   => <>, // array definition
     ArrayAccess                       => <>, // array access
-    LocalAccess                       => <>, // variable access
+    VariableAccess                    => <>, // variable access
     Literal                           => <>, // literal, duh
 }
 
 Operation: AST = {
-    Disjunction             => <> // Let's climb the operator precedence!
+    Disjunction                       => <>, // Let's climb the operator precedence!
 }
 
 Disjunction: AST = {
@@ -131,8 +131,8 @@ Additive: AST = {
 Factor: AST = {
     <head: Accessible> <tail: (<FactorOperator> <Accessible>)*> =>
         make_operator_ast!(head, tail),
-    //<head: Field> <tail: (<FactorOperator> <Operand>)*> =>
-    //    make_operator_ast!(head, tail)
+    //<head: Field> <tail: (<FactorOperator> <Accessible>)*> =>
+    //    make_operator_ast!(head, tail),
 }
 
 Operator: Operator = {
@@ -231,15 +231,6 @@ Field: AST = {
     }
 }
 
-Method: AST = {
-    Field => <>,
-    <object: Accessible> DOT <objects: (<Ident> DOT)*> <operator: Operator> => {
-        let path = objects.into_iter().fold(object, |left, right|
-            AST::FieldAccess {object: Box::new(left), field: right});
-        AST::OperatorAccess {object: Box::new(path), operator}
-    }
-}
-
 ArrayDefinition: AST = {
     ARRAY LPAREN <size: Expression<"open">> COMMA <value: Expression<"open">> RPAREN =>
         AST::ArrayDefinition {size: Box::new(size), value: Box::new(value)}
@@ -283,17 +274,19 @@ Application: AST = {
     <function: Ident> LPAREN <arguments: Arguments> RPAREN => {
         let boxed_arguments: Vec<Box<AST>> =
             arguments.into_iter().map(|e| Box::new(e)).collect();
-        AST::FunctionApplication{function: function, arguments: boxed_arguments}
+        AST::FunctionCall{function: function, arguments: boxed_arguments}
     },
-    <method: Method> LPAREN <arguments: Arguments> RPAREN => {
-        let boxed_arguments: Vec<Box<AST>> =
-            arguments.into_iter().map(|e| Box::new(e)).collect();
-        AST::MethodCall{method_path: Box::new(method), arguments: boxed_arguments}
+    <object: Accessible> DOT <fields: (<Ident> DOT)*> <method: Ident> LPAREN <arguments: Arguments> RPAREN => {
+        let tail = Vec::from(fields);
+        let host:AST = tail.into_iter().fold(object, |left, right| AST::FieldAccess {object: Box::new(left), field: right});
+        let boxed_arguments: Vec<Box<AST>> = arguments.into_iter().map(|e| Box::new(e)).collect();
+        AST::MethodCall{object: Box::new(host), method, arguments: boxed_arguments}
     },
-    <array: ArrayAccess> LPAREN <arguments: Arguments> RPAREN => {
-        let boxed_arguments: Vec<Box<AST>> =
-            arguments.into_iter().map(|e| Box::new(e)).collect();
-        AST::MethodCall{method_path: Box::new(array), arguments: boxed_arguments}
+    <object: Accessible> DOT <fields: (<Ident> DOT)*> <operator: Operator> LPAREN <arguments: Arguments> RPAREN => {
+        let tail = Vec::from(fields);
+        let host:AST = tail.into_iter().fold(object, |left, right| AST::FieldAccess {object: Box::new(left), field: right});
+        let boxed_arguments: Vec<Box<AST>> = arguments.into_iter().map(|e| Box::new(e)).collect();
+        AST::OperatorCall{object: Box::new(host), operator, arguments: boxed_arguments}
     }
 }
 
@@ -306,29 +299,34 @@ Arguments: Vec<AST> = {
 
 Assignment<openness>: AST = {
     LET <id: Ident> BE <v: Expression<openness>> =>
-        AST::LocalDefinition{local: id, value: Box::new(v)},
+        AST::VariableDefinition{name: id, value: Box::new(v)},
 }
 
 Mutation<openness>: AST = {
     <id: Ident> LARROW <v: Expression<openness>> =>
-        AST::LocalMutation{local: id, value: Box::new(v)},
-    <field: Field> LARROW <v: Expression<openness>> =>
-        AST::FieldMutation{field_path: Box::new(field), value: Box::new(v)},
-    <array: ArrayAccess> LARROW <v: Expression<openness>> =>
-        AST::ArrayMutation{array: Box::new(array), value: Box::new(v)},
+        AST::VariableMutation{name: id, value: Box::new(v)},
+    <object: Accessible> DOT <fields: (<Ident> DOT)*> <field: Ident> LARROW <v: Expression<openness>> => {
+        let tail = Vec::from(fields);
+        let host: AST = tail.into_iter().fold(object, |left, right| AST::FieldAccess {object: Box::new(left), field: right});
+        AST::FieldMutation {object: Box::new(host), field: field, value: Box::new(v)}
+    },
+    <array: Accessible> LBRACKET <index: Expression<"open">> RBRACKET LARROW <v: Expression<openness>> =>
+        AST::ArrayMutation{array: Box::new(array), index: Box::new(index), value: Box::new(v)},
+    <array: Field> LBRACKET <index: Expression<"open">> RBRACKET LARROW <v: Expression<openness>> =>
+        AST::ArrayMutation {array: Box::new(array), index: Box::new(index), value: Box::new(v)}
 }
 
-LocalAccess: AST = {
-    Ident                                => AST::LocalAccess { local: <> },
+VariableAccess: AST = {
+    Ident                                => AST::VariableAccess { name: <> },
 }
 
 Ident: Identifier = {
-     IDENTIFIER                          => Identifier::from(<>),
-     THIS                                => Identifier::from(<>),
+    IDENTIFIER                          => Identifier::from(<>),
+    THIS                                => Identifier::from(<>),
 }
 
 Number: AST = {
-     NUMBER                              => AST::Number(i32::from_str(<>).unwrap()),
+    NUMBER                              => AST::Number(i32::from_str(<>).unwrap()),
 }
 
 String: String = {
