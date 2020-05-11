@@ -80,7 +80,7 @@ Expression<openness>: AST = {
     FunctionDefinition<openness>      => <>, // Feeny-style function definition, returns unit?
     ObjectDefinition                  => <>, // prototype object definition
     Assignment<openness>              => <>, // Feenified variable definition
-    Field                             => <>, // field access
+    //Field                             => <>, // field access
     Conditional<openness>             => <>, // conditional expression
     Loop<openness>                    => <>, // loop expression
     Mutation<openness>                => <>, // variable/object member mutation
@@ -128,11 +128,17 @@ Additive: AST = {
         make_operator_ast!(head, tail)
 }
 
+Operand: AST = {
+    Accessible => <>,
+    <object: Accessible> DOT <fields: (<Ident> DOT)*> <field: Ident> => {
+        let mut tail = Vec::from(fields);
+        tail.push(field);
+        tail.into_iter().fold(object, |left, right| AST::FieldAccess {object: Box::new(left), field: right})
+    },
+}
+
 Factor: AST = {
-    <head: Accessible> <tail: (<FactorOperator> <Accessible>)*> =>
-        make_operator_ast!(head, tail),
-    //<head: Field> <tail: (<FactorOperator> <Accessible>)*> =>
-    //    make_operator_ast!(head, tail),
+    <head: Operand> <tail: (<FactorOperator> <Operand>)*> => make_operator_ast!(head, tail),
 }
 
 Operator: Operator = {
@@ -317,7 +323,7 @@ Mutation<openness>: AST = {
 }
 
 VariableAccess: AST = {
-    Ident                                => AST::VariableAccess { name: <> },
+    Ident                               => AST::VariableAccess { name: <> },
 }
 
 Ident: Identifier = {
