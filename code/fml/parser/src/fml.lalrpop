@@ -60,8 +60,8 @@ match {
 // Parser
 
 pub TopLevel: AST = {
-    <expressions: Expressions> => expressions,
-                               => AST::Unit,
+    <expressions: Expressions> => AST::Top(Box::new(expressions)),
+                               => AST::Top(Box::new(AST::Unit)),
 }
 
 Expressions: AST = {

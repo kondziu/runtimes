@@ -256,6 +256,10 @@ impl Program {
         Address::from_usize(size)
     }
 
+    pub fn set_entry(&mut self, function_index: ConstantPoolIndex) {
+        self.entry = function_index;
+    }
+
     pub fn emit_code(&mut self, opcode: OpCode) {
         match opcode {
             OpCode::Label {name: index} => {
@@ -314,12 +318,6 @@ impl Serializable for Program {
         let entry = ConstantPoolIndex::from_bytes(input);
         let labels = Program::labels_from_code(&code, &constants);
 
-        Program {
-            code,
-            constants,
-            globals,
-            entry,
-            labels
-        }
+        Program { code, constants, globals, entry, labels }
     }
 }

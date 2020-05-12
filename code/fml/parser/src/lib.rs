@@ -4,12 +4,13 @@ extern crate lalrpop_util;
 #[macro_use]
 extern crate fml_ast;
 
-//extern crate unescape;
-
 lalrpop_mod!(pub fml); // synthesized by LALRPOP
 
-pub fn parse(input: &str) -> fml_ast::AST {
-    fml::TopLevelParser::new().parse(input).unwrap()
+pub fn parse(input: &str) -> Result<fml_ast::AST, String> {
+    match fml::TopLevelParser::new().parse(input) {
+        Err(e) => Err(format!("{:?}", e)),
+        Ok(ast) => Ok(ast),
+    }
 }
 
 #[cfg(test)]
@@ -28,7 +29,7 @@ mod tests {
             }
         }
         println!();
-        assert_eq!(TopLevelParser::new().parse(input), Ok(correct));
+        assert_eq!(TopLevelParser::new().parse(input), Ok(AST::Top(Box::new(correct))));
     }
 
     #[allow(dead_code)]

@@ -32,6 +32,7 @@ pub enum AST {
     OperatorCall { object: Box<AST>, operator: Operator, arguments: Vec<Box<AST>> },
     Print { format: String, arguments: Vec<Box<AST>> },
 
+    Top (Box<AST>),
     Block (Vec<Box<AST>>),
     Operation { operator: Operator, left: Box<AST>, right: Box<AST> },
     Loop { condition: Box<AST>, body: Box<AST> },
@@ -121,11 +122,3 @@ macro_rules! option_into_box {
         }
     }
 }
-
-//#[cfg(test)]
-//mod tests {
-//    #[test]
-//    fn it_works() {
-//        assert_eq!(2 + 2, 4);
-//    }
-//}

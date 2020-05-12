@@ -423,6 +423,7 @@ mod interpreter_test {
     use crate::objects::{ProgramObject, Pointer, Object};
     use crate::interpreter::{State, interpret, LocalFrame, Memory};
     use std::collections::HashMap;
+    use std::io::Write;
 
     macro_rules! hashmap {
         ($key: expr, $value: expr) => {{
@@ -3392,5 +3393,45 @@ mod compiler_tests {
 
 
 fn main() {
+    use std::env;
+    use std::fs::File;
+    use std::io::stdin;
+    use std::io::Read;
+    use fml_ast::AST;
 
+    use crate::program::Program;
+
+    println!("{:?}", env::args());
+
+    let files: Vec<String> = env::args().into_iter().map(|e| e.to_string()).collect();
+
+    let input = match files.len() {
+        0 => unreachable!(),
+        1 => {
+            let mut input = String::new();
+            stdin().read_to_string(&mut input).expect("Error reading from stdin");
+            input
+        },
+        2 => {
+            let path = files.last().unwrap();              // Cannot explode due to conditions above
+            let mut file = File::open(path).expect(&format!("Cannot open file: {}", path));
+            let mut input = String::new();
+            file.read_to_string(&mut input).expect(&format!("Cannot read file: {}", path));
+            input
+        },
+        n => {
+            panic!("Can only parse 1 file at a time, but the following files {} were provided: {:?}",
+                    n, files)
+        },
+    };
+
+    let ast: AST = fml_parser::parse(&input).expect("Parse error");
+
+    println!("{:?}", ast);
+
+    let program: Program = compiler::compile(&ast);
+
+    println!("{:?}", program);
+
+    interpreter::evaluate(&program);
 }

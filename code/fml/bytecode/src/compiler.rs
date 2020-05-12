@@ -8,11 +8,17 @@ use std::collections::{HashMap, HashSet};
 use crate::bytecode::OpCode::Literal;
 use std::ops::Deref;
 
+pub fn compile(ast: &AST) -> Program {
+    let mut program: Program = Program::empty();
+    let mut bookkeeping: Bookkeeping = Bookkeeping::without_frame();
+    ast.compile_into(&mut program, &mut bookkeeping);
+    program
+}
+
 #[derive(PartialEq,Debug,Clone)]
 pub struct Bookkeeping { // TODO rename
     locals: Vec<HashMap<String, LocalFrameIndex>>,
     globals: HashSet<String>,
-//    labels: HashMap<String, ConstantPoolIndex>,
 }
 
 enum VariableIndex {
@@ -459,6 +465,29 @@ impl Compiled for AST {
                 left.deref().compile_into(program, environment);
                 let arity = Arity::from_usize(2);
                 program.emit_code(OpCode::CallMethod { name: index, arguments: arity });
+            }
+
+            AST::Top (ast) => {
+                let function_name_index = program.generate_new_label_name("^");
+                let end_label_index = program.generate_new_label_name("$");
+
+                program.emit_code(OpCode::Jump { label: end_label_index });
+                let start_address = program.get_upcoming_address();
+
+                (**ast).compile_into(program, environment);
+
+                program.emit_code(OpCode::Label { name: end_label_index });
+                let end_address = program.get_current_address();
+
+                let method = ProgramObject::Method {
+                    name: function_name_index,
+                    locals: Size::from_usize(0),
+                    arguments: Arity::from_usize(0),
+                    code: AddressRange::from_addresses(start_address, end_address),
+                };
+
+                let function_index = program.register_constant(method);
+                program.set_entry(function_index);
             }
         }
     }

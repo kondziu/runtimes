@@ -14,6 +14,8 @@ lalrpop_mod!(pub fml); // synthesized by LALRPOP
 
 use crate::fml::TopLevelParser;
 use fml_ast::{AST};
+use std::io::Read;
+use std::fs::File;
 
 #[cfg(not(test))]
 fn main() {
@@ -33,22 +35,21 @@ fn main() {
         converters
     };
 
-    let (flags, _ /*files*/): (Vec<_>, Vec<_>) =
+    let (flags, files): (Vec<_>, Vec<_>) =
         env::args().into_iter().partition(|e| e.starts_with("--"));
 
-    let mut buffer = String::new();
-    if io::stdin().read_to_string(&mut buffer).is_err() {
-        println!("Cannot read stdin.");
-        return;
+    if files.len() > 1 {
+        panic!("Can only parse 1 file at a time, but the following files were provided: {:?}", files)
     }
 
-    let ast: AST = match TopLevelParser::new().parse(buffer.as_str()) {
-        Ok(ast) => ast,
-        Err(message) => {
-            println!("Parse error: {}", message);
-            AST::Unit
-        },
+    let input: Reader = if files.is_empty() {
+        io::stdin()
+    } else {
+        let path = files.last().unwrap();                  // Cannot explode due to conditions above
+        File::open(path).expect(&format!("Cannot read file: {}", path))
     };
+
+    let ast: AST = TopLevelParser::new().parse(input).expect("Parse error");
 
     flags.iter().for_each(|e| if converters.contains_key(e) {
         println!("{}", converters.get(e).unwrap()(&ast));

@@ -4,8 +4,39 @@ use crate::types::{Address, LocalFrameIndex, Arity};
 use crate::objects::{Pointer, Object, ProgramObject};
 use crate::bytecode::OpCode;
 use crate::program::Program;
-use std::fmt::Write;
-use std::ops::Deref;
+use std::fmt::{Write, Error};
+
+pub struct Output {}
+
+impl Output {
+    fn new() -> Output {
+        Output {}
+    }
+}
+
+impl Write for Output {
+    fn write_str(&mut self, s: &str) -> Result<(), Error> {
+        print!("{}", s); Ok(())
+    }
+}
+
+pub fn evaluate(program: &Program) {
+    let mut state = State::empty();
+    let mut output = Output::new();
+
+
+    let start_address = match program.get_constant(program.entry()) {
+        Some(ProgramObject::Method { name:_, locals:_, arguments:_, code }) => *code.start(),
+        None => panic!("No entry method at index {:?}", program.entry()),
+        Some(constant) => panic!("Constant at index {:?} is not a method {:?}",
+                                  program.entry(), constant),
+    };
+
+    state.set_instruction_pointer(Some(start_address));
+    while state.has_next_instruction_pointer() {
+        interpret(&mut state, &mut output, program);
+    }
+}
 
 /**
  * A name-to-value table that holds the current value of all the global variables used in the
@@ -335,6 +366,10 @@ impl State {
         self.instruction_pointer = address;
     }
 
+    pub fn has_next_instruction_pointer(&mut self) -> bool {
+        self.instruction_pointer != None
+    }
+
     pub fn current_frame(&self) -> Option<&LocalFrame> {
         self.frames.last()
     }
@@ -467,6 +502,9 @@ impl State {
 
 pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut Memory,*/ program: &Program)
     where /*Input : Read,*/ Output : Write {
+
+    println!("Interpreting {:?}", state.instruction_pointer());
+
     let opcode: &OpCode = {
         let address = state.instruction_pointer()
             .expect("Interpreter error: cannot reference opcode at instruction pointer: nothing");
@@ -790,7 +828,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
                 Object::Array(_) =>
                     interpret_array_method(object_pointer, name, &arguments, *parameters, state, program),
                 Object::Object { parent:_, fields:_, methods:_ } =>
-                    dispatch_object_method(object_pointer, name, &arguments, *parameters, state, output, program),
+                    dispatch_object_method(object_pointer, name, &arguments, *parameters, state, program),
             };
         }
 
@@ -1128,9 +1166,8 @@ pub fn interpret_array_method(pointer: Pointer, name: &str, arguments: &Vec<Poin
     }
 }
 
-fn dispatch_object_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<Pointer>,
-                                  arity: Arity, state: &mut State, output: &mut Output,
-                                  program: &Program) {
+fn dispatch_object_method(pointer: Pointer, name: &str, arguments: &Vec<Pointer>, arity: Arity,
+                          state: &mut State, program: &Program) {
 
     let mut cursor: Pointer = pointer;
     loop {
@@ -1164,14 +1201,13 @@ fn dispatch_object_method<Output>(pointer: Pointer, name: &str, arguments: &Vec<
             },
         };
 
-        interpret_object_method(method, pointer, name, arguments, state, output, program);
+        interpret_object_method(method, pointer, name, arguments, state, program);
         break
     }
 }
 
-fn interpret_object_method<Output>(method: ProgramObject, pointer: Pointer, name: &str,
-                                   arguments: &Vec<Pointer>, state: &mut State,
-                                   output: &mut Output, program: &Program) {
+fn interpret_object_method(method: ProgramObject, pointer: Pointer, name: &str,
+                           arguments: &Vec<Pointer>, state: &mut State, program: &Program) {
 
     match method {
         ProgramObject::Method { name: _, locals, arguments: arity, code } => {
