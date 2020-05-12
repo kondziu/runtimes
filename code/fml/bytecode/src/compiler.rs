@@ -15,10 +15,98 @@ pub fn compile(ast: &AST) -> Program {
     program
 }
 
+type Scope = usize;
+
+#[derive(PartialEq,Debug,Clone)]
+struct LocalFrame {
+    locals: HashMap<(Scope, String), LocalFrameIndex>,
+    scopes: Vec<Scope>,
+    scope_sequence: Scope,
+}
+
+impl LocalFrame {
+    fn new() -> Self {
+        LocalFrame { locals: HashMap::new(), scopes: vec!(0), scope_sequence: 0 }
+    }
+
+    fn from_locals(locals: Vec<String>) -> Self {
+        let mut local_map: HashMap<(Scope, String), LocalFrameIndex> = HashMap::new();
+
+        for (i, local) in locals.into_iter().enumerate() {
+            local_map.insert((0, local), LocalFrameIndex::from_usize(i));
+        }
+
+        LocalFrame { locals: local_map, scopes: vec!(0), scope_sequence: 0 }
+    }
+
+    fn current_scope(&self) -> Scope {
+        *self.scopes.last().expect("Cannot pop from empty scope stack")
+    }
+
+    fn register_new_local(&mut self, id: &str) -> Result<LocalFrameIndex, String> {
+        let key = (self.current_scope(), id.to_string());
+
+        if let Some(index) = self.locals.get(&key) {
+            return Err(format!("Local {} already exist (at index {:?}) and cannot be redefined",
+                                id, index))
+        }
+
+        let index = LocalFrameIndex::from_usize(self.locals.len());
+        let previous = self.locals.insert(key, index);
+        assert!(previous.is_none());
+        Ok(index)
+    }
+
+    fn register_local(&mut self, id: &str) -> LocalFrameIndex {
+        let key = (self.current_scope(), id.to_string());
+
+        if let Some(index) = self.locals.get(&key) {
+            return *index;
+        }
+
+        let index = LocalFrameIndex::from_usize(self.locals.len());
+        self.locals.insert(key, index);
+        index
+    }
+
+    fn has_local(&self, id: &str) -> bool {
+        self.locals.contains_key(&(self.current_scope(), id.to_string()))
+    }
+
+    fn in_outermost_scope(&self) -> bool {
+        assert!(!self.scopes.is_empty());
+        self.scopes.len() == 1
+    }
+
+    fn count_locals(&self) -> usize {
+        self.locals.len()
+    }
+
+    fn generate_new_local(&mut self, name: &str) -> LocalFrameIndex {
+        let index = LocalFrameIndex::from_usize(self.locals.len());
+        let label = format!("?{}_{}", name, self.locals.len());
+        let key = (self.current_scope(), label);
+        let result = self.locals.insert(key, index);
+        assert!(result.is_none());
+        index
+    }
+
+    fn enter_scope(&mut self) {
+        self.scope_sequence += 1;
+        self.scopes.push(self.scope_sequence);
+    }
+
+    fn leave_scope(&mut self) {
+        self.scopes.pop()
+            .expect("Cannot leave scope: the scope stack is empty");
+    }
+}
+
 #[derive(PartialEq,Debug,Clone)]
 pub struct Bookkeeping { // TODO rename
-    locals: Vec<HashMap<String, LocalFrameIndex>>,
+    frames: Vec<LocalFrame>,
     globals: HashSet<String>,
+    top: LocalFrame,
 }
 
 enum VariableIndex {
@@ -28,104 +116,121 @@ enum VariableIndex {
 
 impl Bookkeeping {
     pub fn with_frame() -> Bookkeeping {
-        Bookkeeping { locals: vec!(HashMap::new()), globals: HashSet::new() }
+        Bookkeeping {
+            frames: vec!(LocalFrame::new()),
+            globals: HashSet::new(),
+            top: LocalFrame::new(),
+        }
     }
 
     pub fn without_frame() -> Bookkeeping {
-        Bookkeeping { locals: vec!(), globals: HashSet::new() }
+        Bookkeeping {
+            frames: vec!(),
+            globals: HashSet::new(),
+            top: LocalFrame::new(),
+        }
     }
 
     pub fn from(locals: Vec<String>, globals: Vec<String>) -> Bookkeeping {
-        let mut local_map: HashMap<String, LocalFrameIndex> = HashMap::new();
-
-        for (i, local) in locals.into_iter().enumerate() {
-            local_map.insert(local, LocalFrameIndex::from_usize(i));
+        Bookkeeping {
+            frames: vec!(LocalFrame::from_locals(locals)),
+            globals: globals.into_iter().collect(),
+            top: LocalFrame::new(),
         }
-
-        Bookkeeping { locals: vec!(local_map), globals: globals.into_iter().collect() }
     }
 
     pub fn from_locals(locals: Vec<String>) -> Bookkeeping {
-        let mut local_map: HashMap<String, LocalFrameIndex> = HashMap::new();
-
-        for (i, local) in locals.into_iter().enumerate() {
-            local_map.insert(local, LocalFrameIndex::from_usize(i));
+        Bookkeeping {
+            frames: vec!(LocalFrame::from_locals(locals)),
+            globals: HashSet::new(),
+            top: LocalFrame::new(),
         }
-
-        Bookkeeping { locals: vec!(local_map), globals: HashSet::new() }
     }
 
     pub fn from_globals(globals: Vec<String>) -> Bookkeeping {
-        Bookkeeping { locals: vec!(), globals: globals.into_iter().collect() }
-    }
-
-    fn has_frame(&self) -> bool {
-        !self.locals.is_empty()
-    }
-
-    fn has_local(&self, id: &str) -> bool {
-        if self.locals.is_empty() {
-            false
-        } else {
-            self.locals.last().unwrap().contains_key(id)
+        Bookkeeping {
+            frames: vec!(),
+            globals: globals.into_iter().collect(),
+            top: LocalFrame::new(),
         }
-    }
-
-//    fn register_variable(&mut self, id: &str) -> VariableIndex {
-//        match self.locals.last_mut() {
-//            Some(locals) => VariableIndex::Local(self.register_local(id)),
-//            None => VariableIndex::Global(self.register_global(id)),
-//        }
-//    }
-
-    fn register_global(&mut self, id: &str) {
-        self.globals.insert(id.to_string());
-//        match self.globals.get(id) {
-//            Some(index) => *index,
-//            None => {
-//                let index = ConstantPoolIndex::from_usize(self.globals.len());
-//                self.globals.insert(id.to_string(), index);
-//                index
-//            },
-//        }
-    }
-
-    fn register_local(&mut self, id: &str) -> LocalFrameIndex {
-        let locals = self.locals.last_mut()
-            .expect("Bookkeeping: cannot register local, no frame on stack");
-
-        if let Some(index) = locals.get(id) {
-            return *index;
-        }
-
-        let index = LocalFrameIndex::from_usize(locals.len());
-        locals.insert(id.to_string(), index);
-        index
-    }
-
-    fn count_locals(&self) -> usize {
-        let locals = self.locals.last()
-            .expect("Bookkeeping: cannot count locals, no frame on stack");
-
-        locals.len()
     }
 
     fn add_frame(&mut self) {
-        self.locals.push(HashMap::new())
+        self.frames.push(LocalFrame::new())
     }
 
     fn remove_frame(&mut self)  {
-        self.locals.pop().expect("Bookkeeping: cannot pop frame from an empty stack");
+        self.frames.pop()
+            .expect("Bookkeeping: cannot pop frame from an empty stack");       //FIXME
+    }
+
+    pub fn enter_scope(&mut self) {
+        if self.frames.is_empty() {
+            self.top.enter_scope()
+        } else {
+            self.frames.last_mut().unwrap().enter_scope()
+        }
+    }
+
+    pub fn leave_scope(&mut self) {
+        if self.frames.is_empty() {
+            self.top.leave_scope()
+        } else {
+            self.frames.last_mut().unwrap().leave_scope()
+        }
+    }
+
+    fn has_frame(&self) -> bool {
+        !(self.frames.is_empty() && self.top.in_outermost_scope())
+    }
+
+    fn register_global(&mut self, id: &str) {
+        self.globals.insert(id.to_string());
+    }
+
+    fn has_local(&self, id: &str) -> bool {
+        match self.frames.last() {
+            None => {
+                if self.top.in_outermost_scope() {
+                    false
+                } else {
+                    self.top.has_local(id)
+                }
+            }
+            Some(frame) => frame.has_local(id),
+        }
+    }
+
+    fn register_new_local(&mut self, id: &str) -> Result<LocalFrameIndex, String> {
+        if self.frames.is_empty() {
+            self.top.register_new_local(id)
+        } else {
+            self.frames.last_mut().unwrap().register_new_local(id)
+        }
+    }
+
+    fn register_local(&mut self, id: &str) -> LocalFrameIndex {
+        if self.frames.is_empty() {
+            self.top.register_local(id)
+        } else {
+            self.frames.last_mut().unwrap().register_local(id)
+        }
+    }
+
+    fn count_locals(&self) -> usize {
+        if self.frames.is_empty() {
+            self.top.count_locals()
+        } else {
+            self.frames.last().unwrap().count_locals()
+        }
     }
 
     fn generate_new_local(&mut self, name: &str) -> LocalFrameIndex {
-        let locals = self.locals.last_mut()
-            .expect("Bookkeeping: cannot generate local, no frame on stack");
-
-        let index = LocalFrameIndex::from_usize(locals.len());
-        let result = locals.insert(format!("?{}_{}", name, locals.len()), index);
-        assert!(result.is_none());
-        index
+        if self.frames.is_empty() {
+            self.top.generate_new_local(name)
+        } else {
+            self.frames.last_mut().unwrap().generate_new_local(name)
+        }
     }
 }
 
@@ -156,7 +261,9 @@ impl Compiled for AST {
 
             AST::VariableDefinition { name: Identifier(name), value } => {
                 if environment.has_frame() {
-                    let index = environment.register_local(name).clone();   // FIXME error if not new
+                    let index = environment.register_new_local(name)
+                        .expect(&format!("Cannot register new variable {}", &name))
+                        .clone();   // FIXME error if not new
                     value.deref().compile_into(program, environment);    // FIXME scoping!!!
                     program.emit_code(OpCode::SetLocal { index });
                 } else {
@@ -421,9 +528,11 @@ impl Compiled for AST {
             }
 
             AST::Block(children) => {
+                environment.enter_scope();
                 for child in children {
                     child.deref().compile_into(program, environment)
                 }
+                environment.leave_scope();
             }
 
             AST::FieldAccess { object, field: Identifier(name) } => {
@@ -467,21 +576,23 @@ impl Compiled for AST {
                 program.emit_code(OpCode::CallMethod { name: index, arguments: arity });
             }
 
-            AST::Top (ast) => {
+            AST::Top (children) => {
                 let function_name_index = program.generate_new_label_name("^");
                 let end_label_index = program.generate_new_label_name("$");
 
                 program.emit_code(OpCode::Jump { label: end_label_index });
                 let start_address = program.get_upcoming_address();
 
-                (**ast).compile_into(program, environment);
+                for child in children {
+                    child.deref().compile_into(program, environment)
+                }
 
                 program.emit_code(OpCode::Label { name: end_label_index });
                 let end_address = program.get_current_address();
 
                 let method = ProgramObject::Method {
                     name: function_name_index,
-                    locals: Size::from_usize(0),
+                    locals: Size::from_usize(environment.top.count_locals()),
                     arguments: Arity::from_usize(0),
                     code: AddressRange::from_addresses(start_address, end_address),
                 };

@@ -1,5 +1,7 @@
 #![crate_name = "bytecode"]
 
+use crate::debug::PrettyPrint;
+
 mod interpreter;
 mod bytecode;
 mod objects;
@@ -3061,7 +3063,9 @@ mod compiler_tests {
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
+        let mut expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
+        expected_bookkeeping.enter_scope();
+        expected_bookkeeping.leave_scope();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
@@ -3098,7 +3102,9 @@ mod compiler_tests {
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
+        let mut expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
+        expected_bookkeeping.enter_scope();
+        expected_bookkeeping.leave_scope();
 
         let expected_code = Code::from(vec!(
             /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
@@ -3126,7 +3132,9 @@ mod compiler_tests {
 
         ast.compile_into(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
+        let mut expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
+        expected_bookkeeping.enter_scope();
+        expected_bookkeeping.leave_scope();
 
         let expected_code = Code::from(vec!());
 
@@ -3425,6 +3433,8 @@ fn main() {
         },
     };
 
+    println!("{}", input);
+
     let ast: AST = fml_parser::parse(&input).expect("Parse error");
 
     println!("{:?}", ast);
@@ -3432,6 +3442,10 @@ fn main() {
     let program: Program = compiler::compile(&ast);
 
     println!("{:?}", program);
+
+    let mut source:Vec<u8> = Vec::new();
+    program.pretty_print(&mut source);
+    println!("{}", String::from_utf8(source).unwrap());
 
     interpreter::evaluate(&program);
 }

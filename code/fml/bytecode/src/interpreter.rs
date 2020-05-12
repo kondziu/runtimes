@@ -24,14 +24,19 @@ pub fn evaluate(program: &Program) {
     let mut state = State::empty();
     let mut output = Output::new();
 
-
-    let start_address = match program.get_constant(program.entry()) {
-        Some(ProgramObject::Method { name:_, locals:_, arguments:_, code }) => *code.start(),
+    let (start_address, locals) = match program.get_constant(program.entry()) {
+        Some(ProgramObject::Method { name:_, locals, arguments:_, code }) => (*code.start(), locals),
         None => panic!("No entry method at index {:?}", program.entry()),
         Some(constant) => panic!("Constant at index {:?} is not a method {:?}",
                                   program.entry(), constant),
     };
 
+    let mut slots = Vec::new();
+    for _ in 0..locals.to_usize() {
+        slots.push(state.allocate(Object::Null));
+    }
+
+    state.new_frame(None, slots);
     state.set_instruction_pointer(Some(start_address));
     while state.has_next_instruction_pointer() {
         interpret(&mut state, &mut output, program);
@@ -425,13 +430,8 @@ impl State {
         self.register_global(name, pointer)
     }
 
-    pub fn update_global(&mut self, name: String, object: Pointer) -> Result<(), String> {
-        if self.globals.contains_key(&name) {
-            self.globals.insert(name, object);
-            Ok(())
-        } else {
-            Err(format!("Global {} does not exist and cannot be updated", &name))
-        }
+    pub fn update_global(&mut self, name: String, object: Pointer) {
+        self.globals.insert(name, object);
     }
 
     pub fn set_instruction_pointer_from_label(&mut self, program: &Program, name: &str) -> Result<(), String> {
@@ -589,8 +589,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
             let operand: Pointer = state.peek_operand().map(|o| o.clone())
                 .expect("Set global: cannot pop operand from empty operand stack");
 
-            state.update_global(name.to_string(), operand)
-                .expect(&format!("Set global: cannot update global {}, no such global", name));
+            state.update_global(name.to_string(), operand);
 
             state.bump_instruction_pointer(program);
         }

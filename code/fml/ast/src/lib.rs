@@ -32,7 +32,7 @@ pub enum AST {
     OperatorCall { object: Box<AST>, operator: Operator, arguments: Vec<Box<AST>> },
     Print { format: String, arguments: Vec<Box<AST>> },
 
-    Top (Box<AST>),
+    Top (Vec<Box<AST>>),
     Block (Vec<Box<AST>>),
     Operation { operator: Operator, left: Box<AST>, right: Box<AST> },
     Loop { condition: Box<AST>, body: Box<AST> },
