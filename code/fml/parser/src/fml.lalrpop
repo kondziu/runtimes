@@ -54,24 +54,24 @@ match {
     // all fungible tokens
     r"[_A-Za-z][_A-Za-z0-9]*" => IDENTIFIER,
     r"[-]?[0-9]+" => NUMBER,
-    r#""([^\\]|\\[~ntr\\])*""# => STRING_LITERAL,
+    r#""([^\\"]|\\[~ntr\\])*""# => STRING_LITERAL,
 }
 
 // Parser
 
 pub TopLevel: AST = {
-    <expressions: Expressions> => AST::Top(Box::new(expressions)),
-                               => AST::Top(Box::new(AST::Unit)),
+    <expressions: Expressions> => AST::Top(expressions),
+                               => AST::Top(vec!(Box::new(AST::Unit))),
 }
 
-Expressions: AST = {
+Expressions: Vec<Box<AST>> = {
     <element: Expression<"open">> <elements: (SEMICOLON <Expression<"open">>)*> SEMICOLON? => {
         if elements.is_empty() {
-            element
+            vec!(Box::new(element))
         } else {
             let mut all = VecDeque::from(elements);
             all.push_front(element);
-            AST::Block(put_into_boxes!(Vec::from(all)))
+            put_into_boxes!(Vec::from(all))
         }
     }
 }
@@ -91,7 +91,7 @@ Expression<openness>: AST = {
 
 Block: AST = {
     BEGIN END                            => AST::Unit,
-    BEGIN <expressions: Expressions> END => expressions
+    BEGIN <expressions: Expressions> END => AST::Block(expressions)
 }
 
 Accessible: AST = {

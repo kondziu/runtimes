@@ -29,7 +29,7 @@ mod tests {
             }
         }
         println!();
-        assert_eq!(TopLevelParser::new().parse(input), Ok(AST::Top(Box::new(correct))));
+        assert_eq!(TopLevelParser::new().parse(input), Ok(AST::Top(vec!(Box::new(correct)))));
     }
 
     #[allow(dead_code)]
@@ -154,10 +154,10 @@ mod tests {
     #[test] fn test_application_many_extra_commas() { parse_err("f(x,,)");}
 
     #[test] fn test_empty_block_is_unit()  { parse_ok("begin end", AST::Unit);}
-    #[test] fn test_block_one_expression() { parse_ok("begin 1 end",AST::Number(1));}
+    #[test] fn test_block_one_expression() { parse_ok("begin 1 end", AST::Block(vec!(Box::new(AST::Number(1)))))}
 
     #[test] fn test_block_one_expression_and_semicolon() {
-        parse_ok("begin 1; end",AST::Number(1))
+        parse_ok("begin 1; end",AST::Block(vec!(Box::new(AST::Number(1)))))
     }
     #[test] fn test_block_many_expressions() {
         parse_ok("begin 1; 2; 3 end",
@@ -167,12 +167,45 @@ mod tests {
                           Box::new(AST::Number(3)))))
     }
 
-    #[test] fn test_block_trailing_semicolon() {
-        parse_ok("begin 1; 2; 3; end",
+    #[test] fn test_nested_block() {
+        parse_ok("begin 0; begin 1; 2; 3 end; 4; 5 end",
                  AST::Block(
-                     vec!(Box::new(AST::Number(1)),
-                          Box::new(AST::Number(2)),
-                          Box::new(AST::Number(3)))))
+                     vec!(Box::new(AST::Number(0)),
+                          Box::new(AST::Block(
+                             vec!(Box::new(AST::Number(1)),
+                                  Box::new(AST::Number(2)),
+                                  Box::new(AST::Number(3))))),
+                          Box::new(AST::Number(4)),
+                          Box::new(AST::Number(5)))))
+    }
+
+    #[test] fn test_nested_block_two() {
+        parse_ok("begin \n\
+                     0; \n\
+                     begin \n\
+                         1; \n\
+                         2; \n\
+                         3 \n\
+                      end; \n\
+                      4; \n\
+                      5 \n\
+                      end\n",
+                 AST::Block(
+                     vec!(Box::new(AST::Number(0)),
+                          Box::new(AST::Block(
+                              vec!(Box::new(AST::Number(1)),
+                                   Box::new(AST::Number(2)),
+                                   Box::new(AST::Number(3))))),
+                          Box::new(AST::Number(4)),
+                          Box::new(AST::Number(5)))))
+    }
+
+    #[test] fn test_block_trailing_semicolon() {
+    parse_ok("begin 1; 2; 3; end",
+             AST::Block(
+                 vec!(Box::new(AST::Number(1)),
+                      Box::new(AST::Number(2)),
+                      Box::new(AST::Number(3)))))
     }
 
     #[test] fn test_loop() {
@@ -509,6 +542,18 @@ mod tests {
                  AST::Print {
                      format: String::new(),
                      arguments: vec!()});
+    }
+
+    #[test] fn test_two_prints() {
+        parse_ok("begin print(\"\"); print(\"\"); end",
+                 AST::Block(vec!(
+                     Box::new(AST::Print {
+                        format: String::new(),
+                        arguments: vec!()}),
+                     Box::new(AST::Print {
+                         format: String::new(),
+                         arguments: vec!()}),
+                 )))
     }
 
     #[test] fn test_print_call_escape_newline() {
