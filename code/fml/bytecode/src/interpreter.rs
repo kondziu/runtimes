@@ -1219,6 +1219,7 @@ fn interpret_object_method(method: ProgramObject, pointer: Pointer, name: &str,
                 Vec::with_capacity(1 + arity.to_usize() + locals.to_usize());
 
             slots.push(pointer);
+
             slots.extend(arguments); // TODO passes by reference... correct?
 
             for _ in 0..locals.to_usize() {

@@ -13,7 +13,7 @@ pub enum ProgramObject {
      *
      * Serialized with tag `0x00`.
      */
-    /*0*/ Integer(i32),
+    Integer(i32),
 
     /**
      * Represents a boolean. Used by the `Literal` instruction.

@@ -1610,6 +1610,9 @@ mod interpreter_test {
                                                    Object::from_i32(1))), "test memory")
     }
 
+    // before: array(1,2,3)
+    //         a.set(1, 42)
+    // after:  array(1,42,3)
     #[test] fn call_method_array_set() {
         let code = Code::from(vec!(
             OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(3) },
@@ -1639,15 +1642,15 @@ mod interpreter_test {
         interpret(&mut state, &mut output, &program);
 
         assert_eq!(&output, "", "test output");
-        assert_eq!(state.operands, vec!(Pointer::from(4)), "test operands");
+        assert_eq!(state.operands, vec!(Pointer::from(6)), "test operands");    // returns null
         assert_eq!(state.globals, HashMap::new(), "test globals");
         assert_eq!(state.instruction_pointer, Some(Address::from_usize(1)), "test instruction pointer");
         assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
         assert_eq!(state.memory, Memory::from(vec!(Object::from_i32(1),
-                                                   Object::from_i32(42),
+                                                   Object::from_i32(2),
                                                    Object::from_i32(3),
                                                    Object::from_pointers(vec!(Pointer::from(0),
-                                                                              Pointer::from(1),
+                                                                              Pointer::from(4),
                                                                               Pointer::from(2))),
                                                    Object::from_i32(42),
                                                    Object::from_i32(1),
