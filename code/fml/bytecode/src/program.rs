@@ -5,6 +5,7 @@ use std::io::{Write, Read};
 use crate::serializable;
 use crate::bytecode::OpCode;
 use std::collections::HashMap;
+use std::error::Error;
 
 /**
  * The instruction pointer contains the address of the instruction that will be executed next.
@@ -225,6 +226,14 @@ impl Program {
                 index
             }
         }
+    }
+
+    pub fn register_global(&mut self, constant: ConstantPoolIndex) {
+        if self.globals.contains(&constant) {
+            panic!("Cannot register global {:?}, this index is already registered.", constant)
+        }
+
+        self.globals.push(constant)
     }
 
 //    fn register_label(&mut self, label: String) -> ConstantPoolIndex {

@@ -478,7 +478,8 @@ impl Compiled for AST {
                     arguments: Arity::from_usize(parameters.len()),
                     code: AddressRange::from_addresses(start_address, end_address),
                 };
-                program.register_constant(method);
+                let constant = program.register_constant(method);
+                program.register_global(constant)  // FIXME local functions should not be visible globally
             }
 
             AST::FunctionCall { function: Identifier(name), arguments } => {

@@ -5,6 +5,7 @@ use crate::objects::{Pointer, Object, ProgramObject};
 use crate::bytecode::OpCode;
 use crate::program::Program;
 use std::fmt::{Write, Error};
+use std::io::Write as IOWrite;
 
 pub struct Output {}
 
@@ -16,12 +17,15 @@ impl Output {
 
 impl Write for Output {
     fn write_str(&mut self, s: &str) -> Result<(), Error> {
-        print!("{}", s); Ok(())
+        match std::io::stdout().write_all(s.as_bytes()) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(Error),
+        }
     }
 }
 
 pub fn evaluate(program: &Program) {
-    let mut state = State::empty();
+    let mut state = State::from(program);
     let mut output = Output::new();
 
     let (start_address, locals) = match program.get_constant(program.entry()) {
@@ -267,6 +271,7 @@ pub struct State {
 
 impl State {
     pub fn from(program: &Program) -> Self {
+
         let entry_index = program.entry();
         let entry_method = program.get_constant(entry_index)
             .expect(&format!("State init error: entry method is not in the constant pool \
@@ -305,6 +310,8 @@ impl State {
                 }
 
                 ProgramObject::Method { name: index, arguments: _, locals: _, code: _ } => {
+                    println!("ProgramObject::Method {:?}", index);
+
                     let constant = program.get_constant(index)
                         .expect(&format!("State init error: no such entry at index pool: {:?} \
                                  (expected by method: {:?})", index, thing));
@@ -324,6 +331,8 @@ impl State {
         }
 
         let frames = vec!(LocalFrame::empty());
+
+        println!("Functions {:?}", functions);
 
         State {
             instruction_pointer: Some(instruction_pointer),
@@ -408,6 +417,7 @@ impl State {
     }
 
     pub fn get_function(&self, name: &str) -> Option<&ProgramObject> {
+        println!("{:?}", self.functions);
         self.functions.get(name)
     }
 
@@ -900,9 +910,10 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
                             index, constant),
             };
 
+            let mut escape = false;
             for character in format.chars() {
-                match character {
-                    '~' => {
+                match (character, escape) {
+                    ('~', _) => {
                         let string = &argument_values.pop()
                             .map(|e| state.dereference_to_string(&e))
                             .expect(&format!("Print error: Not enough arguments for format {}",
@@ -911,7 +922,28 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
                         output.write_str(string)
                             .expect("Print error: Could not write to output stream.")
                     },
-                    character => {
+                    ('\\', false) => {
+                        escape = true;
+                    }
+                    ('\\', true)  => {
+                        output.write_char('\\')
+                            .expect("Print error: Could not write to output stream.");
+                        escape = false;
+                    }
+                    ('n', true)  => {
+                        output.write_char('\n')
+                            .expect("Print error: Could not write to output stream.");
+                        escape = false;
+                    }
+                    ('t', true)  => {
+                        output.write_char('\t')
+                            .expect("Print error: Could not write to output stream.");
+                        escape = false;
+                    }
+                    (character, true)  => {
+                        panic!("Print error: Unknown escape sequence: \\{}", character)
+                    }
+                    (character, false) => {
                         output.write_char(character)
                             .expect("Print error: Could not write to output stream.")
                     }

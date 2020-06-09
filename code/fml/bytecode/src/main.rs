@@ -3402,7 +3402,6 @@ mod compiler_tests {
     }
 }
 
-
 fn main() {
     use std::env;
     use std::fs::File;

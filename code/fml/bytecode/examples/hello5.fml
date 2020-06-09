@@ -1,0 +1,17 @@
+function three() <- 3;
+function hello(i) <- print("Hello ~ ", i);
+function world(j, k) <- print("world ~ ~!\n", j, k);
+
+function main() <-
+begin
+  hello(three());
+  world(4, three());
+end;
+
+main()
+
+(*****************************************************************************
+
+  > Hello 3 world 4 3!
+
+(*****************************************************************************)
