@@ -270,6 +270,7 @@ impl Program {
     }
 
     pub fn emit_code(&mut self, opcode: OpCode) {
+        println!("Emitting code: {:?}", opcode);
         match opcode {
             OpCode::Label {name: index} => {
                 let address = Address::from_usize(self.code.opcodes.len());

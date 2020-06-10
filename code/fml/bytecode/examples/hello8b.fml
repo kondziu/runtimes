@@ -1,10 +1,12 @@
-function hello() <- print("Hello ");
-function world() <- print("world!\n");
-
 function main() <-
 begin
-  hello();
-  world();
+  if 0
+    then print("Hello ")
+    else print("World ");
+
+  if null
+    then print("hello!\n")
+    else print("world!\n");
 end;
 
 main()

@@ -58,19 +58,28 @@ impl LocalFrame {
     }
 
     fn register_local(&mut self, id: &str) -> LocalFrameIndex {
-        let key = (self.current_scope(), id.to_string());
-
-        if let Some(index) = self.locals.get(&key) {
-            return *index;
+        for scope in self.scopes.iter().rev() {
+            let key = (*scope, id.to_string());
+            if let Some(index) = self.locals.get(&key) {
+                return *index;
+            }
         }
 
+        let key = (self.current_scope(), id.to_string());
         let index = LocalFrameIndex::from_usize(self.locals.len());
         self.locals.insert(key, index);
         index
     }
 
     fn has_local(&self, id: &str) -> bool {
-        self.locals.contains_key(&(self.current_scope(), id.to_string()))
+        //println!("    has local? ({:?}, {:?}) {} looking in {:?}", self.current_scope(), id.to_string(), self.locals.contains_key(&(self.current_scope(), id.to_string())), self.locals);
+        for scope in self.scopes.iter().rev() {
+            println!("    scope {:?} ... {:?}", scope, self.scopes);
+            if self.locals.contains_key(&(*scope, id.to_string())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     fn in_outermost_scope(&self) -> bool {
@@ -189,15 +198,21 @@ impl Bookkeeping {
     }
 
     fn has_local(&self, id: &str) -> bool {
+        println!("How many frames? {:?}", self.frames.len());
         match self.frames.last() {
             None => {
                 if self.top.in_outermost_scope() {
+                    println!("In outermost scope");
                     false
                 } else {
+                    println!("Not in outermost scope... {:?} has global? {}", self.top, self.top.has_local(id));
                     self.top.has_local(id)
                 }
             }
-            Some(frame) => frame.has_local(id),
+            Some(frame) => {
+                println!("Some(frame)... {:?} has local? {}", frame, frame.has_local(id));
+                frame.has_local(id)
+            },
         }
     }
 
@@ -240,6 +255,7 @@ pub trait Compiled {
 
 impl Compiled for AST {
     fn compile_into(&self, program: &mut Program, environment: &mut Bookkeeping) {
+        println!("AST: {:?}", self);
         match self {
             AST::Number(value) => {
                 let constant = ProgramObject::Integer(*value);
@@ -275,6 +291,7 @@ impl Compiled for AST {
             }
 
             AST::VariableAccess { name: Identifier(name) } => {
+                println!("Has local? {:?} {}", name, environment.has_local(name));
                 if environment.has_local(name) {
                     let index = environment.register_local(name).clone();   // FIXME error if does not exists
                     program.emit_code(OpCode::GetLocal { index });      // FIXME scoping!!!
@@ -286,7 +303,8 @@ impl Compiled for AST {
             }
 
             AST::VariableMutation { name: Identifier(name), value } => {
-                if environment.has_frame() {
+                println!("Has local? (mut) {:?} {}", name, environment.has_local(name));
+                if environment.has_local(name) {
                     let index = environment.register_local(name).clone(); // FIXME error if does not exists
                     value.deref().compile_into(program, environment);    // FIXME scoping!!!
                     program.emit_code(OpCode::SetLocal { index });

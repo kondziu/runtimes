@@ -1,10 +1,11 @@
-function hello() <- print("Hello ");
-function world() <- print("world!\n");
-
 function main() <-
 begin
-  hello();
-  world();
+  let condition = true;
+  while condition do
+  begin
+    print("Hello world!\n");
+    condition <- false;
+  end;
 end;
 
 main()

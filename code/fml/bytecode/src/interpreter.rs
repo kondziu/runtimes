@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use crate::types::{Address, LocalFrameIndex, Arity};
 use crate::objects::{Pointer, Object, ProgramObject};
@@ -310,8 +310,6 @@ impl State {
                 }
 
                 ProgramObject::Method { name: index, arguments: _, locals: _, code: _ } => {
-                    println!("ProgramObject::Method {:?}", index);
-
                     let constant = program.get_constant(index)
                         .expect(&format!("State init error: no such entry at index pool: {:?} \
                                  (expected by method: {:?})", index, thing));
@@ -331,8 +329,6 @@ impl State {
         }
 
         let frames = vec!(LocalFrame::empty());
-
-        println!("Functions {:?}", functions);
 
         State {
             instruction_pointer: Some(instruction_pointer),
@@ -417,7 +413,6 @@ impl State {
     }
 
     pub fn get_function(&self, name: &str) -> Option<&ProgramObject> {
-        println!("{:?}", self.functions);
         self.functions.get(name)
     }
 
@@ -513,7 +508,7 @@ impl State {
 pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut Memory,*/ program: &Program)
     where /*Input : Read,*/ Output : Write {
 
-    println!("Interpreting {:?}", state.instruction_pointer());
+    //println!("Interpreting {:?}", state.instruction_pointer());
 
     let opcode: &OpCode = {
         let address = state.instruction_pointer()
@@ -802,12 +797,12 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
                 panic!("Call method error: method must have at least one parameter (receiver)");
             }
 
-            let mut arguments: Vec<Pointer> = Vec::with_capacity(parameters.value() as usize);
-            for index in 0..(parameters.value() - 1) {
+            let mut arguments: VecDeque<Pointer> = VecDeque::with_capacity(parameters.value() as usize);
+            for index in 0..(parameters.to_usize() - 1) {
                 let element = state.pop_operand()
                     .expect(&format!("Call method error: cannot pop argument {} from empty operand \
                                       stack", index));
-                arguments.push(element);
+                arguments.push_front(element);
             }
 
             let object_pointer: Pointer = state.pop_operand()
@@ -829,15 +824,15 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
 
             match object {
                 Object::Null =>
-                    interpret_null_method(object_pointer, name, &arguments, state, program),
+                    interpret_null_method(object_pointer, name, &Vec::from(arguments), state, program),
                 Object::Integer(_) =>
-                    interpret_integer_method(object_pointer, name, &arguments, state, program),
+                    interpret_integer_method(object_pointer, name, &Vec::from(arguments), state, program),
                 Object::Boolean(_) =>
-                    interpret_boolean_method(object_pointer, name, &arguments, state, program),
+                    interpret_boolean_method(object_pointer, name, &Vec::from(arguments), state, program),
                 Object::Array(_) =>
-                    interpret_array_method(object_pointer, name, &arguments, *parameters, state, program),
+                    interpret_array_method(object_pointer, name, &Vec::from(arguments), *parameters, state, program),
                 Object::Object { parent:_, fields:_, methods:_ } =>
-                    dispatch_object_method(object_pointer, name, &arguments, *parameters, state, program),
+                    dispatch_object_method(object_pointer, name, &Vec::from(arguments), *parameters, state, program),
             };
         }
 
@@ -866,22 +861,22 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
                                but {} were supplied", parameters.value(), arguments.value())
                     }
 
-                    let mut slots: Vec<Pointer> =
-                        Vec::with_capacity(parameters.value() as usize + locals.value() as usize);
+                    let mut slots: VecDeque<Pointer> =
+                        VecDeque::with_capacity(parameters.value() as usize + locals.value() as usize);
 
-                    for index in 0..arguments.value() {
+                    for index in 0..arguments.to_usize() {
                         let element = state.pop_operand()
                             .expect(&format!("Call function error: cannot pop argument {} from \
                                               empty operand stack", index));
-                        slots.push(element);
+                        slots.push_front(element);
                     }
 
                     for _ in 0..locals.value() {
-                        slots.push(state.allocate(Object::Null))
+                        slots.push_back(state.allocate(Object::Null))
                     }
 
                     state.bump_instruction_pointer(program);
-                    state.new_frame(*state.instruction_pointer(), slots);
+                    state.new_frame(*state.instruction_pointer(), Vec::from(slots));
                     state.set_instruction_pointer(Some(*range.start()));
                 },
                 _ => panic!("Call function error: constant at index {:?} must be a Method, but it \

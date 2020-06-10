@@ -992,9 +992,9 @@ mod interpreter_test {
         let mut state = State::minimal();
         state.functions.insert("fun".to_string(), constants.get(1).unwrap().clone());
 
-        state.allocate_and_push_operand(Object::from_i32(3));
-        state.allocate_and_push_operand(Object::from_i32(2));
         state.allocate_and_push_operand(Object::from_i32(1));
+        state.allocate_and_push_operand(Object::from_i32(2));
+        state.allocate_and_push_operand(Object::from_i32(3));
 
         state.set_instruction_pointer(Some(Address::from_usize(1)));
 
@@ -1012,12 +1012,12 @@ mod interpreter_test {
         assert_eq!(state.instruction_pointer, Some(Address::from_usize(0)), "test instruction pointer");
         assert_eq!(state.frames, vec!(LocalFrame::empty(),
                                       LocalFrame::from(Some(Address::from_usize(2)),
-                                                       vec!(Pointer::from(2),
+                                                       vec!(Pointer::from(0),
                                                             Pointer::from(1),
-                                                            Pointer::from(0),))), "test frames");
-        assert_eq!(state.memory, Memory::from(vec!(Object::from_i32(3),
+                                                            Pointer::from(2),))), "test frames");
+        assert_eq!(state.memory, Memory::from(vec!(Object::from_i32(1),
                                                    Object::from_i32(2),
-                                                   Object::from_i32(1),
+                                                   Object::from_i32(3),
         )))
     }
 
@@ -1387,9 +1387,9 @@ mod interpreter_test {
         state.set_instruction_pointer(Some(Address::from_usize(1)));
         state.allocate(Object::Null);
         state.allocate_and_push_operand(receiver.clone());
-        state.allocate_and_push_operand(Object::from_i32(3));
-        state.allocate_and_push_operand(Object::from_i32(2));
         state.allocate_and_push_operand(Object::from_i32(1));
+        state.allocate_and_push_operand(Object::from_i32(2));
+        state.allocate_and_push_operand(Object::from_i32(3));
 
         interpret(&mut state, &mut output, &program);
 
@@ -1400,14 +1400,14 @@ mod interpreter_test {
         assert_eq!(state.frames, vec!(LocalFrame::empty(),
                                       LocalFrame::from(Some(Address::from_usize(2)),
                                                        vec!(Pointer::from(1),
-                                                            Pointer::from(4),
+                                                            Pointer::from(2),
                                                             Pointer::from(3),
-                                                            Pointer::from(2),))), "test frames");
+                                                            Pointer::from(4),))), "test frames");
         assert_eq!(state.memory, Memory::from(vec!(Object::Null,
                                                    receiver.clone(),
-                                                   Object::from_i32(3),
+                                                   Object::from_i32(1),
                                                    Object::from_i32(2),
-                                                   Object::from_i32(1))))
+                                                   Object::from_i32(3))))
     }
 
     fn call_method(receiver: Object, argument: Object, operation: &str, result: Object) {
@@ -1636,8 +1636,8 @@ mod interpreter_test {
         state.allocate(Object::from_i32(2));
         state.allocate(Object::from_i32(3));
         state.allocate_and_push_operand(array.clone());
-        state.allocate_and_push_operand(Object::from_i32(42));
         state.allocate_and_push_operand(Object::from_i32(1));
+        state.allocate_and_push_operand(Object::from_i32(42));
 
         interpret(&mut state, &mut output, &program);
 
@@ -1650,10 +1650,10 @@ mod interpreter_test {
                                                    Object::from_i32(2),
                                                    Object::from_i32(3),
                                                    Object::from_pointers(vec!(Pointer::from(0),
-                                                                              Pointer::from(4),
+                                                                              Pointer::from(5),
                                                                               Pointer::from(2))),
-                                                   Object::from_i32(42),
                                                    Object::from_i32(1),
+                                                   Object::from_i32(42),
                                                    Object::Null)), "test memory");
 
         assert_eq!(array, Object::from_pointers(vec!(Pointer::from(0),
@@ -2915,7 +2915,7 @@ mod compiler_tests {
             },
         );
 
-        let expected_globals: Vec<ConstantPoolIndex> = vec!();
+        let expected_globals: Vec<ConstantPoolIndex> = vec!(ConstantPoolIndex::new(2));
         let expected_entry = ConstantPoolIndex::new(0);
 
         let expected_program =
