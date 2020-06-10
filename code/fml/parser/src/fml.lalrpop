@@ -6,8 +6,8 @@ grammar;
 
 // Lexer
 match {
-    r"\s*" => { }, // ignore whitespace
-    r"\(\*([^\*]*\*+[^\*\(])*([^\*]*\*+|[^\*])*\*\)" => { }, // ignore
+    r"\s*" => { },                                                          // ignore whitespace
+    r"/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/|(//.*)" => { },             // comments: /**/ and //
 
     // all keywords and fixed tokens
     ";" => SEMICOLON,
