@@ -282,7 +282,6 @@ impl State {
             _ => panic!("State init error: entry method is not a Method {:?}", entry_method),
         };
 
-
         let mut globals: HashMap<String, Pointer> = HashMap::new();
         let mut functions: HashMap<String, ProgramObject> = HashMap::new();
         let mut memory: Memory = Memory::new();
@@ -323,8 +322,8 @@ impl State {
                     }
                     functions.insert(name.to_string(), thing.clone());
                 }
-                _ => panic!("State init error: name of global at index {:?} is not a String \
-                             {:?}", index, thing),
+                _ => panic!("State init error: name of global at index {:?} is not a String {:?}",
+                            index, thing),
             };
         }
 
@@ -822,6 +821,9 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
             let object: &mut Object = state.dereference_mut(&object_pointer)
                 .expect(&format!("Call method error: no operand object at {:?}", object_pointer));
 
+
+            println!("Dispatch! {:?}.{}({:?})", object_pointer, name, arguments);
+
             match object {
                 Object::Null =>
                     interpret_null_method(object_pointer, name, &Vec::from(arguments), state, program),
@@ -1013,7 +1015,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
             // current_frame is reclaimed here
         }
 
-        OpCode::Drop => {
+        OpCode::Drop => { // FIXME balance stack
             state.pop_operand()
                 .expect("Drop error: cannot pop operand from empty operand stack");
             state.bump_instruction_pointer(program);
@@ -1194,6 +1196,8 @@ pub fn interpret_array_method(pointer: Pointer, name: &str, arguments: &Vec<Poin
 
 fn dispatch_object_method(pointer: Pointer, name: &str, arguments: &Vec<Pointer>, arity: Arity,
                           state: &mut State, program: &Program) {
+
+    println!("Dispatch! {:?}.{}({:?})/{:?}", pointer, name, arguments,arity);
 
     let mut cursor: Pointer = pointer;
     loop {

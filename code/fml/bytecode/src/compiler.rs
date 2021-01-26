@@ -59,7 +59,7 @@ impl LocalFrame {
 
     fn register_local(&mut self, id: &str) -> LocalFrameIndex {
         for scope in self.scopes.iter().rev() {
-            let key = (*scope, id.to_string());
+            let key = (*scope, id.to_owned());
             if let Some(index) = self.locals.get(&key) {
                 return *index;
             }
@@ -513,12 +513,12 @@ impl Compiled for AST {
 
                 let slots: Vec<ConstantPoolIndex> = members.iter().map(|m| m.deref()).map(|m| match m {
                     AST::FunctionDefinition { function, parameters, body } => {
-                        compile_function_definition(function.to_str(), parameters, body.deref(),
+                        compile_function_definition(function.to_str(), true, parameters, body.deref(),
                                                     program, environment)
 
                     }
                     AST::OperatorDefinition { operator, parameters, body } => {
-                        compile_function_definition(operator.to_str(), parameters, body.deref(),
+                        compile_function_definition(operator.to_str(), true, parameters, body.deref(),
                                                     program, environment)
 
                     }
@@ -561,36 +561,36 @@ impl Compiled for AST {
             }
 
             AST::FieldMutation { object, field: Identifier(name), value } => {
-                value.deref().compile_into(program, environment);
                 object.deref().compile_into(program, environment);
+                value.deref().compile_into(program, environment);
                 let index = program.register_constant(ProgramObject::from_str(name));
                 program.emit_code(OpCode::SetSlot { name: index })
             }
 
             AST::MethodCall { object, method: Identifier(name), arguments } => {
                 let index = program.register_constant(ProgramObject::from_str(name));
+                object.deref().compile_into(program, environment);
                 for argument in arguments.iter() {
                     argument.compile_into(program, environment);
                 }
-                object.deref().compile_into(program, environment);
                 let arity = Arity::from_usize(arguments.len() + 1);
                 program.emit_code(OpCode::CallMethod { name: index, arguments: arity });
             }
 
             AST::OperatorCall { object, operator, arguments } => {
                 let index = program.register_constant(ProgramObject::from_str(operator.to_str()));
+                object.deref().compile_into(program, environment);
                 for argument in arguments.iter() {
                     argument.compile_into(program, environment);
                 }
-                object.deref().compile_into(program, environment);
                 let arity = Arity::from_usize(arguments.len() + 1);
                 program.emit_code(OpCode::CallMethod { name: index, arguments: arity });
             }
 
             AST::Operation { operator, left, right } => {
                 let index = program.register_constant(ProgramObject::from_str(operator.to_str()));
-                right.deref().compile_into(program, environment);
                 left.deref().compile_into(program, environment);
+                right.deref().compile_into(program, environment);
                 let arity = Arity::from_usize(2);
                 program.emit_code(OpCode::CallMethod { name: index, arguments: arity });
             }
@@ -624,6 +624,7 @@ impl Compiled for AST {
 }
 
 fn compile_function_definition(name: &str,
+                               receiver: bool,
                                parameters: &Vec<Identifier>,
                                body: &AST,
                                program: &mut Program,
@@ -632,11 +633,16 @@ fn compile_function_definition(name: &str,
     let end_label_index = program.generate_new_label_name("function_guard");
     program.emit_code(OpCode::Jump { label: end_label_index });
 
-    let expected_arguments = parameters.len();
+    let expected_arguments = parameters.len() + if receiver { 1 } else { 0 };
 
     let start_address = program.get_upcoming_address();
 
     environment.add_frame();
+
+    if receiver {
+        environment.register_local("this");
+    }
+
     for parameter in parameters.into_iter() {
         environment.register_local(parameter.to_str());
     }

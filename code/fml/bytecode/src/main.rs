@@ -2956,6 +2956,21 @@ mod compiler_tests {
                 Box::new(AST::VariableDefinition {
                     name: Identifier::from("hash"),
                     value: Box::new(AST::Number(1))}),
+
+                Box::new(AST::OperatorDefinition {
+                    operator: Operator::Addition,
+                    parameters: vec!(Identifier::from("x")),
+                    body: Box::new(AST::Boolean(true))}),
+
+                Box::new(AST::OperatorDefinition {
+                    operator: Operator::Multiplication,
+                    parameters: vec!(Identifier::from("x")),
+                    body: Box::new(AST::VariableAccess { name: Identifier::from("x") })}),
+
+                Box::new(AST::FunctionDefinition {
+                    function: Identifier::from("me"),
+                    parameters: vec!(),
+                    body: Box::new(AST::VariableAccess { name: Identifier::from("this") })}),
             )
         };
 
@@ -2985,14 +3000,29 @@ mod compiler_tests {
             /* 12 */ OpCode::Label { name: ConstantPoolIndex::new(10) },     // function_guard_2
 
             /* 13 */ OpCode::Jump { label: ConstantPoolIndex::new(13) },     // function_guard_3 - or
-            /* 14 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },    // x
+            /* 14 */ OpCode::GetLocal { index: LocalFrameIndex::new(1) },    // x
             /* 15 */ OpCode::Return,
             /* 16 */ OpCode::Label { name: ConstantPoolIndex::new(13) },     // function_guard_3
 
             /* 17 */ OpCode::Literal { index: ConstantPoolIndex::new(4) },   // 1 - hash
 
-            /* 18 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true - parent
-            /* 19 */ OpCode::Object { class: ConstantPoolIndex:: new(18) },
+            /* 18 */ OpCode::Jump { label: ConstantPoolIndex::new(18) },     // function_guard_4 - +
+            /* 19 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true
+            /* 20 */ OpCode::Return,
+            /* 21 */ OpCode::Label { name: ConstantPoolIndex::new(18) },     // function_guard_4
+
+            /* 22 */ OpCode::Jump { label: ConstantPoolIndex::new(21) },     // function_guard_5 - *
+            /* 23 */ OpCode::GetLocal { index: LocalFrameIndex::new(1) },    // x
+            /* 24 */ OpCode::Return,
+            /* 25 */ OpCode::Label { name: ConstantPoolIndex::new(21) },     // function_guard_5
+
+            /* 26 */ OpCode::Jump { label: ConstantPoolIndex::new(24) },     // function_guard_6 - me
+            /* 27 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },    // this
+            /* 28 */ OpCode::Return,
+            /* 29 */ OpCode::Label { name: ConstantPoolIndex::new(24) },     // function_guard_6
+
+            /* 30 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true - parent
+            /* 31 */ OpCode::Object { class: ConstantPoolIndex:: new(27) },
         ));
 
         let expected_constants: Vec<ProgramObject> = vec!(
@@ -3001,7 +3031,7 @@ mod compiler_tests {
             /* 02 */ ProgramObject::from_str("implies"),
             /* 03 */ ProgramObject::Method {
                 name: ConstantPoolIndex::new(2),    // implies
-                arguments: Arity::new(1),
+                arguments: Arity::new(1+1),
                 locals: Size::new(0),
                 code: AddressRange::from(1, 2),     // addresses: 1, 2
             },
@@ -3014,7 +3044,7 @@ mod compiler_tests {
             /* 08 */ ProgramObject::from_str("identity"),
             /* 09 */ ProgramObject::Method {
                 name: ConstantPoolIndex::new(8),    // identity
-                arguments: Arity::new(0),
+                arguments: Arity::new(0+1),
                 locals: Size::new(0),
                 code: AddressRange::from(6, 2),     // addresses: 6, 7
             },
@@ -3023,7 +3053,7 @@ mod compiler_tests {
             /* 11 */ ProgramObject::from_str("or"),
             /* 12 */ ProgramObject::Method {
                 name: ConstantPoolIndex::new(11),    // or
-                arguments: Arity::new(1),
+                arguments: Arity::new(1+1),
                 locals: Size::new(0),
                 code: AddressRange::from(10, 2),     // addresses: 10, 11
             },
@@ -3032,14 +3062,42 @@ mod compiler_tests {
             /* 14 */ ProgramObject::from_str("and"),
             /* 15 */ ProgramObject::Method {
                 name: ConstantPoolIndex::new(14),    // and
-                arguments: Arity::new(1),
+                arguments: Arity::new(1+1),
                 locals: Size::new(0),
                 code: AddressRange::from(14, 2),     // addresses: 14, 15
             },
 
             /* 16 */ ProgramObject::from_str("hash"),
             /* 17 */ ProgramObject::slot_from_u16(16),
-            /* 18 */ ProgramObject::class_from_vec(vec!(3, 6, 9, 12, 15, 17)),
+
+            /* 18 */ ProgramObject::from_str("function_guard_4"),
+            /* 19 */ ProgramObject::from_str("+"),
+            /* 20 */ ProgramObject::Method {
+                name: ConstantPoolIndex::new(19),          // +
+                arguments: Arity::new(1+1),
+                locals: Size::new(0),
+                code: AddressRange::from(19, 2),
+            },
+
+            /* 21 */ ProgramObject::from_str("function_guard_5"),
+            /* 22 */ ProgramObject::from_str("*"),
+            /* 23 */ ProgramObject::Method {
+                name: ConstantPoolIndex::new(22),          // *
+                arguments: Arity::new(1+1),
+                locals: Size::new(0),
+                code: AddressRange::from(23, 2),
+            },
+
+            /* 24 */ ProgramObject::from_str("function_guard_6"),
+            /* 25 */ ProgramObject::from_str("me"),
+            /* 26 */ ProgramObject::Method {
+                name: ConstantPoolIndex::new(25),          // *
+                arguments: Arity::new(1),
+                locals: Size::new(0),
+                code: AddressRange::from(27, 2),
+            },
+
+            /* 27 */ ProgramObject::class_from_vec(vec!(3, 6, 9, 12, 15, 17, 20, 23, 26)),
         );
 
         let expected_globals: Vec<ConstantPoolIndex> = vec!();
@@ -3047,6 +3105,9 @@ mod compiler_tests {
 
         let expected_program =
             Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        program.code().dump();
+        program.constants().iter().enumerate().for_each(|(p, o)| println!("{}: {:?}", p, o));
 
         assert_eq!(program, expected_program);
         assert_eq!(bookkeeping, expected_bookkeeping);
@@ -3200,8 +3261,8 @@ mod compiler_tests {
         let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         let expected_code = Code::from(vec!(
-            /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
-            /* 1 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            /* 0 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            /* 1 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
             /* 2 */ OpCode::SetSlot { name: ConstantPoolIndex::new(1) },
         ));
 
@@ -3237,10 +3298,12 @@ mod compiler_tests {
         let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         let expected_code = Code::from(vec!(
+            OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+
             OpCode::Literal { index: ConstantPoolIndex::new(1) },
             OpCode::Literal { index: ConstantPoolIndex::new(2) },
             OpCode::Literal { index: ConstantPoolIndex::new(3) },
-            OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+
             OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(4) },
         ));
 
@@ -3276,8 +3339,8 @@ mod compiler_tests {
         let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
         let expected_code = Code::from(vec!(
-            OpCode::Literal { index: ConstantPoolIndex::new(1) },
             OpCode::GetLocal { index: LocalFrameIndex::new(0) },
+            OpCode::Literal { index: ConstantPoolIndex::new(1) },
             OpCode::CallMethod { name: ConstantPoolIndex::new(0), arguments: Arity::new(2) },
         ));
 
@@ -3351,8 +3414,8 @@ mod compiler_tests {
 
         let expected_constants: Vec<ProgramObject> = vec!(
             /* 0 */ ProgramObject::from_str("-"),
-            /* 1 */ ProgramObject::from_i32(1),
-            /* 2 */ ProgramObject::from_i32(7),
+            /* 1 */ ProgramObject::from_i32(7),
+            /* 2 */ ProgramObject::from_i32(1),
         );
 
         let expected_globals: Vec<ConstantPoolIndex> = vec!();
@@ -3387,8 +3450,8 @@ mod compiler_tests {
 
         let expected_constants: Vec<ProgramObject> = vec!(
             /* 0 */ ProgramObject::from_str("-"),
-            /* 1 */ ProgramObject::from_i32(1),
-            /* 2 */ ProgramObject::from_i32(7),
+            /* 1 */ ProgramObject::from_i32(7),
+            /* 2 */ ProgramObject::from_i32(1),
         );
 
         let expected_globals: Vec<ConstantPoolIndex> = vec!();
