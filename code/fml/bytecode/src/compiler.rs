@@ -332,7 +332,7 @@ impl Compiled for AST {
 
                 (**condition).compile_into(program, environment, true);
                 program.emit_code(OpCode::Branch { label: consequent_label_index} );
-                (**alternative).compile_into(program, environment, false);
+                (**alternative).compile_into(program, environment, keep_result);
                 program.emit_code(OpCode::Jump { label: end_label_index} );
                 program.emit_code(OpCode::Label { name: consequent_label_index });
                 (**consequent).compile_into(program, environment, keep_result);
@@ -350,7 +350,11 @@ impl Compiled for AST {
                 (**condition).compile_into(program, environment, true);
                 program.emit_code(OpCode::Branch { label: body_label_index });
 
-                // Always drops result, no way around it that I can see.
+                if keep_result {
+                    let constant = ProgramObject::Null;
+                    let index = program.register_constant(constant);
+                    program.emit_code(OpCode::Literal { index });
+                }
             }
 
             AST::ArrayDefinition { size, value } => {

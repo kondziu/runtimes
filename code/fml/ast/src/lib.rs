@@ -83,8 +83,8 @@ impl Operator {
             Operator::LessEqual      => "<=",
             Operator::Greater        => ">",
             Operator::GreaterEqual   => ">=",
-            Operator::Disjunction    => "&",
-            Operator::Conjunction    => "|",
+            Operator::Disjunction    => "|",
+            Operator::Conjunction    => "&",
         }
     }
 
