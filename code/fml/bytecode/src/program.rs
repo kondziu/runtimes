@@ -269,6 +269,10 @@ impl Program {
         self.entry = function_index;
     }
 
+    pub fn emit_conditionally(&mut self, opcode: OpCode, emit: bool) {
+        if emit { self.emit_code(opcode) }
+    }
+
     pub fn emit_code(&mut self, opcode: OpCode) {
         println!("Emitting code: {:?}", opcode);
         match opcode {

@@ -2195,7 +2195,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
@@ -2224,7 +2224,7 @@ mod compiler_tests {
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
         for ast in asts {
-            ast.compile_into(&mut program, &mut bookkeeping);
+            ast.compile(&mut program, &mut bookkeeping);
         }
 
         let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
@@ -2258,7 +2258,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
@@ -2286,7 +2286,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
@@ -2315,7 +2315,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::from_locals(vec!("x".to_string()));
 
@@ -2345,7 +2345,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::without_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::from_globals(vec!("x".to_string()));
 
@@ -2375,7 +2375,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("x".to_string(), "y".to_string()));
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::from_locals(vec!("x".to_string(), "y".to_string()));
 
@@ -2402,7 +2402,7 @@ mod compiler_tests {
         let mut bookkeeping: Bookkeeping =
             Bookkeeping::from_locals(vec!("x".to_string(), "y".to_string()));
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping =
             Bookkeeping::from_locals(vec!("x".to_string(), "y".to_string()));
@@ -2430,7 +2430,7 @@ mod compiler_tests {
         let mut bookkeeping: Bookkeeping =
             Bookkeeping::from_globals(vec!("x".to_string()));
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping =
             Bookkeeping::from_globals(vec!("x".to_string()));
@@ -2460,7 +2460,7 @@ mod compiler_tests {
         let mut bookkeeping: Bookkeeping =
             Bookkeeping::from(vec!("x".to_string()), vec!("z".to_string()));
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping =
             Bookkeeping::from(vec!("x".to_string()), vec!("z".to_string()));
@@ -2489,7 +2489,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::with_frame();
 
@@ -2529,7 +2529,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
@@ -2570,7 +2570,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::with_frame();
 
@@ -2595,7 +2595,7 @@ mod compiler_tests {
         assert_eq!(bookkeeping, expected_bookkeeping);
     }
 
-    #[test] fn array_definition_complex_test() {
+    #[test] fn array_definition_complex_test() { // FIXME test is wrong
         let ast = AST::ArrayDefinition {
             size: Box::new(AST::Number(10)),
             value: Box::new(AST::FunctionCall {
@@ -2607,7 +2607,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::from_locals(vec!(
             "?size_0".to_string(),
@@ -2676,7 +2676,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("x".to_string()));
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("x".to_string()));
 
@@ -2711,7 +2711,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("x".to_string()));
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("x".to_string()));
 
@@ -2750,7 +2750,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::with_frame();
 
@@ -2789,7 +2789,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::with_frame();
 
@@ -2826,7 +2826,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::with_frame();
 
@@ -2859,7 +2859,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::with_frame();
 
@@ -2893,7 +2893,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::with_frame();
 
@@ -2977,7 +2977,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::with_frame();
 
@@ -3125,7 +3125,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let mut expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
         expected_bookkeeping.enter_scope();
@@ -3164,7 +3164,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let mut expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
         expected_bookkeeping.enter_scope();
@@ -3194,7 +3194,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::with_frame();
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let mut expected_bookkeeping: Bookkeeping = Bookkeeping::with_frame();
         expected_bookkeeping.enter_scope();
@@ -3223,7 +3223,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
@@ -3256,7 +3256,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
@@ -3293,7 +3293,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
@@ -3334,7 +3334,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
@@ -3369,7 +3369,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::from_locals(vec!("obj".to_string()));
 
@@ -3402,7 +3402,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!());
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::from_locals(vec!());
 
@@ -3438,7 +3438,7 @@ mod compiler_tests {
         let mut program: Program = Program::empty();
         let mut bookkeeping: Bookkeeping = Bookkeeping::from_locals(vec!());
 
-        ast.compile_into(&mut program, &mut bookkeeping);
+        ast.compile(&mut program, &mut bookkeeping);
 
         let expected_bookkeeping = Bookkeeping::from_locals(vec!());
 
@@ -3506,6 +3506,7 @@ fn main() {
 
     let program: Program = compiler::compile(&ast);
 
+    program.code().dump();
     println!("{:?}", program);
 
     let mut source:Vec<u8> = Vec::new();

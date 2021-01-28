@@ -507,7 +507,15 @@ impl State {
 pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut Memory,*/ program: &Program)
     where /*Input : Read,*/ Output : Write {
 
-    //println!("Interpreting {:?}", state.instruction_pointer());
+    println!("Stack:");
+    for pointer in state.operands.iter() {
+        println!("  {:?}: {:?}", pointer, state.memory.objects.get(&pointer));
+    }
+    println!("Memory:");
+    for (pointer, object) in state.memory.objects.iter() {
+        println!("  {:?}: {:?}", pointer, object);
+    }
+    println!("Interpreting {:?}: {:?}", state.instruction_pointer(), state.instruction_pointer().map(|opcode| program.code().get_opcode(&opcode)));
 
     let opcode: &OpCode = {
         let address = state.instruction_pointer()
