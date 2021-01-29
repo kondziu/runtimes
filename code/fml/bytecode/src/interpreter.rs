@@ -641,7 +641,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
 
             let fields: HashMap<String, Pointer> = {
                 let mut map: HashMap<String, Pointer> = HashMap::new();
-                for slot in slots {
+                for slot in slots.into_iter().rev() {
                     if let ProgramObject::Slot {name: index} = slot {
                         let object = state.pop_operand()
                             .expect("Object error: cannot pop operand (member) from empty operand \
