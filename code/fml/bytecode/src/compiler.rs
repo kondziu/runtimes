@@ -255,6 +255,21 @@ impl Bookkeeping {
     }
 }
 
+macro_rules! unpack {
+    ((_) from $vector:expr) => {{
+        let vector = $vector;
+        vector[0]
+    }};
+    ((_,_) from $vector:expr) => {{
+        let vector = $vector;
+        (vector[0], vector[1])
+    }};
+    ((_,_,_) from $vector:expr) => {{
+        let vector = $vector;
+        (vector[0], vector[1], vector[2])
+    }};
+}
+
 pub trait Compiled {
     fn compile_into(&self, program: &mut Program, environment: &mut Bookkeeping, keep_result: bool);
     fn compile(&self, program: &mut Program, environment: &mut Bookkeeping) {
@@ -332,8 +347,8 @@ impl Compiled for AST {
             }
 
             AST::Conditional { condition, consequent, alternative } => {
-                let consequent_label_index = program.generate_new_label_name("if_consequent");
-                let end_label_index = program.generate_new_label_name("if_end");
+                let (consequent_label_index, end_label_index) =
+                    unpack!((_,_) from program.generate_new_label_names(vec!["if_consequent", "if_end"]));
 
                 (**condition).compile_into(program, environment, true);
                 program.emit_code(OpCode::Branch { label: consequent_label_index} );
@@ -345,8 +360,8 @@ impl Compiled for AST {
             }
 
             AST::Loop { condition, body } => {
-                let body_label_index = program.generate_new_label_name("loop_body");
-                let condition_label_index = program.generate_new_label_name("loop_condition");
+                let (body_label_index, condition_label_index)
+                    = unpack!((_,_) from program.generate_new_label_names(vec!["loop_body", "loop_condition"]));
 
                 program.emit_code(OpCode::Jump { label: condition_label_index });
                 program.emit_code(OpCode::Label { name: body_label_index });
@@ -559,7 +574,7 @@ impl Compiled for AST {
 
             AST::OperatorDefinition { operator, parameters, body } => {
                 let name = operator.to_str();
-                let end_label_index = program.generate_new_label_name("function_guard"); // FIXME merge with FunctionDefinition
+                let end_label_index = unpack!((_) from program.generate_new_label_names(vec!["function_guard"])); // FIXME merge with FunctionDefinition
 
                 program.emit_code(OpCode::Jump { label: end_label_index });
                 let start_address = program.get_upcoming_address();
@@ -591,7 +606,7 @@ impl Compiled for AST {
             }
 
             AST::FunctionDefinition { function: Identifier(name), parameters, body } => {
-                let end_label_index = program.generate_new_label_name("function_guard");
+                let end_label_index = unpack!((_) from program.generate_new_label_names(vec!["function_guard"]));
 
                 program.emit_code(OpCode::Jump { label: end_label_index });
                 let start_address = program.get_upcoming_address();
@@ -728,8 +743,8 @@ impl Compiled for AST {
             }
 
             AST::Top (children) => {
-                let function_name_index = program.generate_new_label_name("^");
-                let end_label_index = program.generate_new_label_name("$");
+                let (function_name_index, end_label_index )
+                    = unpack!((_,_) from program.generate_new_label_names(vec!["^", "$"]));
 
                 program.emit_code(OpCode::Jump { label: end_label_index });
                 let start_address = program.get_upcoming_address();
@@ -765,7 +780,8 @@ fn compile_function_definition(name: &str,
                                program: &mut Program,
                                environment: &mut Bookkeeping) -> ConstantPoolIndex {
 
-    let end_label_index = program.generate_new_label_name("function_guard");
+    let end_label_index =
+        unpack!((_) from program.generate_new_label_names(vec!["function_guard"]));
     program.emit_code(OpCode::Jump { label: end_label_index });
 
     let expected_arguments = parameters.len() + if receiver { 1 } else { 0 };

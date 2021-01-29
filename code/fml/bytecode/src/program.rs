@@ -131,9 +131,49 @@ impl Code {
 }
 
 #[derive(PartialEq,Debug,Clone)]
+pub struct Labels {
+    labels: HashMap<String, Address>,
+    groups: usize,
+}
+
+impl Labels {
+    pub fn new() -> Self {
+        Labels { labels: HashMap::new(), groups: 0 }
+    }
+    pub fn from(labels: HashMap<String, Address>) -> Self {
+        let groups = labels.iter().flat_map(|(label, _)| {
+            label.split("_").last().map(|s| {
+                s.parse::<usize>().map_or(None, |n| Some(n))
+            }).flatten()
+        }).max().unwrap_or(0);
+        Labels { labels, groups }
+    }
+    pub fn generate_label<S>(&mut self, name: S) -> Option<String> where S: Into<String> {
+        let label = format!("{}_{}", name.into(), self.groups);
+        if self.labels.contains_key(&label) {
+            None
+        } else {
+            Some(label)
+        }
+    }
+    pub fn register_label_address<S>(&mut self, name: S, address: Address) -> Option<Address> where S: Into<String> {
+        self.labels.insert(name.into(), address)
+    }
+    pub fn new_group(&mut self) {
+        self.groups = self.groups + 1
+    }
+    pub fn get_label_address(&self, name: &str) -> Option<&Address> {
+        self.labels.get(name)
+    }
+    pub fn all(&self) -> &HashMap<String, Address> {
+        &self.labels
+    }
+}
+
+#[derive(PartialEq,Debug,Clone)]
 pub struct Program {
     code: Code,
-    labels: HashMap<String, Address>,
+    labels: Labels,
     constants: Vec<ProgramObject>,
     globals: Vec<ConstantPoolIndex>,
     entry: ConstantPoolIndex,
@@ -154,14 +194,14 @@ impl Program {
     pub fn empty() -> Program {
         Program {
             code: Code::new(),
-            labels: HashMap::new(),
+            labels: Labels::new(),
             constants: Vec::new(),
             globals: Vec::new(),
             entry: ConstantPoolIndex::new(0) // FIXME
         }
     }
 
-    fn labels_from_code(code: &Code, constants: &Vec<ProgramObject>) -> HashMap<String, Address> {
+    fn labels_from_code(code: &Code, constants: &Vec<ProgramObject>) -> Labels {
         let mut labels: HashMap<String, Address> = HashMap::new();
         for (i, opcode) in code.opcodes.iter().enumerate() {
             if let OpCode::Label { name: index } = opcode {
@@ -185,7 +225,7 @@ impl Program {
                 labels.insert(name.to_string(), Address::from_usize(i));
             };
         }
-        labels
+        Labels::from(labels)
     }
 
     pub fn code(&self) -> &Code {
@@ -194,6 +234,10 @@ impl Program {
 
     pub fn constants(&self) -> &Vec<ProgramObject> {
         &self.constants
+    }
+
+    pub fn labels(&self) -> &HashMap<String, Address> {
+        &self.labels.all()
     }
 
     pub fn globals(&self) -> &Vec<ConstantPoolIndex> {
@@ -213,7 +257,7 @@ impl Program {
     }
 
     pub fn get_label(&self, name: &str) -> Option<&Address> {
-        self.labels.get(name)
+        self.labels.get_label_address(name)
     }
 
     //-----------
@@ -246,14 +290,28 @@ impl Program {
 //        index
 //    }
 
-    pub fn generate_new_label_name(&mut self, name: &str) -> ConstantPoolIndex {
-        let label = format!("{}_{}", name, self.labels.len());
-        assert!(!self.labels.contains_key(&label));
+    // pub fn generate_new_label_name(&mut self, name: &str) -> ConstantPoolIndex {
+    //     let label = self.labels.generate_label(name).unwrap();
+    //     self.labels.new_group();
+    //     let constant = ProgramObject::String(label);
+    //     let index = self.register_constant(constant);
+    //
+    //     index
+    // }
 
-        let constant = ProgramObject::String(label);
-        let index = self.register_constant(constant);
+    pub fn generate_new_label_names(&mut self, names: Vec<&str>) -> Vec<ConstantPoolIndex> {
+        let labels: Vec<String> = names.into_iter()
+            .map(|name| self.labels.generate_label(name))
+            .map(|label| label.unwrap())
+            .collect();
 
-        index
+        self.labels.new_group();
+
+        labels.into_iter()
+            .map(|label| {
+                self.register_constant(ProgramObject::String(label.clone()))
+            })
+            .collect()
     }
 
     pub fn get_current_address(&self) -> Address {
@@ -284,12 +342,12 @@ impl Program {
                 match constant {
                     Some(ProgramObject::String(name)) => {
                         let name = name.to_owned();
-                        let result = self.labels.insert(name, address);                 // FIXME
+                        let result = self.labels.register_label_address(name, address);
 
                         if result.is_some() {
-                            panic!("Emit code error: cannot create label {:?}, \
-                                              name {:?} already used by another label.",
-                                                  opcode, self.get_constant(&index))
+                             panic!("Emit code error: cannot create label {:?}, \
+                                               name {:?} already used by another label.",
+                                                   opcode, self.get_constant(&index))
                         }
                     },
                     Some(object) => panic!("Emit code error: cannot create label, \

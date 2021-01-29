@@ -188,9 +188,9 @@ ParenthesizedExpression: AST = {
 }
 
 Member: AST = {
-    Assignment<"open">         => <>,
-    FunctionDefinition<"open"> => <>,
-    OperatorDefinition<"open"> => <>,
+    Assignment<"open">            => <>,
+    FunctionDefinition<"open">    => <>,
+    OperatorDefinition<"open">    => <>,
 }
 
 Conditional<openness>: AST = {
@@ -255,11 +255,18 @@ Loop<openness>: AST = {
 }
 
 FunctionDefinition<openness>: AST = {
-    FUNCTION <id: Ident> <parameters: Parameters> RARROW <body: Expression<openness>> =>
+    FUNCTION <id: IdentOrPrint> <parameters: Parameters> RARROW <body: Expression<openness>> =>
         AST::FunctionDefinition{function: id,
                                 parameters: parameters,
                                 body: Box::new(body)}
 }
+
+//PrintMethodDefinition<openness>: AST = {
+//    FUNCTION PRINT <parameters: Parameters> RARROW <body: Expression<openness>> =>
+//        AST::FunctionDefinition{function: Identifier::from("print"),
+//                                parameters: parameters,
+//                                body: Box::new(body)}
+//}
 
 OperatorDefinition<openness>: AST = {
     FUNCTION <operator: Operator> <parameters: Parameters> RARROW <body: Expression<openness>> =>
@@ -276,13 +283,18 @@ Parameters: Vec<Identifier> = {
         }
 }
 
+IdentOrPrint: Identifier = {
+    Ident => <>,
+    PRINT => Identifier::from("print"),
+}
+
 Application: AST = {
     <function: Ident> LPAREN <arguments: Arguments> RPAREN => {
         let boxed_arguments: Vec<Box<AST>> =
             arguments.into_iter().map(|e| Box::new(e)).collect();
         AST::FunctionCall{function: function, arguments: boxed_arguments}
     },
-    <object: Accessible> DOT <fields: (<Ident> DOT)*> <method: Ident> LPAREN <arguments: Arguments> RPAREN => {
+    <object: Accessible> DOT <fields: (<Ident> DOT)*> <method: IdentOrPrint> LPAREN <arguments: Arguments> RPAREN => {
         let tail = Vec::from(fields);
         let host:AST = tail.into_iter().fold(object, |left, right| AST::FieldAccess {object: Box::new(left), field: right});
         let boxed_arguments: Vec<Box<AST>> = arguments.into_iter().map(|e| Box::new(e)).collect();

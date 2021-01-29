@@ -990,7 +990,7 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
             };
 
             state.set_instruction_pointer_from_label(program, name)
-                .expect(&format!("Jump error: no such label {:?}", name));
+                .expect(&format!("Jump error: no such label {:?} (labels: {:?})", name, program.labels()));
         }
 
         OpCode::Branch { label } => {
