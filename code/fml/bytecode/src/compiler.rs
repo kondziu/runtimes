@@ -659,7 +659,7 @@ impl Compiled for AST {
                     AST::VariableDefinition { name: Identifier(name), value } => {
                         (*value).compile_into(program, environment, true);
                         let index = program.register_constant(ProgramObject::from_str(name));
-                        program.register_constant(ProgramObject::slot_from_index(index)
+                        program.register_constant(ProgramObject::slot_from_index(index))
                     },
                     _ => panic!("Object definition: cannot define a member from {:?}", m)
                 }).collect();
