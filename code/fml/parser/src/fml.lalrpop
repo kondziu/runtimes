@@ -255,14 +255,14 @@ Loop<openness>: AST = {
 }
 
 FunctionDefinition<openness>: AST = {
-    FUNCTION <id: Ident> <parameters: Parameters> LARROW <body: Expression<openness>> =>
+    FUNCTION <id: Ident> <parameters: Parameters> RARROW <body: Expression<openness>> =>
         AST::FunctionDefinition{function: id,
                                 parameters: parameters,
                                 body: Box::new(body)}
 }
 
 OperatorDefinition<openness>: AST = {
-    FUNCTION <operator: Operator> <parameters: Parameters> LARROW <body: Expression<openness>> =>
+    FUNCTION <operator: Operator> <parameters: Parameters> RARROW <body: Expression<openness>> =>
         AST::OperatorDefinition{operator: operator,
                                 parameters: parameters,
                                 body: Box::new(body)}

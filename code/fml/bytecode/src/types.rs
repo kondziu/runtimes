@@ -10,8 +10,8 @@ use std::io::{Read, Write};
 #[derive(PartialEq,Debug,Copy,Clone)] pub struct AddressRange { start: Address, length: usize }
 
 impl Arity             { pub fn new(value: u8)  -> Arity             { Arity(value)             }}
-impl Size              { pub fn new(value: u16) -> Size              { Size(value)              }}
-impl LocalFrameIndex   { pub fn new(value: u16) -> LocalFrameIndex   { LocalFrameIndex(value)   }}
+impl Size              { #[allow(dead_code)] pub fn new(value: u16) -> Size              { Size(value)              }}
+impl LocalFrameIndex   { #[allow(dead_code)] pub fn new(value: u16) -> LocalFrameIndex   { LocalFrameIndex(value)   }}
 impl ConstantPoolIndex { pub fn new(value: u16) -> ConstantPoolIndex { ConstantPoolIndex(value) }}
 
 impl Arity {
@@ -53,6 +53,7 @@ impl AddressRange {
         AddressRange { start, length }
     }
 
+    #[allow(dead_code)]
     pub fn from (start: usize, length: usize) -> Self {
         AddressRange { start: Address::from_usize(start), length }
     }
@@ -91,6 +92,7 @@ impl Size               { pub fn value(&self) -> u16 { self.0 } }
 impl Arity              { pub fn value(&self) -> u8  { self.0 } }
 
 impl Address {
+    #[allow(dead_code)]
     pub fn from_u32(value: u32) -> Address {
         Address(value)
     }
@@ -119,10 +121,12 @@ impl Serializable for Arity {
 }
 
 impl Arity {
+    #[allow(dead_code)]
     pub fn serialize_plus_one<W: Write> (&self, sink: &mut W) -> () {
         assert!(self.0 < 255u8);
         serializable::write_u8(sink, self.0 + 1)
     }
+    #[allow(dead_code)]
     pub fn from_bytes_minus_one<R: Read>(input: &mut R) -> Self {
         println!("Arity::from_bytes");
         let value = serializable::read_u8(input);

@@ -256,6 +256,7 @@ pub enum OpCode {
      *
      * Serialized as opcode `0xFF`.
      */
+    #[allow(dead_code)]
     Skip,
 }
 

@@ -76,6 +76,7 @@ pub fn read_u16_vector<R: Read>(reader: &mut R) -> Vec<u16> {
     ints
 }
 
+#[allow(dead_code)]
 pub fn read_u32_vector<R: Read>(reader: &mut R) -> Vec<u32> {
     let length = read_u16_as_usize(reader);
     let mut ints = vec![0u32; length];
@@ -139,6 +140,7 @@ pub fn write_u16_vector<R: Write>(writer: &mut R, vector: &Vec<u16>) -> () {
     }
 }
 
+#[allow(dead_code)]
 pub fn write_u32_vector<R: Write>(writer: &mut R, vector: &Vec<u32>) -> () {
     write_usize_as_u16(writer, vector.len());
     for e in vector {

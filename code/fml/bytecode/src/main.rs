@@ -425,7 +425,6 @@ mod interpreter_test {
     use crate::objects::{ProgramObject, Pointer, Object};
     use crate::interpreter::{State, interpret, LocalFrame, Memory};
     use std::collections::HashMap;
-    use std::io::Write;
 
     macro_rules! hashmap {
         ($key: expr, $value: expr) => {{
@@ -560,7 +559,7 @@ mod interpreter_test {
         let mut output: String = String::new();
 
         let pointer = state.allocate(Object::from_i32(666));
-        state.register_global("skippy".to_string(), pointer);
+        state.register_global("skippy".to_string(), pointer).unwrap();
 
         interpret(&mut state, &mut output, &program);
 
@@ -587,7 +586,7 @@ mod interpreter_test {
         let mut output: String = String::new();
 
         state.allocate_and_push_operand(Object::from_i32(42));
-        state.allocate_and_register_global("skippy".to_string(), Object::from_i32(666));
+        state.allocate_and_register_global("skippy".to_string(), Object::from_i32(666)).unwrap();
 
         interpret(&mut state, &mut output, &program);
 

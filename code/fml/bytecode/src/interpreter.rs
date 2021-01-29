@@ -88,6 +88,7 @@ impl LocalFrame {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from(return_address: Option<Address>, slots: Vec<Pointer>) -> Self {
         LocalFrame {
             return_address,
@@ -117,6 +118,7 @@ impl LocalFrame {
         }
     }
 
+    #[allow(dead_code)]
     pub fn push_local(&mut self, local: Pointer) -> LocalFrameIndex {
         self.slots.push(local);
         assert!(self.slots.len() <= 65_535usize);
@@ -166,6 +168,7 @@ impl Memory {
         Memory { objects: HashMap::new(), sequence: 0 }
     }
 
+    #[allow(dead_code)]
     pub fn from(objects: Vec<Object>) -> Self {
         let mut sequence = 0;
         let mut object_map = HashMap::new();
@@ -206,6 +209,7 @@ impl Memory {
         }
     }
 
+    #[allow(dead_code)]
     pub fn write_over(&mut self, pointer: Pointer, object: Object) -> Result<(),String> {
         let previous_value = self.objects.insert(pointer, object);
         match previous_value {
@@ -339,6 +343,7 @@ impl State {
         }
     }
 
+    #[allow(dead_code)]
     pub fn empty() -> Self {
         State {
             instruction_pointer: None,
@@ -350,6 +355,7 @@ impl State {
         }
     }
 
+    #[allow(dead_code)]
     pub fn minimal() -> Self {
         State {
             instruction_pointer: Some(Address::from_usize(0)),
@@ -415,10 +421,12 @@ impl State {
         self.functions.get(name)
     }
 
+    #[allow(dead_code)]
     pub fn get_global(&self, name: &str) -> Option<&Pointer> {
         self.globals.get(name)
     }
 
+    #[allow(dead_code)]
     pub fn register_global(&mut self, name: String, object: Pointer) -> Result<(), String> {
         if self.globals.contains_key(&name) {
             Err(format!("Global {} already registered (with value {:?})",
@@ -429,6 +437,7 @@ impl State {
         }
     }
 
+    #[allow(dead_code)]
     pub fn allocate_and_register_global(&mut self, name: String, object: Object) -> Result<(), String> {
         let pointer = self.allocate(object);
         self.register_global(name, pointer)
@@ -448,6 +457,7 @@ impl State {
         }
     }
 
+    #[allow(dead_code)]
     pub fn push_global_to_operand_stack(&mut self, name: &str) -> Result<(), String> {
         let global = self.get_global(name).map(|e| e.clone());
         match global {
@@ -481,23 +491,24 @@ impl State {
         self.memory.copy(pointer)
     }
 
+    #[allow(dead_code)]
     pub fn pass_by_value_or_reference(&mut self, pointer: &Pointer) -> Option<Pointer> {
-        let object = self.dereference(pointer);
+        let object = self.dereference(pointer).map(|e| e.clone());
 
         if object.is_none() {
             return None
         }
 
-        let pass_by_value = match object.unwrap() {
+        let pass_by_value = object.as_ref().map_or(false, |e| match e {
             Object::Object { parent:_, methods:_, fields:_ } => false,
             Object::Array(_) => false,
             Object::Integer(_) => true,
             Object::Boolean(_) => true,
             Object::Null => true,
-        };
+        });
 
         if pass_by_value {
-            Some(self.allocate(object.unwrap().clone()))
+            Some(self.allocate(object.unwrap()))
         } else {
             Some(*pointer)
         }
@@ -749,10 +760,11 @@ pub fn interpret<Output>(state: &mut State, output: &mut Output, /*memory: &mut 
 
             match operand {
                 Object::Object { parent:_, fields, methods:_ } => {
-                    let slot: &Pointer = fields.get(name)
-                        .expect(&format!("Get slot error: no field {} in object", name));
+                    let slot: Pointer = fields.get(name)
+                        .expect(&format!("Get slot error: no field {} in object", name))
+                        .clone();
 
-                    state.push_operand(slot.clone())
+                    state.push_operand(slot)
                 }
                 _ => panic!("Get slot error: attempt to access field of a non-object {:?}", operand)
             }; // this semicolon turns the expression into a statement and is *important* because of
@@ -1060,7 +1072,7 @@ macro_rules! push_result_and_finish {
 
 macro_rules! push_pointer_and_finish {
     ($result: expr, $state: expr, $program: expr) => {{
-        $state.push_operand(*$result);
+        $state.push_operand($result);
         $state.bump_instruction_pointer($program);
     }}
 }
@@ -1170,7 +1182,7 @@ pub fn interpret_array_method(pointer: Pointer, name: &str, arguments: &Vec<Poin
             },
             _ => panic!("Call method error: object {:?} has no method {} for operand {:?}",
                          object, name, operand),
-        };
+        }.clone();
 
         push_pointer_and_finish!(result, state, program);
     }

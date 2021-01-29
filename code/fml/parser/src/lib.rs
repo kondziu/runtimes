@@ -79,14 +79,14 @@ mod tests {
     }
 
     #[test] fn test_function_no_args() {
-        parse_ok("function f () <- 1",
+        parse_ok("function f () -> 1",
                  AST::FunctionDefinition {
                      function: Identifier::from("f"),
                      parameters: vec!(),
                      body: Box::new(AST::Number(1))}); }
 
     #[test] fn test_function_one_arg() {
-        parse_ok("function f (x) <- x",
+        parse_ok("function f (x) -> x",
                  AST::FunctionDefinition {
                      function: Identifier::from("f"),
                      parameters: vec!(Identifier::from("x")),
@@ -94,7 +94,7 @@ mod tests {
     }
 
     #[test] fn test_function_many_args() {
-        parse_ok("function f (x, y, z) <- x",
+        parse_ok("function f (x, y, z) -> x",
                  AST::FunctionDefinition {
                      function: Identifier::from("f"),
                      parameters: vec!(Identifier::from("x"),
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn test_object_with_one_method() {
-        parse_ok("object begin function m (x, y, z) <- y; end",
+        parse_ok("object begin function m (x, y, z) -> y; end",
                  AST::ObjectDefinition {
                      extends: None,
                      members: vec!(Box::new(
@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     fn test_object_with_an_operator() {
-        parse_ok("object begin function + (y) <- y; end",
+        parse_ok("object begin function + (y) -> y; end",
                  AST::ObjectDefinition {
                      extends: None,
                      members: vec!(Box::new(
@@ -345,9 +345,9 @@ mod tests {
         parse_ok("object begin \
                     let a = x; \
                     let b = true; \
-                    function m (x, y, z) <- y; \
-                    function id (x) <- x; \
-                    function me () <- this; \
+                    function m (x, y, z) -> y; \
+                    function id (x) -> x; \
+                    function me () -> this; \
                 end",
                  AST::ObjectDefinition {
                      extends: None,
@@ -822,10 +822,10 @@ mod tests {
     }
 
     #[test] fn test_comment() {
-        parse_ok("(* a *)", AST::Unit);
+        parse_ok("/* a */", AST::Unit);
     }
     #[test] fn test_comment_in_expression() {
-        parse_ok("1 + (* a *) 2",
+        parse_ok("1 + /* a */ 2",
                  AST::Operation {
                      operator: Operator::Addition,
                      left: Box::new(AST::Number(1)),
@@ -833,6 +833,6 @@ mod tests {
     }
 
     #[test] fn test_multiline_comment() {
-        parse_ok("(* \n\n\n *)", AST::Unit);
+        parse_ok("/* \n\n\n */", AST::Unit);
     }
 }

@@ -7,7 +7,6 @@ use crate::types::{LocalFrameIndex, ConstantPoolIndex, Arity, Size, AddressRange
 use std::collections::{HashMap, HashSet};
 use crate::bytecode::OpCode::Literal;
 use std::ops::Deref;
-use fml_ast::AST::VariableAccess;
 
 pub fn compile(ast: &AST) -> Program {
     let mut program: Program = Program::empty();
@@ -30,6 +29,7 @@ impl LocalFrame {
         LocalFrame { locals: HashMap::new(), scopes: vec!(0), scope_sequence: 0 }
     }
 
+    #[allow(dead_code)]
     fn from_locals(locals: Vec<String>) -> Self {
         let mut local_map: HashMap<(Scope, String), LocalFrameIndex> = HashMap::new();
 
@@ -119,12 +119,13 @@ pub struct Bookkeeping { // TODO rename
     top: LocalFrame,
 }
 
-enum VariableIndex {
-    Global(ConstantPoolIndex),
-    Local(LocalFrameIndex),
-}
+// enum VariableIndex {
+//     Global(ConstantPoolIndex),
+//     Local(LocalFrameIndex),
+// }
 
 impl Bookkeeping {
+    #[allow(dead_code)]
     pub fn with_frame() -> Bookkeeping {
         Bookkeeping {
             frames: vec!(LocalFrame::new()),
@@ -141,6 +142,7 @@ impl Bookkeeping {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from(locals: Vec<String>, globals: Vec<String>) -> Bookkeeping {
         Bookkeeping {
             frames: vec!(LocalFrame::from_locals(locals)),
@@ -149,6 +151,7 @@ impl Bookkeeping {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_locals(locals: Vec<String>) -> Bookkeeping {
         Bookkeeping {
             frames: vec!(LocalFrame::from_locals(locals)),
@@ -157,6 +160,7 @@ impl Bookkeeping {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_globals(globals: Vec<String>) -> Bookkeeping {
         Bookkeeping {
             frames: vec!(),
@@ -241,6 +245,7 @@ impl Bookkeeping {
         }
     }
 
+    #[allow(dead_code)]
     fn generate_new_local(&mut self, name: &str) -> LocalFrameIndex {
         if self.frames.is_empty() {
             self.top.generate_new_local(name)
@@ -630,6 +635,16 @@ impl Compiled for AST {
 
             AST::ObjectDefinition { extends, members } => {
 
+                match extends {
+                    Some(parent) => {
+                        (**parent).compile_into(program, environment, true)
+                    },
+                    None => {
+                        let index = program.register_constant(ProgramObject::Null);
+                        program.emit_code(Literal { index })
+                    },
+                }
+
                 let slots: Vec<ConstantPoolIndex> = members.iter().map(|m| m.deref()).map(|m| match m {
                     AST::FunctionDefinition { function, parameters, body } => {
                         compile_function_definition(function.to_str(), true, parameters, body.deref(),
@@ -642,7 +657,7 @@ impl Compiled for AST {
 
                     }
                     AST::VariableDefinition { name: Identifier(name), value } => {
-                        (*value).compile_into(program, environment, false);
+                        (*value).compile_into(program, environment, true);
                         let index = program.register_constant(ProgramObject::from_str(name));
                         program.register_constant(ProgramObject::slot_from_index(index))
                     },
@@ -651,16 +666,6 @@ impl Compiled for AST {
 
                 let class = ProgramObject::Class(slots);
                 let class_index = program.register_constant(class);
-
-                match extends {
-                    Some(parent) => {
-                        (**parent).compile_into(program, environment, true)
-                    },
-                    None => {
-                        let index = program.register_constant(ProgramObject::Null);
-                        program.emit_code(Literal { index })
-                    },
-                }
 
                 program.emit_code(OpCode::Object { class: class_index });
                 program.emit_conditionally(OpCode::Drop, !keep_result);

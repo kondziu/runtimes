@@ -5,7 +5,6 @@ use std::io::{Write, Read};
 use crate::serializable;
 use crate::bytecode::OpCode;
 use std::collections::HashMap;
-use std::error::Error;
 
 /**
  * The instruction pointer contains the address of the instruction that will be executed next.
@@ -83,6 +82,7 @@ impl Code {
         Code { opcodes: Vec::new() }
     }
 
+    #[allow(dead_code)]
     pub fn from(opcodes: Vec<OpCode>) -> Code {
         Code { opcodes }
     }
@@ -140,6 +140,7 @@ pub struct Program {
 }
 
 impl Program {
+    #[allow(dead_code)]
     pub fn new(code: Code,
                constants: Vec<ProgramObject>,
                globals: Vec<ConstantPoolIndex>,
@@ -282,7 +283,8 @@ impl Program {
                 let constant = self.get_constant(&index);
                 match constant {
                     Some(ProgramObject::String(name)) => {
-                        let result = self.labels.insert(name.to_string(), address);                 // FIXME
+                        let name = name.to_owned();
+                        let result = self.labels.insert(name, address);                 // FIXME
 
                         if result.is_some() {
                             panic!("Emit code error: cannot create label {:?}, \
