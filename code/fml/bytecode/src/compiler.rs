@@ -40,6 +40,17 @@ impl LocalFrame {
         LocalFrame { locals: local_map, scopes: vec!(0), scope_sequence: 0 }
     }
 
+    #[allow(dead_code)]
+    fn from_locals_at(locals: Vec<String>, level: usize) -> Self {
+        let mut local_map: HashMap<(Scope, String), LocalFrameIndex> = HashMap::new();
+
+        for (i, local) in locals.into_iter().enumerate() {
+            local_map.insert((level, local), LocalFrameIndex::from_usize(i));
+        }
+
+        LocalFrame { locals: local_map, scopes: vec!(0), scope_sequence: 0 }
+    }
+
     fn current_scope(&self) -> Scope {
         *self.scopes.last().expect("Cannot pop from empty scope stack")
     }
@@ -155,6 +166,15 @@ impl Bookkeeping {
     pub fn from_locals(locals: Vec<String>) -> Bookkeeping {
         Bookkeeping {
             frames: vec!(LocalFrame::from_locals(locals)),
+            globals: HashSet::new(),
+            top: LocalFrame::new(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn from_locals_at(locals: Vec<String>, level: usize) -> Bookkeeping {
+        Bookkeeping {
+            frames: vec!(LocalFrame::from_locals_at(locals, level)),
             globals: HashSet::new(),
             top: LocalFrame::new(),
         }

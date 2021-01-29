@@ -145,7 +145,7 @@ impl Labels {
             label.split("_").last().map(|s| {
                 s.parse::<usize>().map_or(None, |n| Some(n))
             }).flatten()
-        }).max().unwrap_or(0);
+        }).max().map_or(0, |n| n + 1);
         Labels { labels, groups }
     }
     pub fn generate_label<S>(&mut self, name: S) -> Option<String> where S: Into<String> {

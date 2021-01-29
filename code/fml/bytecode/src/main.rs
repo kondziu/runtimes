@@ -1182,9 +1182,9 @@ mod interpreter_test {
         let mut output: String = String::new();
 
         state.set_instruction_pointer(Some(Address::from_usize(1)));
-        state.allocate_and_push_operand(Object::Null);              // parent
-        state.allocate_and_push_operand(Object::from_i32(42));      // y
+        state.allocate_and_push_operand(Object::Null);                 // parent
         state.allocate_and_push_operand(Object::from_i32(0));       // x
+        state.allocate_and_push_operand(Object::from_i32(42));      // y
 
 
         interpret(&mut state, &mut output, &program);
@@ -1195,10 +1195,10 @@ mod interpreter_test {
         assert_eq!(state.instruction_pointer, Some(Address::from_usize(2)), "test instruction pointer");
         assert_eq!(state.frames, vec!(LocalFrame::empty()), "test frames");
         assert_eq!(state.memory, Memory::from(vec!(Object::Null,
-                                                   Object::from_i32(42),
                                                    Object::from_i32(0),
+                                                   Object::from_i32(42),
                                                    Object::from(Pointer::from(0),
-                                                                hashmap!("x".to_string(), Pointer::from(2), "y".to_string(), Pointer::from(1)),
+                                                                hashmap!("x".to_string(), Pointer::from(1), "y".to_string(), Pointer::from(2)),
                                                                 hashmap!("+".to_string(), ProgramObject::Method {
                                                                                             name: ConstantPoolIndex::new(4),
                                                                                             arguments: Arity::new(1),
@@ -2496,9 +2496,11 @@ mod compiler_tests {
             /* 0 */ OpCode::Jump { label: ConstantPoolIndex::new(1) },
             /* 1 */ OpCode::Label { name: ConstantPoolIndex::new(0) },
             /* 2 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
-            /* 3 */ OpCode::Label { name: ConstantPoolIndex::new(1) },
-            /* 4 */ OpCode::Literal { index: ConstantPoolIndex::new(3) },
-            /* 5 */ OpCode::Branch { label: ConstantPoolIndex::new(0) },
+            /* 3 */ OpCode::Drop,
+            /* 4 */ OpCode::Label { name: ConstantPoolIndex::new(1) },
+            /* 5 */ OpCode::Literal { index: ConstantPoolIndex::new(3) },
+            /* 6 */ OpCode::Branch { label: ConstantPoolIndex::new(0) },
+            /* 7 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
         ));
 
         let expected_constants: Vec<ProgramObject> = vec!(
@@ -2608,52 +2610,57 @@ mod compiler_tests {
 
         ast.compile(&mut program, &mut bookkeeping);
 
-        let expected_bookkeeping = Bookkeeping::from_locals(vec!(
-            "?size_0".to_string(),
-            "?array_1".to_string(),
-            "?i_2".to_string()));
+        let expected_bookkeeping = Bookkeeping::from_locals_at(vec!(
+            "::array".to_string(),
+            "::i".to_string(),
+            "::size".to_string()), 1);
 
         let expected_code = Code::from(vec!(
-            OpCode::Literal { index: ConstantPoolIndex::new(2) },   // size
-            OpCode::SetLocal { index: LocalFrameIndex::new(0) },    // ?size
-            OpCode::Literal { index: ConstantPoolIndex::new(3) },   // null
-            OpCode::Array,                                          // array(size, null)
-            OpCode::SetLocal { index: LocalFrameIndex::new(1) },    // ?array
-            OpCode::Literal { index: ConstantPoolIndex::new(4) },   // 0
-            OpCode::SetLocal { index: LocalFrameIndex::new(2) },    // ?i
-            OpCode::Label { name: ConstantPoolIndex::new(0) },      // label start
-            OpCode::GetLocal { index: LocalFrameIndex::new(0) },    // ?size
-            OpCode::CallMethod { name: ConstantPoolIndex::new(5),
-                                 arguments: Arity::new(2) },        // ?i.ge(?size)
-            OpCode::Branch { label: ConstantPoolIndex::new(1) },    // if true goto end
-            OpCode::GetLocal { index: LocalFrameIndex::new(2) },    // ?i
-            OpCode::CallFunction { name: ConstantPoolIndex::new(6),
-                                   arguments: Arity::new(0) },      // value
-            OpCode::CallMethod { name: ConstantPoolIndex::new(7),
-                                 arguments: Arity::new(3) },        // ?array[?i] = value
+            OpCode::Literal { index: ConstantPoolIndex::new(0) },   // 10
+            OpCode::SetLocal { index: LocalFrameIndex::new(0) },    // size = 10
             OpCode::Drop,
-            OpCode::Literal { index: ConstantPoolIndex::new(8) },   // 1
-            OpCode::GetLocal { index: LocalFrameIndex::new(2) },    // ?i
-            OpCode::CallMethod { name: ConstantPoolIndex::new(9),
-                                 arguments: Arity::new(2) },        // ?i + 1
-            OpCode::SetLocal { index: LocalFrameIndex::new(2) },    // ?i = ?i + 1
+            OpCode::GetLocal { index: LocalFrameIndex::new(0) },    // ?size = 10
+            OpCode::Literal { index: ConstantPoolIndex::new(1) },   // null
+            OpCode::Array,                                                // array(size = 10, null)
+            OpCode::SetLocal { index: LocalFrameIndex::new(1) },    // arr = array(size = 10, null)
             OpCode::Drop,
-            OpCode::GetLocal { index: LocalFrameIndex::new(1) },    // ?array
-            OpCode::Jump { label: ConstantPoolIndex::new(0) },      // goto start
-            OpCode::Label { name: ConstantPoolIndex::new(1) },      // label end
+
+            OpCode::Literal { index: ConstantPoolIndex::new(2) },   // 0
+            OpCode::SetLocal { index: LocalFrameIndex::new(2) },    // i = 0
+            OpCode::Drop,
+            OpCode::Jump { label: ConstantPoolIndex::new(4) },      // jump to loop_condition_0
+
+            OpCode::Label { name: ConstantPoolIndex::new(3) },      // label loop_body_0:
+            OpCode::GetLocal { index: LocalFrameIndex::new(1) },    // arr
+            OpCode::GetLocal { index: LocalFrameIndex::new(2) },    // i
+            OpCode::CallFunction { name: ConstantPoolIndex::new(5), arguments: Arity::new(0) }, // call f() -> result on stack
+            OpCode::CallMethod { name: ConstantPoolIndex::new(6), arguments: Arity::new(3) },   // call arr.set(i, result of f())
+            OpCode::Drop,
+            OpCode::GetLocal { index: LocalFrameIndex::new(2) },                         // i
+            OpCode::Literal { index: ConstantPoolIndex::new(8) },                        // 1
+            OpCode::CallMethod { name: ConstantPoolIndex::new(7), arguments: Arity::new(2) }, // i + 1
+            OpCode::SetLocal { index: LocalFrameIndex::new(2) },                         // i = i + 1
+            OpCode::Drop,
+
+            OpCode::Label { name: ConstantPoolIndex::new(4) },                           // label loop_condition_0:
+            OpCode::GetLocal { index: LocalFrameIndex::new(2) },                         // i
+            OpCode::GetLocal { index: LocalFrameIndex::new(0) },                         // size
+            OpCode::CallMethod { name: ConstantPoolIndex::new(9), arguments: Arity::new(2) }, // i < size
+            OpCode::Branch { label: ConstantPoolIndex::new(3) },                         // conditional jump to loop_body_0
+            OpCode::GetLocal { index: LocalFrameIndex::new(1) },                         // arr
         ));
 
         let expected_constants: Vec<ProgramObject> = vec!(
-            /* 0 */ ProgramObject::from_str("array_init_start_0"),
-            /* 1 */ ProgramObject::from_str("array_init_end_0"),
-            /* 2 */ ProgramObject::from_i32(10),
-            /* 3 */ ProgramObject::Null,
-            /* 4 */ ProgramObject::from_i32(0),
-            /* 5 */ ProgramObject::from_str("ge"),
-            /* 6 */ ProgramObject::from_str("f"),
-            /* 7 */ ProgramObject::from_str("set"),
+            /* 0 */ ProgramObject::from_i32(10),
+            /* 1 */ ProgramObject::Null,
+            /* 2 */ ProgramObject::Integer(0),
+            /* 3 */ ProgramObject::from_str("loop_body_0"),
+            /* 4 */ ProgramObject::from_str("loop_condition_0"),
+            /* 5 */ ProgramObject::from_str("f"),
+            /* 6 */ ProgramObject::from_str("set"),
+            /* 7 */ ProgramObject::from_str("+"),
             /* 8 */ ProgramObject::from_i32(1),
-            /* 9 */ ProgramObject::from_str("add"),
+            /* 9 */ ProgramObject::from_str("<"),
         );
 
         let expected_globals: Vec<ConstantPoolIndex> = vec!();
@@ -2661,6 +2668,14 @@ mod compiler_tests {
 
         let expected_program =
             Program::new(expected_code, expected_constants, expected_globals, expected_entry);
+
+        println!("Constants:");
+        for (i, constant) in program.constants().iter().enumerate() {
+            println!("#{}: {:?}", i, constant);
+        }
+
+        println!("Program:");
+        program.code().dump();
 
         assert_eq!(program, expected_program);
         assert_eq!(bookkeeping, expected_bookkeeping);
@@ -2978,61 +2993,64 @@ mod compiler_tests {
 
         ast.compile(&mut program, &mut bookkeeping);
 
+        program.code().dump();
+
         let expected_bookkeeping = Bookkeeping::with_frame();
 
         let expected_code = Code::from(vec!(
-            /*  0 */ OpCode::Jump { label: ConstantPoolIndex::new(0) },      // function_guard_0 - implies
-            /*  1 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true
-            /*  2 */ OpCode::Return,
-            /*  3 */ OpCode::Label { name: ConstantPoolIndex::new(0) },      // function_guard_0
+            /*  0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },   // true
+            /*  1 */ OpCode::Jump { label: ConstantPoolIndex::new(1) },      // function_guard_0 - implies
+            /*  2 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },   // true
 
-            /*  4 */ OpCode::Literal { index: ConstantPoolIndex::new(4) },   // 1 - slot id
+            /*  3 */ OpCode::Return,
+            /*  4 */ OpCode::Label { name: ConstantPoolIndex::new(1) },      // function_guard_0
 
-            /*  5 */ OpCode::Jump { label: ConstantPoolIndex::new(7) },      // function_guard_1 - identity
-            /*  6 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true
-            /*  7 */ OpCode::Return,
-            /*  8 */ OpCode::Label { name: ConstantPoolIndex::new(7) },      // function_guard_1
+            /*  5 */ OpCode::Literal { index: ConstantPoolIndex::new(4) },   // 1 - slot id
 
-            /*  9 */ OpCode::Jump { label: ConstantPoolIndex::new(10) },     // function_guard_2 - or
-            /* 10 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true
-            /* 11 */ OpCode::Return,
-            /* 12 */ OpCode::Label { name: ConstantPoolIndex::new(10) },     // function_guard_2
+            /*  6 */ OpCode::Jump { label: ConstantPoolIndex::new(7) },      // function_guard_1 - identity
+            /*  7 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },   // true
+            /*  8 */ OpCode::Return,
+            /*  9 */ OpCode::Label { name: ConstantPoolIndex::new(7) },      // function_guard_1
 
-            /* 13 */ OpCode::Jump { label: ConstantPoolIndex::new(13) },     // function_guard_3 - or
-            /* 14 */ OpCode::GetLocal { index: LocalFrameIndex::new(1) },    // x
-            /* 15 */ OpCode::Return,
-            /* 16 */ OpCode::Label { name: ConstantPoolIndex::new(13) },     // function_guard_3
+            /* 10 */ OpCode::Jump { label: ConstantPoolIndex::new(10) },     // function_guard_2 - or
+            /* 11 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },   // true
+            /* 12 */ OpCode::Return,
+            /* 13 */ OpCode::Label { name: ConstantPoolIndex::new(10) },     // function_guard_2
 
-            /* 17 */ OpCode::Literal { index: ConstantPoolIndex::new(4) },   // 1 - hash
+            /* 14 */ OpCode::Jump { label: ConstantPoolIndex::new(13) },     // function_guard_3 - or
+            /* 15 */ OpCode::GetLocal { index: LocalFrameIndex::new(1) },    // x
+            /* 16 */ OpCode::Return,
+            /* 17 */ OpCode::Label { name: ConstantPoolIndex::new(13) },     // function_guard_3
+
+            /* 18 */ OpCode::Literal { index: ConstantPoolIndex::new(4) },   // 1 - hash
 
             /* 18 */ OpCode::Jump { label: ConstantPoolIndex::new(18) },     // function_guard_4 - +
-            /* 19 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true
-            /* 20 */ OpCode::Return,
-            /* 21 */ OpCode::Label { name: ConstantPoolIndex::new(18) },     // function_guard_4
+            /* 20 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },   // true
+            /* 21 */ OpCode::Return,
+            /* 22 */ OpCode::Label { name: ConstantPoolIndex::new(18) },     // function_guard_4
 
-            /* 22 */ OpCode::Jump { label: ConstantPoolIndex::new(21) },     // function_guard_5 - *
-            /* 23 */ OpCode::GetLocal { index: LocalFrameIndex::new(1) },    // x
-            /* 24 */ OpCode::Return,
-            /* 25 */ OpCode::Label { name: ConstantPoolIndex::new(21) },     // function_guard_5
+            /* 23 */ OpCode::Jump { label: ConstantPoolIndex::new(21) },     // function_guard_5 - *
+            /* 24 */ OpCode::GetLocal { index: LocalFrameIndex::new(1) },    // x
+            /* 25 */ OpCode::Return,
+            /* 26 */ OpCode::Label { name: ConstantPoolIndex::new(21) },     // function_guard_5
 
-            /* 26 */ OpCode::Jump { label: ConstantPoolIndex::new(24) },     // function_guard_6 - me
-            /* 27 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },    // this
-            /* 28 */ OpCode::Return,
-            /* 29 */ OpCode::Label { name: ConstantPoolIndex::new(24) },     // function_guard_6
+            /* 27 */ OpCode::Jump { label: ConstantPoolIndex::new(24) },     // function_guard_6 - me
+            /* 28 */ OpCode::GetLocal { index: LocalFrameIndex::new(0) },    // this
+            /* 29 */ OpCode::Return,
+            /* 30 */ OpCode::Label { name: ConstantPoolIndex::new(24) },     // function_guard_6
 
-            /* 30 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },   // true - parent
             /* 31 */ OpCode::Object { class: ConstantPoolIndex:: new(27) },
         ));
 
         let expected_constants: Vec<ProgramObject> = vec!(
-            /* 00 */ ProgramObject::from_str("function_guard_0"),
-            /* 01 */ ProgramObject::from_bool(true),
+            /* 00 */ ProgramObject::from_bool(true),
+            /* 01 */ ProgramObject::from_str("function_guard_0"),
             /* 02 */ ProgramObject::from_str("implies"),
             /* 03 */ ProgramObject::Method {
                 name: ConstantPoolIndex::new(2),    // implies
                 arguments: Arity::new(1+1),
                 locals: Size::new(0),
-                code: AddressRange::from(1, 2),     // addresses: 1, 2
+                code: AddressRange::from(2, 2),     // addresses: 2, 3
             },
 
             /* 04 */ ProgramObject::from_i32(1),
@@ -3045,7 +3063,7 @@ mod compiler_tests {
                 name: ConstantPoolIndex::new(8),    // identity
                 arguments: Arity::new(0+1),
                 locals: Size::new(0),
-                code: AddressRange::from(6, 2),     // addresses: 6, 7
+                code: AddressRange::from(7, 2),     // addresses: 6, 7
             },
 
             /* 10 */ ProgramObject::from_str("function_guard_2"),
@@ -3054,7 +3072,7 @@ mod compiler_tests {
                 name: ConstantPoolIndex::new(11),    // or
                 arguments: Arity::new(1+1),
                 locals: Size::new(0),
-                code: AddressRange::from(10, 2),     // addresses: 10, 11
+                code: AddressRange::from(11, 2),     // addresses: 10, 11
             },
 
             /* 13 */ ProgramObject::from_str("function_guard_3"),
@@ -3063,7 +3081,7 @@ mod compiler_tests {
                 name: ConstantPoolIndex::new(14),    // and
                 arguments: Arity::new(1+1),
                 locals: Size::new(0),
-                code: AddressRange::from(14, 2),     // addresses: 14, 15
+                code: AddressRange::from(15, 2),     // addresses: 14, 15
             },
 
             /* 16 */ ProgramObject::from_str("hash"),
@@ -3075,7 +3093,7 @@ mod compiler_tests {
                 name: ConstantPoolIndex::new(19),          // +
                 arguments: Arity::new(1+1),
                 locals: Size::new(0),
-                code: AddressRange::from(19, 2),
+                code: AddressRange::from(20, 2),
             },
 
             /* 21 */ ProgramObject::from_str("function_guard_5"),
@@ -3084,7 +3102,7 @@ mod compiler_tests {
                 name: ConstantPoolIndex::new(22),          // *
                 arguments: Arity::new(1+1),
                 locals: Size::new(0),
-                code: AddressRange::from(23, 2),
+                code: AddressRange::from(24, 2),
             },
 
             /* 24 */ ProgramObject::from_str("function_guard_6"),
@@ -3093,7 +3111,7 @@ mod compiler_tests {
                 name: ConstantPoolIndex::new(25),          // *
                 arguments: Arity::new(1),
                 locals: Size::new(0),
-                code: AddressRange::from(27, 2),
+                code: AddressRange::from(28, 2),
             },
 
             /* 27 */ ProgramObject::class_from_vec(vec!(3, 6, 9, 12, 15, 17, 20, 23, 26)),
@@ -3105,8 +3123,13 @@ mod compiler_tests {
         let expected_program =
             Program::new(expected_code, expected_constants, expected_globals, expected_entry);
 
+        println!("Constants:");
+        for (i, constant) in program.constants().iter().enumerate() {
+            println!("#{}: {:?}", i, constant);
+        }
+
+        println!("Program:");
         program.code().dump();
-        program.constants().iter().enumerate().for_each(|(p, o)| println!("{}: {:?}", p, o));
 
         assert_eq!(program, expected_program);
         assert_eq!(bookkeeping, expected_bookkeeping);
@@ -3131,12 +3154,17 @@ mod compiler_tests {
         expected_bookkeeping.leave_scope();
 
         let expected_code = Code::from(vec!(
-            /* 0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
-            /* 1 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },
-            /* 3 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
-            /* 4 */ OpCode::Literal { index: ConstantPoolIndex::new(3) },
-            /* 5 */ OpCode::Literal { index: ConstantPoolIndex::new(4) },
-            /* 6 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
+            /*  0 */ OpCode::Literal { index: ConstantPoolIndex::new(0) },
+            /*  1 */ OpCode::Drop,
+            /*  2 */ OpCode::Literal { index: ConstantPoolIndex::new(1) },
+            /*  3 */ OpCode::Drop,
+            /*  4 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
+            /*  5 */ OpCode::Drop,
+            /*  6 */ OpCode::Literal { index: ConstantPoolIndex::new(3) },
+            /*  7 */ OpCode::Drop,
+            /*  8 */ OpCode::Literal { index: ConstantPoolIndex::new(4) },
+            /*  9 */ OpCode::Drop,
+            /* 10 */ OpCode::Literal { index: ConstantPoolIndex::new(2) },
         ));
 
         let expected_constants: Vec<ProgramObject> = vec!(
