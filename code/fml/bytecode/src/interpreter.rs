@@ -1169,6 +1169,21 @@ pub fn interpret_array_method(pointer: Pointer, name: &str, arguments: &Vec<Poin
                 name, arity.value() - 1, arguments.len())
     }
 
+    // if name == "length" {
+    //     let object = state.dereference(&pointer);
+    //     match object {
+    //         Some(Object::Array(element_pointers)) => {
+    //             let length = element_pointers.len() as i32; // was originally converted from i32 to usize, so should be ok.
+    //             let length_object = Object::from_i32(length);
+    //             let pointer = state.allocate(length_object);
+    //             push_pointer_and_finish!(pointer, state, program);
+    //         },
+    //         None => panic!("Cannot dereference pointer: {:?}, no such object in memory"),
+    //         _ => panic!("Call method error: object {:?} has no method {} for zero operands",
+    //                     object, name),
+    //     }
+    // }
+
     if name == "get" {
         let (object, operand) = check_arguments_one!(pointer, arguments, name, state);
         let result = match (object, operand) {
@@ -1180,7 +1195,7 @@ pub fn interpret_array_method(pointer: Pointer, name: &str, arguments: &Vec<Poin
                 element_pointers.get(*index as usize)
                     .expect("Call method error: no array element object at {:?}")
             },
-            _ => panic!("Call method error: object {:?} has no method {} for operand {:?}",
+            _ => panic!("Call method error: array {:?} has no method {} for operand {:?}",
                          object, name, operand),
         }.clone();
 
@@ -1234,24 +1249,24 @@ fn dispatch_object_method(pointer: Pointer, name: &str, arguments: &Vec<Pointer>
                 }
             },
             Object::Null => {
-                interpret_null_method(pointer, name, arguments, state, program);
+                interpret_null_method(cursor, name, arguments, state, program);
                 break
             },
             Object::Boolean(_) => {
-                interpret_boolean_method(pointer, name, arguments, state, program);
+                interpret_boolean_method(cursor, name, arguments, state, program);
                 break
             },
             Object::Integer(_) => {
-                interpret_integer_method(pointer, name, arguments, state, program);
+                interpret_integer_method(cursor, name, arguments, state, program);
                 break
             },
             Object::Array(_) => {
-                interpret_array_method(pointer, name, arguments, arity, state, program);
+                interpret_array_method(cursor, name, arguments, arity, state, program);
                 break
             },
         };
 
-        interpret_object_method(method, pointer, name, arguments, state, program);
+        interpret_object_method(method, cursor, name, arguments, state, program);
         break
     }
 }
